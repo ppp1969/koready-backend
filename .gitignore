@@ -60,5 +60,8 @@ render.local.yaml
 __pycache__/
 *.py[cod]
 docs/kto-api-probes/[0-9]*/
+docs/kto-api-probes/LATEST.md
 docs/kto-api-analysis/[0-9]*/
+docs/kto-api-analysis/LATEST.md
 docs/kto-api-analysis/supplements/[0-9]*/
+docs/kto-api-analysis/supplements/LATEST.md

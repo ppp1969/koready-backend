@@ -1,7 +1,11 @@
 package koready_backend.config;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
@@ -30,5 +34,24 @@ class HealthEndpointSecurityTests {
 	void nonHealthEndpointIsDeniedUntilAuthenticationIsImplemented() throws Exception {
 		mockMvc.perform(get("/api/v1"))
 			.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void swaggerUiAndTypedContractArePublic() throws Exception {
+		mockMvc.perform(get("/swagger-ui.html"))
+			.andExpect(status().isFound())
+			.andExpect(redirectedUrl("/swagger-ui/index.html"));
+
+		mockMvc.perform(get("/openapi/koready.yaml"))
+			.andExpect(status().isOk())
+			.andExpect(content().string(containsString("TokenEnvelope:")))
+			.andExpect(content().string(containsString("HomeEnvelope:")))
+			.andExpect(content().string(containsString("MessageThreadEnvelope:")))
+			.andExpect(content().string(containsString("RouteFare:")))
+			.andExpect(content().string(containsString("RouteWarning:")))
+			.andExpect(content().string(containsString("/admin/hori-tips:")))
+			.andExpect(content().string(containsString("AdminHoriTipEnvelope:")))
+			.andExpect(content().string(containsString("OPERATOR_CURATED")))
+			.andExpect(content().string(not(containsString("#/components/responses/Success"))));
 	}
 }

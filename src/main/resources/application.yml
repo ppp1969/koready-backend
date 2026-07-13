@@ -26,3 +26,12 @@ info:
   app:
     name: ${spring.application.name}
     version: ${APP_VERSION:local}
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+    url: /openapi/koready.yaml

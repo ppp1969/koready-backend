@@ -20,7 +20,11 @@ public class SecurityConfig {
 			.exceptionHandling(exceptions -> exceptions
 				.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
 			.authorizeHttpRequests(authorize -> authorize
-				.requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+				.requestMatchers(
+					"/actuator/health", "/actuator/health/**",
+					"/openapi/**", "/v3/api-docs/**",
+					"/swagger-ui.html", "/swagger-ui/**")
+				.permitAll()
 				.anyRequest().authenticated());
 
 		return http.build();

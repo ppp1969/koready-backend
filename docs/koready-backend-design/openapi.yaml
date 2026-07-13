@@ -1,0 +1,5477 @@
+openapi: 3.0.3
+info:
+  title: Koready API
+  version: 1.0.0
+  description: |
+    Koready MVP 사용자 API와 OpenAPI 공모전 증빙 관리자 API의 기준 계약입니다.
+
+    각 operation의 설명은 호출 화면, 선행 조건, 성공 후 프론트 행동을 포함합니다.
+    `x-implementation-status=PLANNED`인 API는 Swagger 예제와 mock에만 사용하고 테스트 서버에서 호출하지 않습니다.
+    전체 화면 흐름과 오류 처리 예제는 `10_FRONTEND_API_FLOW_GUIDE.md`를 참고합니다.
+servers:
+  - url: /api/v1
+externalDocs:
+  description: 초보 프론트 개발자를 위한 화면별 호출 흐름과 오류 처리
+  url: https://github.com/ppp1969/koready-backend/blob/main/docs/koready-backend-design/10_FRONTEND_API_FLOW_GUIDE.md
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+    description: 소셜 로그인, token 재발급, 로그아웃
+  - name: Terms
+    description: 가입 약관 조회와 동의 저장
+  - name: User
+    description: 내 정보와 기본 표시 언어
+  - name: Onboarding
+    description: 방문 목적, 위치, 여행 스타일, 관리자 큐레이션 여행지 선택
+  - name: Location
+    description: Kakao 기반 주소·학교·동네 검색과 사용자 저장 위치
+  - name: Home
+    description: 홈 화면 초기 데이터
+  - name: Recommendation
+    description: 월별 추천과 K-Local Pick 추천 덱
+  - name: Place
+    description: 관광지 검색, 권역 목록, 상세, 저장
+  - name: Route
+    description: TMAP 기반 Buddy Route 요약과 상세
+  - name: Buddy
+    description: Buddy 프로필과 장소별 메이트
+  - name: Message
+    description: 실시간 채팅이 아닌 스레드형 쪽지
+  - name: Safety
+    description: 차단, 차단 해제, 신고
+  - name: Admin Curation
+    description: 온보딩 선호 여행지 10개 큐레이션 세트 운영
+  - name: Admin Hori Tip
+    description: 운영진 Hori Tip 작성, 매칭 조건 편집, 활성·비활성·보관
+  - name: Admin OpenAPI
+    description: 외부 API 호출 현황과 원천 snapshot
+  - name: Admin Batch
+    description: 수집 배치와 동기화 cursor
+  - name: Admin Evidence
+    description: 관광공모전 증빙 번들
+  - name: Admin Audit
+    description: 데이터 품질과 관리자 감사 로그
+paths:
+  /auth/social/login:
+    post:
+      tags: [Auth]
+      operationId: socialLogin
+      summary: Google 또는 Apple 로그인
+      description: |
+        **호출 시점:** 사용자가 소셜 로그인 버튼을 누르고 provider token을 받은 직후 호출합니다.
+        **보낼 값:** provider, idToken 또는 authorizationCode, 기기별 deviceId를 보냅니다.
+        **성공 후:** access/refresh token을 보안 저장소에 저장하고 `nextStep` 값으로 약관, 언어, 온보딩, 홈 중 다음 화면을 선택합니다.
+        신규 가입 여부나 다음 화면을 프론트가 직접 계산하지 않습니다.
+      x-implementation-status: PLANNED
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SocialLoginRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/TokenSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshToken
+      summary: 만료된 access token 재발급
+      description: |
+        **호출 시점:** 일반 API가 401을 반환했을 때 interceptor가 한 번만 호출합니다.
+        **보낼 값:** 현재 refreshToken과 로그인 당시 deviceId입니다.
+        **성공 후:** 기존 access/refresh token을 모두 새 값으로 교체하고 실패했던 원 요청을 한 번 재시도합니다.
+        refresh도 401이면 token을 삭제하고 로그인 화면으로 이동합니다.
+      x-implementation-status: PLANNED
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/TokenSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: 현재 기기 로그아웃
+      description: |
+        **호출 시점:** 사용자가 로그아웃을 확정했을 때 호출합니다.
+        **성공 후:** 204 응답에는 body가 없으므로 JSON parsing을 하지 않고 로컬 token, 사용자 cache, 개인 화면 상태를 삭제합니다.
+      x-implementation-status: PLANNED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '204':
+          description: 로그아웃 성공
+  /terms/required:
+    get:
+      tags: [Terms]
+      operationId: getRequiredTerms
+      summary: 현재 적용 약관 조회
+      description: |
+        **호출 시점:** 로그인 응답의 `nextStep=TERMS`이거나 약관 화면에 다시 진입할 때 호출합니다.
+        응답의 termVersionId, required, agreed를 기준으로 체크박스를 구성합니다. 화면 순번을 ID로 사용하지 않습니다.
+      x-implementation-status: PLANNED
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/TermsRequiredSuccess'
+  /users/me/term-agreements:
+    put:
+      tags: [Terms]
+      operationId: updateMyTermAgreements
+      summary: 약관 동의 상태 저장
+      description: |
+        **호출 시점:** 약관 화면에서 다음 버튼을 누를 때 호출합니다.
+        **성공 후:** 언어 선택 화면으로 이동합니다.
+        필수 약관이 거부되면 422 `REQUIRED_TERMS_NOT_AGREED`를 반환하므로 해당 체크박스로 안내합니다.
+      x-implementation-status: PLANNED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TermAgreementsRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/TermAgreementSuccess'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /users/me:
+    get:
+      tags: [User]
+      operationId: getMe
+      summary: 내 계정과 가입 진행 상태 조회
+      description: |
+        **호출 시점:** 앱 재실행 후 사용자 session을 복구하거나 마이 화면을 열 때 호출합니다.
+        응답의 signupStatus, preferredLanguage, defaultLocationId를 앱 전역 사용자 상태의 기준으로 사용합니다.
+      x-implementation-status: PLANNED
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/MyUserSuccess'
+  /users/me/language:
+    patch:
+      tags: [User]
+      operationId: updateMyLanguage
+      summary: 기본 표시 언어 변경
+      description: |
+        **호출 시점:** 온보딩 언어 화면 또는 홈 언어 toggle에서 KO/EN을 선택할 때 호출합니다.
+        성공 후 앱 i18n 상태와 이후 요청의 Accept-Language를 같은 언어로 갱신합니다.
+      x-implementation-status: PLANNED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LanguageRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/LanguageSuccess'
+  /users/me/onboarding:
+    get:
+      tags: [Onboarding]
+      operationId: getMyOnboarding
+      summary: 온보딩 진행 상태 복구
+      description: |
+        **호출 시점:** 로그인 응답이 `nextStep=ONBOARDING`이거나 온보딩 화면을 재진입할 때 호출합니다.
+        `currentStep`을 기준으로 방문 목적, 위치, 스타일, 선호 여행지 중 이어서 보여줄 화면을 결정합니다.
+      x-implementation-status: PLANNED
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/OnboardingProgressSuccess'
+    put:
+      tags: [Onboarding]
+      operationId: completeMyOnboarding
+      summary: 온보딩 전체 선택값 검증 및 완료
+      description: |
+        **호출 시점:** 관리자 큐레이션 10개 중 1~3개를 선택하고 완료 버튼을 누를 때 호출합니다.
+        위치 소유권, 스타일 1~4개, candidateSetId/version, 후보 포함 여부를 한 transaction에서 검증합니다.
+        성공 응답의 completed=true를 확인한 뒤 홈으로 이동합니다. 같은 본문 재요청은 멱등 처리합니다.
+      x-implementation-status: PLANNED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/OnboardingCompletionSuccess'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /onboarding/place-candidate-sets/current:
+    get:
+      tags: [Onboarding]
+      operationId: getCurrentOnboardingPlaceCandidateSet
+      summary: 현재 발행된 선호 여행지 후보 10개 조회
+      description: |
+        **호출 시점:** 온보딩 마지막 선호 여행지 화면에 진입할 때 한 번 호출합니다.
+        사용자별 추천 생성 API가 아니라 관리자가 검수해 발행한 공통 불변 버전을 반환합니다.
+        프론트는 candidateSetId와 version을 선택한 placeId 1~3개와 함께 완료 요청까지 보관합니다.
+      x-implementation-status: PLANNED
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          description: 현재 발행된 큐레이션 후보 10개
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateSetEnvelope'
+  /locations/search:
+    get:
+      tags: [Location]
+      operationId: searchLocations
+      summary: Kakao 기반 주소·학교·동네 검색
+      description: |
+        **호출 시점:** 위치 검색어 입력을 300~500ms debounce한 뒤 호출합니다.
+        백엔드가 Kakao 주소 검색과 키워드 검색을 합치고 중복 제거, 주소 정규화, 7개 권역 매핑을 수행합니다.
+        결과 없음은 200 `items=[]`입니다. 선택한 항목의 `searchResultToken`만 위치 저장 요청에 사용합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          description: 정규화된 위치 검색 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationSearchEnvelope'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /users/me/locations:
+    get:
+      tags: [Location]
+      operationId: getMyLocations
+      summary: 내 저장 위치 목록 조회
+      description: |
+        **호출 시점:** 마이 위치 관리, 홈 위치 변경, 경로 출발지 선택 화면에서 호출합니다.
+        `default=true` 위치를 강조하고 삭제된 위치는 응답에 포함되지 않습니다.
+      x-implementation-status: PLANNED
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/UserLocationListSuccess'
+    post:
+      tags: [Location]
+      operationId: createMyLocation
+      summary: 검색 결과를 내 위치로 저장
+      description: |
+        **호출 시점:** 사용자가 Kakao 검색 결과 하나를 선택하고 저장을 확정할 때 호출합니다.
+        주소·좌표를 다시 보내지 않고 `searchResultToken`, 선택적 customLabel, setDefault만 보냅니다.
+        410 `LOCATION_SEARCH_RESULT_EXPIRED`면 같은 검색어로 재검색하도록 안내합니다.
+      x-implementation-status: PLANNED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLocationRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '201':
+          description: 저장된 사용자 위치
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLocationEnvelope'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /users/me/locations/{locationId}/default:
+    put:
+      tags: [Location]
+      operationId: setMyDefaultLocation
+      summary: 기본 위치 변경
+      description: |
+        **호출 시점:** 저장 위치 목록에서 기본 위치를 바꿀 때 호출합니다.
+        성공 후 홈, 월별 추천, 추천 덱 관련 query cache를 무효화하고 새 위치 기준으로 다시 조회합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/LocationId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/UserLocationSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /users/me/locations/{locationId}:
+    delete:
+      tags: [Location]
+      operationId: deleteMyLocation
+      summary: 저장 위치 삭제
+      description: |
+        **호출 시점:** 위치 관리 화면에서 삭제를 확정할 때 호출합니다.
+        204 body는 없습니다. 기본 위치를 삭제했다면 목록을 재조회해 새 기본 위치 또는 위치 없음 상태를 반영합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/LocationId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '204':
+          description: 위치 삭제 성공
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /home:
+    get:
+      tags: [Home]
+      operationId: getHome
+      summary: 홈 화면 초기 데이터 조회
+      description: |
+        **호출 시점:** 온보딩 완료 후 홈 진입, 앱 재실행, pull-to-refresh에서 호출합니다.
+        기본 위치, 기본 언어, 현재 월 추천 미리보기를 한 번에 반환합니다.
+        currentLocation이 null이면 위치 등록 화면으로 이동하며 KTX 가이드는 프론트 정적 콘텐츠라 응답에 포함하지 않습니다.
+      x-implementation-status: PLANNED
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/HomeSuccess'
+  /monthly-recommendations:
+    get:
+      tags: [Recommendation]
+      operationId: getMonthlyRecommendations
+      summary: 월별 추천 전체보기 조회
+      description: |
+        **호출 시점:** 홈의 월별 추천 전체보기를 열거나 월, 권역, 날짜, 관광유형, 정렬 필터를 바꿀 때 호출합니다.
+        month 범위와 dateFilterType 범위는 교집합으로 적용합니다. CUSTOM이면 시작일과 종료일이 모두 필요합니다.
+        필터가 바뀌면 기존 items와 cursor를 폐기하고 첫 페이지부터 다시 조회합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+        - $ref: '#/components/parameters/ServiceRegionCodeQueryOptional'
+        - name: dateFilterType
+          in: query
+          schema:
+            $ref: '#/components/schemas/DateFilterType'
+        - name: customStartDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: customEndDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - $ref: '#/components/parameters/TravelStylesQuery'
+        - $ref: '#/components/parameters/SortQuery'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size50'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/MonthlyRecommendationListSuccess'
+  /recommendation-decks:
+    post:
+      tags: [Recommendation]
+      operationId: createRecommendationDeck
+      summary: K-Local Pick 추천 덱 생성
+      description: |
+        **호출 시점:** 추천 탭에 처음 들어가거나 근교/전국 범위를 새로 선택할 때 호출합니다.
+        NEARBY는 실제 거리 반경이 아니라 출발 위치와 같은 서비스 권역입니다. originLocationId를 생략하면 기본 위치를 사용합니다.
+        응답의 카드 순서를 그대로 표시하고 deckId와 nextCursor를 다음 페이지 호출까지 보관합니다.
+      x-implementation-status: PLANNED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendationDeckRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '201':
+          $ref: '#/components/responses/RecommendationDeckCreated'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /recommendation-decks/{deckId}:
+    get:
+      tags: [Recommendation]
+      operationId: getRecommendationDeckPage
+      summary: 추천 덱의 다음 카드 조회
+      description: |
+        **호출 시점:** 현재 카드 묶음이 소진되고 hasMore=true일 때 nextCursor로 호출합니다.
+        같은 deckId와 cursor 재요청은 같은 순서와 결과를 반환합니다. 프론트는 응답을 다시 섞거나 중복 제거 규칙을 재구현하지 않습니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/DeckId'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/RecommendationDeckSuccess'
+  /recommendation-decks/{deckId}/events:
+    post:
+      tags: [Recommendation]
+      operationId: createRecommendationEvent
+      summary: 추천 카드 탐색 행동 기록
+      description: |
+        카드 펼침, 이전·다음, 상세 진입, 저장, 경로 진입을 기록하는 분석용 API입니다.
+        화면 핵심 동작을 막지 않는 비차단 호출로 처리합니다. PLACE_SAVED/UNSAVED는 실제 저장 API 성공 뒤 전송합니다.
+        CARD_SERVED는 서버가 응답할 때 기록하므로 프론트에서 보내지 않습니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/DeckId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendationEventRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '201':
+          $ref: '#/components/responses/RecommendationEventCreated'
+  /places/search:
+    get:
+      tags: [Place]
+      operationId: searchPlaces
+      summary: KoReady 관광지 검색
+      description: |
+        **호출 시점:** 관광지명·지역명 검색 화면에서 호출합니다.
+        이 API는 KoReady DB에 적재된 관광지를 검색하며 사용자 주소를 찾는 `/locations/search`와 다릅니다.
+        query가 바뀌면 기존 cursor를 버리고 첫 페이지부터 조회합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size50'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/PlaceListSuccess'
+  /places:
+    get:
+      tags: [Place]
+      operationId: getPlacesByServiceRegion
+      summary: 선택한 지도 권역의 관광지 조회
+      description: |
+        **호출 시점:** 프론트 정적 지도에서 7개 권역 중 하나를 선택할 때 호출합니다.
+        serviceRegionCode는 필수이고 관광유형, 정렬, cursor, size는 선택입니다.
+        GPS, bbox, zoom, 지도 중심 좌표는 사용하지 않으며 단순 확대·축소로 재호출하지 않습니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/ServiceRegionCodeQueryRequired'
+        - $ref: '#/components/parameters/TravelStylesQuery'
+        - $ref: '#/components/parameters/SortQuery'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size50'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/PlaceListSuccess'
+  /places/{placeId}:
+    get:
+      tags: [Place]
+      operationId: getPlace
+      summary: 관광지 상세 조회
+      description: |
+        **호출 시점:** 월별 추천, 지도, 검색, 추천 덱, 저장 목록의 카드를 눌렀을 때 호출합니다.
+        제목, 주소, 이미지, nullable 운영정보, 태그, 설명, 관련 장소, 저장 상태, availableTabs를 반환합니다.
+        프론트는 availableTabs에 있는 DESCRIPTION, ROUTE, MATES만 노출하고 null 운영정보 행은 숨깁니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          description: 장소 상세
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceDetailEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /users/me/saved-places:
+    get:
+      tags: [Place]
+      operationId: getMySavedPlaces
+      summary: 내가 저장한 관광지 목록 조회
+      description: |
+        **호출 시점:** 하단 저장 탭에 들어갈 때 호출합니다.
+        cursor 무한 스크롤을 사용하며 저장 취소 성공 시 해당 item을 로컬 목록에서 제거합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size50'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/SavedPlaceListSuccess'
+  /users/me/saved-places/{placeId}:
+    put:
+      tags: [Place]
+      operationId: savePlace
+      summary: 관광지 저장
+      description: |
+        **호출 시점:** 카드 또는 상세의 빈 하트를 누를 때 호출합니다.
+        멱등 API이므로 이미 저장된 장소를 다시 저장해도 성공합니다. 성공 뒤 isSaved를 true로 갱신합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/SavePlaceSuccess'
+    delete:
+      tags: [Place]
+      operationId: unsavePlace
+      summary: 관광지 저장 취소
+      description: |
+        **호출 시점:** 활성 하트를 누를 때 호출합니다.
+        204 body는 없습니다. 성공 뒤 isSaved를 false로 바꾸고 저장 목록 화면에서는 item을 제거합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '204':
+          description: 저장 취소 성공
+  /routes:
+    post:
+      tags: [Route]
+      operationId: createRoute
+      summary: Buddy Route 요약 생성
+      description: |
+        **호출 시점:** 장소 상세 이동 탭에서 출발 위치를 선택하고 경로 확인을 누를 때 호출합니다.
+        저장 위치 ID와 목적지 placeId를 받아 TMAP 결과를 Koready 요약으로 정규화합니다.
+        서버는 한 번의 상세 요청에서 후보 3개를 받아 departureAt에 운행 가능한 경로를 우선 선택합니다.
+        정규화 경로를 준비한 뒤 현재 ACTIVE인 운영진 Hori Tip을 목적지와 trigger로 매칭해 summary 또는 segment에 조합합니다.
+        Hori Tip 본문은 TMAP이나 AI가 생성하지 않으며 Route 캐시에 포함하지 않습니다.
+        422 ROUTE_NOT_FOUND 또는 ROUTE_NOT_AVAILABLE_AT_DEPARTURE_TIME이면 조건 안내를 표시하고, 503이면 현재 화면을 유지한 채 재시도 버튼을 제공합니다.
+      x-implementation-status: PLANNED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '201':
+          description: 경로 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteEnvelope'
+        '422':
+          description: 요청 조건에서 사용할 수 있는 대중교통 경로 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                routeNotFound:
+                  summary: 출발지와 목적지 사이의 대중교통 경로 없음
+                  value:
+                    success: false
+                    code: ROUTE_NOT_FOUND
+                    message: 선택한 출발지에서 이 장소로 가는 대중교통 경로를 찾지 못했습니다.
+                    traceId: trace-route-422-01
+                routeNotAvailableAtDepartureTime:
+                  summary: 요청 출발 시각에 운행 가능한 후보 없음
+                  value:
+                    success: false
+                    code: ROUTE_NOT_AVAILABLE_AT_DEPARTURE_TIME
+                    message: 선택한 출발 시각에는 운행 가능한 대중교통 경로가 없습니다. 출발 시각을 변경해 주세요.
+                    traceId: trace-route-422-02
+        '503':
+          description: TMAP 장애, 시간 초과 또는 호출 제한
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                routeProviderUnavailable:
+                  summary: 경로 provider를 일시적으로 사용할 수 없음
+                  value:
+                    success: false
+                    code: ROUTE_PROVIDER_UNAVAILABLE
+                    message: 경로 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+                    traceId: trace-route-503-01
+  /routes/{routeId}:
+    get:
+      tags: [Route]
+      operationId: getRoute
+      summary: Buddy Route 구간 상세 조회
+      description: |
+        **호출 시점:** 경로 요약에서 상세 경로 보기를 누를 때 호출합니다.
+        segments의 order 순서로 도보, 버스, 지하철, 기차 등의 구간을 표시합니다.
+        캐시된 정규화 경로에 현재 ACTIVE인 운영진 Hori Tip을 다시 매칭하므로 운영진의 비활성화가 기존 routeId에도 반영됩니다.
+        410 ROUTE_EXPIRED면 같은 routeId를 반복하지 않고 POST /routes로 새 경로를 생성합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/RouteId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          description: 임시 경로 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteEnvelope'
+        '410':
+          description: 임시 저장된 경로가 만료됨
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                routeExpired:
+                  summary: routeId 재사용 불가
+                  value:
+                    success: false
+                    code: ROUTE_EXPIRED
+                    message: 경로 정보가 만료되었습니다. 출발 조건으로 경로를 다시 조회해 주세요.
+                    traceId: trace-route-410-01
+  /users/me/buddy-profile:
+    get:
+      tags: [Buddy]
+      operationId: getMyBuddyProfile
+      summary: 내 Buddy 프로필 조회
+      description: |
+        **호출 시점:** Buddy 프로필 설정 화면을 열 때 form 초기값으로 사용합니다.
+        온보딩 TravelStyle과 BuddyStyle은 다른 enum이므로 서로 변환하지 않습니다.
+      x-implementation-status: PLANNED
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/MyBuddyProfileSuccess'
+    put:
+      tags: [Buddy]
+      operationId: upsertMyBuddyProfile
+      summary: 내 Buddy 프로필 생성 또는 전체 수정
+      description: |
+        **호출 시점:** 프로필 설정 저장 버튼을 누를 때 호출합니다.
+        부분 수정이 아니라 전체 교체이므로 nickname, 언어, 한국어 수준, 소개, 스타일, 공개 설정 등 현재 form 전체를 보냅니다.
+      x-implementation-status: PLANNED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuddyProfileRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/BuddyProfileSuccess'
+  /places/{placeId}/mates:
+    get:
+      tags: [Buddy]
+      operationId: getPlaceMates
+      summary: 관광지별 공개 메이트 목록 조회
+      description: |
+        **호출 시점:** 장소 상세의 메이트 탭을 열 때 호출합니다.
+        비공개, 차단 관계, 신고 제재 사용자는 서버가 제외하므로 프론트가 별도 필터링하지 않습니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size50'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/PlaceMateListSuccess'
+  /buddy-profiles/{profileId}:
+    get:
+      tags: [Buddy]
+      operationId: getBuddyProfile
+      summary: Buddy 공개 프로필 상세 조회
+      description: |
+        **호출 시점:** 메이트 카드나 쪽지 상대 프로필을 눌렀을 때 호출합니다.
+        공개 범위와 차단 상태에 따라 403 또는 404가 가능하며 이 경우 이전 화면으로 이동합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/BuddyProfileSuccess'
+  /message-threads:
+    get:
+      tags: [Message]
+      operationId: getMessageThreads
+      summary: 쪽지함 스레드 목록 조회
+      description: |
+        **호출 시점:** 쪽지함 화면 진입과 다음 페이지 로딩에서 호출합니다.
+        최근 메시지, 상대 프로필, 읽지 않은 개수로 목록을 구성하며 실시간 websocket 연결은 사용하지 않습니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size50'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/MessageThreadListSuccess'
+    post:
+      tags: [Message]
+      operationId: createMessageThread
+      summary: 첫 쪽지 전송과 스레드 생성
+      description: |
+        **호출 시점:** Buddy 프로필에서 첫 쪽지를 전송할 때 호출합니다.
+        receiverProfileId, 관련 placeId, 1~1,000자 content와 새 Idempotency-Key를 보냅니다.
+        성공 뒤 반환된 threadId의 스레드 화면으로 이동합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMessageThreadRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '201':
+          $ref: '#/components/responses/MessageThreadCreated'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /message-threads/{threadId}:
+    get:
+      tags: [Message]
+      operationId: getMessageThread
+      summary: 쪽지 스레드 내용 조회
+      description: |
+        **호출 시점:** 쪽지함에서 스레드를 선택하거나 과거 메시지를 더 불러올 때 호출합니다.
+        cursor 방향과 응답 순서를 프론트가 추측하지 말고 문서 예제 순서대로 렌더링합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/ThreadId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size50'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/MessageThreadSuccess'
+  /message-threads/{threadId}/messages:
+    post:
+      tags: [Message]
+      operationId: createThreadMessage
+      summary: 기존 스레드에 답장 전송
+      description: |
+        trim 후 1~1,000자 content와 Idempotency-Key를 보냅니다. 네트워크 재시도는 같은 key를 사용합니다.
+        같은 key에 다른 본문을 보내 409가 발생하면 자동 재시도하지 않고 입력 상태를 유지합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/ThreadId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMessageRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '201':
+          $ref: '#/components/responses/MessageCreated'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /message-threads/{threadId}/read:
+    put:
+      tags: [Message]
+      operationId: markMessageThreadRead
+      summary: 쪽지 스레드 읽음 처리
+      description: |
+        **호출 시점:** 스레드 화면이 실제로 표시된 뒤 호출합니다.
+        성공 응답의 unreadCount를 쪽지함 badge와 전역 badge에 반영합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/ThreadId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/MessageReadSuccess'
+  /users/me/blocked-profiles/{profileId}:
+    put:
+      tags: [Safety]
+      operationId: blockProfile
+      summary: Buddy 프로필 차단
+      description: |
+        차단 확인 modal에서 호출합니다. 성공 뒤 상대를 메이트 목록과 쪽지 진입점에서 즉시 제거합니다.
+        차단은 신고를 자동 생성하지 않으므로 신고가 필요하면 별도 API를 호출합니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/BlockProfileSuccess'
+    delete:
+      tags: [Safety]
+      operationId: unblockProfile
+      summary: Buddy 프로필 차단 해제
+      description: |
+        차단 목록에서 해제를 확정할 때 호출합니다. 204 body는 없으며 과거 쪽지나 공개 상태를 자동 복원한다는 의미는 아닙니다.
+      x-implementation-status: PLANNED
+      parameters:
+        - $ref: '#/components/parameters/ProfileId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '204':
+          description: 차단 해제 성공
+  /reports:
+    post:
+      tags: [Safety]
+      operationId: createReport
+      summary: 프로필 또는 쪽지 신고
+      description: |
+        **호출 시점:** 사용자가 신고 사유와 선택적 설명을 확인한 뒤 호출합니다.
+        targetType은 PROFILE 또는 MESSAGE이며 신고 성공과 차단은 별개이므로 차단을 원하면 차단 API도 호출합니다.
+        성공 뒤 중복 전송을 막고 접수 완료 안내를 표시합니다.
+      x-implementation-status: PLANNED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '201':
+          $ref: '#/components/responses/ReportCreated'
+  /admin/onboarding/place-candidate-sets:
+    get:
+      tags: [Admin Curation]
+      operationId: getAdminOnboardingPlaceCandidateSets
+      summary: 온보딩 큐레이션 세트 목록 조회
+      description: |
+        관리자 화면에서 DRAFT, PUBLISHED, ARCHIVED 세트를 조회합니다.
+        현재 발행본과 편집 중 초안을 구분해 표시하며 일반 사용자 앱에서는 호출하지 않습니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/CandidateSetStatus'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size100'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/AdminCandidateSetListSuccess'
+    post:
+      tags: [Admin Curation]
+      operationId: createAdminOnboardingPlaceCandidateSet
+      summary: 온보딩 큐레이션 초안 생성
+      description: |
+        빈 초안을 만들거나 copyFromSetId로 기존 발행본을 복제합니다.
+        생성 결과는 DRAFT이며 후보와 문구를 수정한 뒤 별도 publish API를 호출해야 사용자에게 노출됩니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCandidateSetRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '201':
+          $ref: '#/components/responses/AdminCandidateSetCreated'
+  /admin/onboarding/place-candidate-sets/{candidateSetId}:
+    get:
+      tags: [Admin Curation]
+      operationId: getAdminOnboardingPlaceCandidateSet
+      summary: 온보딩 큐레이션 세트 상세 조회
+      description: |
+        관리자 편집 화면 진입 시 세트 메타데이터와 item 전체를 조회합니다.
+        item은 displayOrder 순으로 반환하며 editorNote는 관리자 응답에만 포함합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/CandidateSetId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/AdminCandidateSetSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Admin Curation]
+      operationId: updateAdminOnboardingPlaceCandidateSet
+      summary: 온보딩 큐레이션 초안 전체 수정
+      description: |
+        DRAFT 상태의 제목과 후보 item 전체를 교체합니다. PUBLISHED 또는 ARCHIVED 세트는 수정할 수 없습니다.
+        저장 단계에서는 10개 미만 초안도 허용하지만 장소와 displayOrder 중복은 허용하지 않습니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR]
+      parameters:
+        - $ref: '#/components/parameters/CandidateSetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCandidateSetRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/AdminCandidateSetSuccess'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/onboarding/place-candidate-sets/{candidateSetId}/publish:
+    post:
+      tags: [Admin Curation]
+      operationId: publishAdminOnboardingPlaceCandidateSet
+      summary: 온보딩 큐레이션 버전 발행
+      description: |
+        후보가 정확히 10개인지, 중복과 필수 카드 데이터 누락이 없는지 검증한 뒤 불변 PUBLISHED 버전으로 전환합니다.
+        성공 시 기존 현재 발행본은 과거 버전으로 유지하고 사용자 current API가 새 버전을 반환합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR]
+      parameters:
+        - $ref: '#/components/parameters/CandidateSetId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/AdminCandidateSetSuccess'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /admin/onboarding/place-candidate-sets/{candidateSetId}/archive:
+    post:
+      tags: [Admin Curation]
+      operationId: archiveAdminOnboardingPlaceCandidateSet
+      summary: 온보딩 큐레이션 세트 보관
+      description: |
+        신규 사용자에게 더 이상 노출하지 않을 세트를 ARCHIVED로 전환합니다.
+        기존 사용자의 선택 이력과 과거 발행 버전 검증을 위해 물리 삭제하지 않습니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR]
+      parameters:
+        - $ref: '#/components/parameters/CandidateSetId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/AdminCandidateSetSuccess'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/hori-tips:
+    get:
+      tags: [Admin Hori Tip]
+      operationId: getAdminHoriTips
+      summary: 운영진 Hori Tip 목록 조회
+      description: |
+        **호출 시점:** 운영 도구의 Hori Tip 목록 진입과 필터 변경 시 호출합니다.
+        상태, code, 목적지 장소로 검색하며 번역과 trigger를 포함한 편집용 데이터를 반환합니다.
+        이 API는 관리자 전용이고 사용자 Route 화면은 직접 호출하지 않습니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/HoriTipStatus'
+        - name: code
+          in: query
+          description: code prefix 또는 부분 일치 검색
+          schema:
+            type: string
+        - name: destinationPlaceId
+          in: query
+          description: 지정 장소에 적용되는 DESTINATION_PLACES 팁 검색
+          schema:
+            type: integer
+            format: int64
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size100'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/AdminHoriTipListSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Admin Hori Tip]
+      operationId: createAdminHoriTip
+      summary: 운영진 Hori Tip 초안 생성
+      description: |
+        운영진이 사용자에게 보여줄 본문, 장소 scope, 경로 trigger와 노출 기간을 입력합니다.
+        생성 결과는 항상 DRAFT이므로 사용자 Route에는 즉시 노출되지 않습니다.
+        title은 요청으로 받지 않고 서버가 Hori Tip으로 고정합니다. TMAP 또는 AI 생성 본문은 허용하지 않습니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHoriTipRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '201':
+          $ref: '#/components/responses/AdminHoriTipCreated'
+        '409':
+          $ref: '#/components/responses/AdminHoriTipCodeConflict'
+        '422':
+          $ref: '#/components/responses/AdminHoriTipDraftInvalid'
+  /admin/hori-tips/{horiTipId}:
+    get:
+      tags: [Admin Hori Tip]
+      operationId: getAdminHoriTip
+      summary: 운영진 Hori Tip 상세 조회
+      description: |
+        편집 화면 진입 시 번역, 목적지 scope, 구조화 trigger, 상태, version과 감사 메타데이터를 조회합니다.
+        AUDITOR는 조회만 가능하며 editable=false로 반환됩니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/HoriTipId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/AdminHoriTipSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Admin Hori Tip]
+      operationId: updateAdminHoriTip
+      summary: 운영진 Hori Tip 전체 수정
+      description: |
+        현재 version과 편집 필드 전체를 제출합니다. 누락 필드는 유지가 아니라 제거로 처리되는 PUT입니다.
+        code는 생성 후 변경할 수 없어 요청에 포함하지 않습니다. ARCHIVED 팁은 수정할 수 없고 version 충돌은 409입니다.
+        ACTIVE 팁 수정은 활성화 조건을 다시 검증하며 다음 Route 조회부터 즉시 반영되고 변경 전후 값이 감사 로그에 남습니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR]
+      parameters:
+        - $ref: '#/components/parameters/HoriTipId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHoriTipRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/AdminHoriTipSuccess'
+        '409':
+          $ref: '#/components/responses/AdminHoriTipConflict'
+        '422':
+          $ref: '#/components/responses/AdminHoriTipInvalid'
+  /admin/hori-tips/{horiTipId}/status:
+    put:
+      tags: [Admin Hori Tip]
+      operationId: updateAdminHoriTipStatus
+      summary: Hori Tip 활성·비활성·보관 상태 변경
+      description: |
+        ACTIVE 전환 시 KO/EN 본문, 유효 기간, 장소 scope와 placement별 trigger 조건을 검증합니다.
+        INACTIVE 전환은 기존 routeId의 다음 조회부터 팁을 제외합니다. ARCHIVED는 되돌릴 수 없으며 물리 삭제하지 않습니다.
+        version과 변경 사유를 함께 받아 상태 경쟁을 막고 감사 로그에 actor와 이전·이후 값을 기록합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR]
+      parameters:
+        - $ref: '#/components/parameters/HoriTipId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHoriTipStatusRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/AdminHoriTipSuccess'
+        '409':
+          $ref: '#/components/responses/AdminHoriTipConflict'
+        '422':
+          $ref: '#/components/responses/AdminHoriTipInvalid'
+  /admin/open-api/summary:
+    get:
+      tags: [Admin OpenAPI]
+      operationId: getOpenApiSummary
+      summary: 외부 API 호출 현황 요약
+      description: |
+        관리자 대시보드 첫 진입과 기간/provider 필터 변경 시 호출합니다.
+        전체·성공·실패 호출 수, 성공률, snapshot 수와 provider별 상태를 반환하며 사용자 화면에서는 호출하지 않습니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/FromDateTime'
+        - $ref: '#/components/parameters/ToDateTime'
+        - $ref: '#/components/parameters/ExternalProviderQuery'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/OpenApiSummarySuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/open-api/calls:
+    get:
+      tags: [Admin OpenAPI]
+      operationId: getOpenApiCalls
+      summary: 외부 API 호출 로그 목록 조회
+      description: |
+        provider, operation, 성공 여부, 기간으로 마스킹된 호출 로그를 검색합니다.
+        secret, Kakao 검색어, 상세 주소, TMAP 좌표는 응답에 포함되지 않으며 cursor로 다음 페이지를 조회합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/ExternalProviderQuery'
+        - name: operation
+          in: query
+          schema:
+            type: string
+        - name: success
+          in: query
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/FromDateTime'
+        - $ref: '#/components/parameters/ToDateTime'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size100'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/OpenApiCallListSuccess'
+  /admin/open-api/calls/{callLogId}:
+    get:
+      tags: [Admin OpenAPI]
+      operationId: getOpenApiCall
+      summary: 외부 API 호출 로그 상세 조회
+      description: |
+        호출 목록에서 한 건을 선택했을 때 상태, 지연시간, item 수, 관련 batch와 snapshot 계보를 조회합니다.
+        원천 본문 자체는 이 API가 아니라 snapshot 권한과 단기 download URL을 사용합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/CallLogId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/OpenApiCallSuccess'
+  /admin/open-api/snapshots:
+    get:
+      tags: [Admin OpenAPI]
+      operationId: getOpenApiSnapshots
+      summary: KTO 원천 snapshot 목록 조회
+      description: |
+        KTO 성공 응답을 가공 전에 보존한 immutable snapshot 메타데이터를 검색합니다.
+        provider, operation, 기간과 cursor를 사용하며 원천 파일 내용은 목록 응답에 포함하지 않습니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/ExternalProviderQuery'
+        - name: operation
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/FromDateTime'
+        - $ref: '#/components/parameters/ToDateTime'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size100'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/RawSnapshotListSuccess'
+  /admin/open-api/snapshots/{snapshotId}:
+    get:
+      tags: [Admin OpenAPI]
+      operationId: getOpenApiSnapshot
+      summary: KTO 원천 snapshot 메타데이터 조회
+      description: |
+        원문 SHA-256, gzip 객체 SHA-256, 크기, storage key, callLogId와 보관 상태를 조회합니다.
+        hash를 화면 표시 문자열로만 다루고 프론트에서 원천 파일 무결성을 새 규칙으로 계산하지 않습니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/SnapshotId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/RawSnapshotSuccess'
+  /admin/open-api/snapshots/{snapshotId}/download-url:
+    post:
+      tags: [Admin OpenAPI]
+      operationId: createSnapshotDownloadUrl
+      summary: snapshot 단기 다운로드 URL 발급
+      description: |
+        관리자가 원천 파일 다운로드를 명시적으로 요청할 때만 호출합니다.
+        반환 URL은 짧게 만료되고 발급 행위는 감사 로그에 남습니다. 410이면 새 URL을 다시 발급합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/SnapshotId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/DownloadUrlSuccess'
+        '410':
+          $ref: '#/components/responses/Gone'
+  /admin/batch-jobs:
+    get:
+      tags: [Admin Batch]
+      operationId: getBatchJobs
+      summary: 수집·가공 배치 목록 조회
+      description: |
+        jobType과 status로 배치를 검색해 시작·종료 시각, 성공·실패 item 수를 표시합니다.
+        202로 접수된 작업의 진행 상태 확인에도 사용합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - name: jobType
+          in: query
+          schema:
+            $ref: '#/components/schemas/BatchJobType'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/BatchJobStatus'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size100'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/BatchJobListSuccess'
+    post:
+      tags: [Admin Batch]
+      operationId: createBatchJob
+      summary: 수집·가공 배치 수동 실행
+      description: |
+        관리자가 jobType, 대상 범위, dryRun 여부를 확인한 뒤 실행합니다.
+        202는 접수 성공일 뿐 완료가 아니므로 반환 jobId로 상세 상태를 polling합니다. 동일 실행 충돌은 409입니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBatchJobRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '202':
+          $ref: '#/components/responses/BatchJobAccepted'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/batch-jobs/{jobId}:
+    get:
+      tags: [Admin Batch]
+      operationId: getBatchJob
+      summary: 배치 실행 상태와 통계 조회
+      description: |
+        jobId의 PENDING, RUNNING, COMPLETED, FAILED, PARTIAL_FAILED 상태와 처리 통계를 조회합니다.
+        실행 중에는 과도한 polling을 피하고 점진적으로 간격을 늘립니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/BatchJobSuccess'
+  /admin/batch-jobs/{jobId}/items:
+    get:
+      tags: [Admin Batch]
+      operationId: getBatchJobItems
+      summary: 배치 item별 결과 조회
+      description: |
+        배치 상세에서 성공·실패한 개별 contentId, operation, 오류 코드를 cursor로 조회합니다.
+        원천 payload나 secret은 포함하지 않으며 실패 원인 확인과 재시도 범위 선택에 사용합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size100'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/BatchJobItemListSuccess'
+  /admin/batch-jobs/{jobId}/retry:
+    post:
+      tags: [Admin Batch]
+      operationId: retryBatchJob
+      summary: 실패한 배치 item 재시도
+      description: |
+        원본 배치의 FAILED_ITEMS만 새 job으로 재시도합니다. 반환 202의 새 jobId를 원본 ID와 구분해 추적합니다.
+        완료·실패 상태가 재시도 불가능하면 409를 처리하고 현재 배치 상태를 재조회합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR]
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetryBatchJobRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '202':
+          $ref: '#/components/responses/BatchJobAccepted'
+  /admin/open-api/sync-cursors:
+    get:
+      tags: [Admin Batch]
+      operationId: getSyncCursors
+      summary: operation별 동기화 cursor 조회
+      description: |
+        KTO operation별 마지막 성공 위치, 마지막 오류, enabled 상태를 관리자 표로 표시합니다.
+        cursor 문자열은 서버 내부 의미를 가지므로 프론트에서 편집하거나 해석하지 않습니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/SyncCursorListSuccess'
+  /admin/open-api/sync-cursors/{cursorId}/enabled:
+    put:
+      tags: [Admin Batch]
+      operationId: updateSyncCursorEnabled
+      summary: 자동 동기화 활성·비활성 변경
+      description: |
+        ADMIN이 확인 dialog를 거쳐 enabled boolean을 변경합니다.
+        성공 뒤 목록을 갱신하고 변경자·이전값·새값은 감사 로그에 기록됩니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/CursorId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnabledRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/SyncCursorSuccess'
+  /admin/open-api/sync-cursors/{cursorId}/reset:
+    post:
+      tags: [Admin Batch]
+      operationId: resetSyncCursor
+      summary: 동기화 cursor 초기화
+      description: |
+        재수집 영향 범위를 확인한 ADMIN만 reason과 reset target을 제출합니다.
+        데이터 중복은 서버 upsert 정책으로 보호하지만 비용이 큰 작업이므로 일반 재시도 버튼으로 사용하지 않습니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/CursorId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetCursorRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/SyncCursorSuccess'
+  /admin/evidence-bundles:
+    get:
+      tags: [Admin Evidence]
+      operationId: getEvidenceBundles
+      summary: 공모전 증빙 번들 목록 조회
+      description: |
+        생성 기간, 상태, 파일 크기, 포함 call/snapshot 수를 cursor로 조회합니다.
+        생성 중인 번들은 상세 상태를 확인하고 완료 전 다운로드 버튼을 비활성화합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size100'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/EvidenceBundleListSuccess'
+    post:
+      tags: [Admin Evidence]
+      operationId: createEvidenceBundle
+      summary: 공모전 증빙 번들 생성 요청
+      description: |
+        기간과 포함 provider/operation을 지정해 비동기 생성을 요청합니다.
+        202 뒤 반환 bundleId를 조회해 완료를 확인하며 TMAP 원천 데이터는 장기 번들에서 제외됩니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEvidenceBundleRequest'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '202':
+          $ref: '#/components/responses/EvidenceBundleAccepted'
+  /admin/evidence-bundles/{bundleId}:
+    get:
+      tags: [Admin Evidence]
+      operationId: getEvidenceBundle
+      summary: 증빙 번들 상태와 manifest 조회
+      description: |
+        bundleId의 생성 상태, manifest 요약, 포함 파일 hash와 실패 원인을 조회합니다.
+        COMPLETED 상태일 때만 다운로드 URL 발급 동작을 활성화합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/BundleId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/EvidenceBundleSuccess'
+  /admin/evidence-bundles/{bundleId}/download-url:
+    post:
+      tags: [Admin Evidence]
+      operationId: createEvidenceBundleDownloadUrl
+      summary: 증빙 번들 단기 다운로드 URL 발급
+      description: |
+        완료된 증빙 번들의 signed URL을 발급합니다. URL은 저장하거나 공유 문서에 고정하지 않고 만료 시 다시 발급합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/BundleId'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/DownloadUrlSuccess'
+  /admin/data-quality/summary:
+    get:
+      tags: [Admin Audit]
+      operationId: getDataQualitySummary
+      summary: 관광지 데이터 품질 요약 조회
+      description: |
+        활성 장소의 이미지, 좌표, 주소, KO/EN 연결, 관광유형 매핑, 큐레이션 준비 상태를 집계합니다.
+        큐레이션 편집 화면에서 사용 불가 장소의 원인을 설명하는 기준 데이터로 활용합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/DataQualitySuccess'
+  /admin/audit-logs:
+    get:
+      tags: [Admin Audit]
+      operationId: getAdminAuditLogs
+      summary: 관리자 변경 감사 로그 조회
+      description: |
+        큐레이션 발행·보관, 배치 실행·재시도, cursor 설정, 다운로드 URL 발급 이력을 기간별로 조회합니다.
+        감사 로그는 수정·삭제 UI를 제공하지 않고 actor, action, target, before/after 요약을 표시합니다.
+      x-implementation-status: PLANNED
+      x-required-roles: [ADMIN, AUDITOR]
+      parameters:
+        - $ref: '#/components/parameters/FromDateTime'
+        - $ref: '#/components/parameters/ToDateTime'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size100'
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '200':
+          $ref: '#/components/responses/AuditLogListSuccess'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    Size50:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+    Size100:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    TravelStylesQuery:
+      name: travelStyles
+      in: query
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          $ref: '#/components/schemas/TravelStyle'
+    SortQuery:
+      name: sort
+      in: query
+      schema:
+        $ref: '#/components/schemas/SortType'
+    ServiceRegionCodeQueryRequired:
+      name: serviceRegionCode
+      in: query
+      required: true
+      schema:
+        $ref: '#/components/schemas/ServiceRegionCode'
+    ServiceRegionCodeQueryOptional:
+      name: serviceRegionCode
+      in: query
+      schema:
+        $ref: '#/components/schemas/ServiceRegionCode'
+    ExternalProviderQuery:
+      name: provider
+      in: query
+      schema:
+        $ref: '#/components/schemas/ExternalApiProvider'
+    FromDateTime:
+      name: from
+      in: query
+      schema:
+        type: string
+        format: date-time
+    ToDateTime:
+      name: to
+      in: query
+      schema:
+        type: string
+        format: date-time
+    LocationId:
+      name: locationId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    CandidateSetId:
+      name: candidateSetId
+      in: path
+      required: true
+      description: 관리자가 생성한 온보딩 큐레이션 세트의 opaque ID
+      schema:
+        type: string
+    PlaceId:
+      name: placeId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    ProfileId:
+      name: profileId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    DeckId:
+      name: deckId
+      in: path
+      required: true
+      schema:
+        type: string
+    RouteId:
+      name: routeId
+      in: path
+      required: true
+      schema:
+        type: string
+    HoriTipId:
+      name: horiTipId
+      in: path
+      required: true
+      description: 운영진이 관리하는 Hori Tip template ID
+      schema:
+        type: integer
+        format: int64
+    ThreadId:
+      name: threadId
+      in: path
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 100
+    CallLogId:
+      name: callLogId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    SnapshotId:
+      name: snapshotId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    CursorId:
+      name: cursorId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    BundleId:
+      name: bundleId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    TokenSuccess:
+      description: 인증 token과 다음 가입 단계
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TokenEnvelope'
+    TermsRequiredSuccess:
+      description: 현재 적용 약관과 사용자 동의 상태
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TermsRequiredEnvelope'
+    TermAgreementSuccess:
+      description: 저장된 약관 동의 상태
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TermAgreementEnvelope'
+    MyUserSuccess:
+      description: 내 계정과 가입 진행 상태
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MyUserEnvelope'
+    LanguageSuccess:
+      description: 변경된 표시 언어와 다음 가입 단계
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LanguageEnvelope'
+    OnboardingProgressSuccess:
+      description: 저장된 온보딩 진행 상태
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OnboardingProgressEnvelope'
+    OnboardingCompletionSuccess:
+      description: 검증 후 완료된 온보딩 프로필
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OnboardingCompletionEnvelope'
+    UserLocationListSuccess:
+      description: 삭제되지 않은 내 저장 위치 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UserLocationListEnvelope'
+    UserLocationSuccess:
+      description: 저장되거나 기본값으로 변경된 사용자 위치
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UserLocationEnvelope'
+    HomeSuccess:
+      description: 홈 화면 초기 데이터
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HomeEnvelope'
+    MonthlyRecommendationListSuccess:
+      description: 필터가 적용된 월별 추천 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MonthlyRecommendationListEnvelope'
+    RecommendationDeckCreated:
+      description: 새 추천 덱 생성 성공
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RecommendationDeckEnvelope'
+    RecommendationDeckSuccess:
+      description: 추천 덱의 다음 카드 묶음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RecommendationDeckEnvelope'
+    RecommendationEventCreated:
+      description: 추천 행동 기록 성공
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RecommendationEventEnvelope'
+    PlaceListSuccess:
+      description: 관광지 카드 cursor 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PlaceListEnvelope'
+    SavedPlaceListSuccess:
+      description: 내가 저장한 관광지 cursor 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SavedPlaceListEnvelope'
+    SavePlaceSuccess:
+      description: 관광지 저장 상태
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SavePlaceEnvelope'
+    MyBuddyProfileSuccess:
+      description: 내 Buddy 프로필 존재 여부와 설정값
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MyBuddyProfileEnvelope'
+    BuddyProfileSuccess:
+      description: Buddy 프로필 상세
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BuddyProfileEnvelope'
+    PlaceMateListSuccess:
+      description: 장소별 공개 메이트 cursor 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PlaceMateListEnvelope'
+    MessageThreadListSuccess:
+      description: 쪽지함 스레드 cursor 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MessageThreadListEnvelope'
+    MessageThreadCreated:
+      description: 첫 메시지가 포함된 쪽지 스레드 생성 성공
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MessageThreadEnvelope'
+    MessageThreadSuccess:
+      description: 쪽지 스레드와 메시지 cursor 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MessageThreadEnvelope'
+    MessageCreated:
+      description: 쪽지 전송 성공
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MessageEnvelope'
+    MessageReadSuccess:
+      description: 스레드 읽음 처리 후 unread count
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MessageReadEnvelope'
+    BlockProfileSuccess:
+      description: Buddy 프로필 차단 상태
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BlockProfileEnvelope'
+    ReportCreated:
+      description: 신고 접수 성공
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReportEnvelope'
+    AdminCandidateSetListSuccess:
+      description: 관리자 온보딩 큐레이션 세트 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminCandidateSetListEnvelope'
+    AdminCandidateSetCreated:
+      description: 관리자 온보딩 큐레이션 초안 생성 성공
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminCandidateSetEnvelope'
+    AdminCandidateSetSuccess:
+      description: 관리자 온보딩 큐레이션 세트 상세
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminCandidateSetEnvelope'
+    AdminHoriTipListSuccess:
+      description: 운영진 Hori Tip 편집용 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminHoriTipListEnvelope'
+    AdminHoriTipCreated:
+      description: DRAFT Hori Tip 생성 성공
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminHoriTipEnvelope'
+    AdminHoriTipSuccess:
+      description: 운영진 Hori Tip 상세와 현재 version
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AdminHoriTipEnvelope'
+    AdminHoriTipCodeConflict:
+      description: Hori Tip code가 이미 사용 중
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            codeDuplicated:
+              summary: 생성 code가 이미 사용 중
+              value:
+                success: false
+                code: HORI_TIP_CODE_DUPLICATED
+                message: 이미 사용 중인 Hori Tip code입니다.
+                errors:
+                  - field: code
+                    rejectedValue: TIP_GIMCHEON_GUMI_STATION
+                    reason: code는 생성 후 재사용하거나 변경할 수 없습니다.
+                traceId: trace-hori-tip-409-01
+    AdminHoriTipDraftInvalid:
+      description: Hori Tip 초안의 scope, trigger 또는 노출 기간이 유효하지 않음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            destinationScopeEmpty:
+              summary: 목적지 지정 scope에 장소가 없음
+              value:
+                success: false
+                code: HORI_TIP_RULE_INVALID
+                message: Hori Tip 적용 범위와 매칭 규칙을 확인해 주세요.
+                errors:
+                  - field: scope.destinationPlaceIds
+                    rejectedValue: '[]'
+                    reason: DESTINATION_PLACES에는 장소가 1개 이상 필요합니다.
+                traceId: trace-hori-tip-422-draft-01
+    AdminHoriTipConflict:
+      description: Hori Tip 보관 상태 또는 version 충돌
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            versionConflict:
+              summary: 다른 운영자가 먼저 수정함
+              value:
+                success: false
+                code: HORI_TIP_NOT_EDITABLE
+                message: Hori Tip이 변경되었습니다. 최신 내용을 다시 조회해 주세요.
+                errors:
+                  - field: version
+                    rejectedValue: '2'
+                    reason: 현재 version과 일치하지 않습니다.
+                traceId: trace-hori-tip-409-02
+            archivedNotEditable:
+              summary: 보관된 팁은 수정하거나 되돌릴 수 없음
+              value:
+                success: false
+                code: HORI_TIP_NOT_EDITABLE
+                message: 보관된 Hori Tip은 변경할 수 없습니다.
+                errors:
+                  - field: status
+                    rejectedValue: ARCHIVED
+                    reason: 새 Hori Tip 초안을 생성해 주세요.
+                traceId: trace-hori-tip-409-03
+    AdminHoriTipInvalid:
+      description: Hori Tip 활성화 또는 매칭 규칙 검증 실패
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            activationInvalid:
+              summary: ACTIVE 전환 필수 조건 누락
+              value:
+                success: false
+                code: HORI_TIP_ACTIVATION_INVALID
+                message: Hori Tip을 활성화하기 위한 조건을 확인해 주세요.
+                errors:
+                  - field: translations
+                    rejectedValue: '[KO]'
+                    reason: ACTIVE 상태에는 KO와 EN 본문이 모두 필요합니다.
+                traceId: trace-hori-tip-422-01
+            segmentTriggerRequired:
+              summary: 구간 팁에 segment 조건이 없음
+              value:
+                success: false
+                code: HORI_TIP_ACTIVATION_INVALID
+                message: 구간 Hori Tip의 매칭 조건을 확인해 주세요.
+                errors:
+                  - field: trigger
+                    rejectedValue: '{}'
+                    reason: AFTER_SEGMENT에는 segment 조건이 1개 이상 필요합니다.
+                traceId: trace-hori-tip-422-02
+    OpenApiSummarySuccess:
+      description: 외부 API 기간별 호출 요약
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OpenApiSummaryEnvelope'
+    OpenApiCallListSuccess:
+      description: 마스킹된 외부 API 호출 로그 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OpenApiCallListEnvelope'
+    OpenApiCallSuccess:
+      description: 외부 API 호출 로그와 계보 상세
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OpenApiCallEnvelope'
+    RawSnapshotListSuccess:
+      description: 원천 snapshot 메타데이터 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RawSnapshotListEnvelope'
+    RawSnapshotSuccess:
+      description: 원천 snapshot 메타데이터 상세
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RawSnapshotEnvelope'
+    DownloadUrlSuccess:
+      description: 감사 로그가 남는 단기 signed URL
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DownloadUrlEnvelope'
+    BatchJobListSuccess:
+      description: 배치 실행 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BatchJobListEnvelope'
+    BatchJobAccepted:
+      description: 비동기 배치 작업 접수
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BatchJobEnvelope'
+    BatchJobSuccess:
+      description: 배치 실행 상태와 처리 통계
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BatchJobEnvelope'
+    BatchJobItemListSuccess:
+      description: 배치 item별 처리 결과 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BatchJobItemListEnvelope'
+    SyncCursorListSuccess:
+      description: operation별 동기화 cursor 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SyncCursorListEnvelope'
+    SyncCursorSuccess:
+      description: 변경된 동기화 cursor 상태
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SyncCursorEnvelope'
+    EvidenceBundleListSuccess:
+      description: 공모전 증빙 번들 생성 이력
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EvidenceBundleListEnvelope'
+    EvidenceBundleAccepted:
+      description: 공모전 증빙 번들 비동기 생성 접수
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EvidenceBundleEnvelope'
+    EvidenceBundleSuccess:
+      description: 공모전 증빙 번들 상태와 manifest 요약
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EvidenceBundleEnvelope'
+    DataQualitySuccess:
+      description: 관광 데이터 품질 집계
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DataQualityEnvelope'
+    AuditLogListSuccess:
+      description: 변경 불가능한 관리자 감사 로그 목록
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AuditLogListEnvelope'
+    BadRequest:
+      description: 입력 형식 오류
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Unauthorized:
+      description: 인증 실패
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: 권한 없음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: 리소스 없음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: 중복 또는 상태 충돌
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Gone:
+      description: 임시 데이터 만료
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    UnprocessableEntity:
+      description: 비즈니스 규칙 위반
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    ServiceUnavailable:
+      description: 외부 provider 장애 또는 제한
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    TooManyRequests:
+      description: 호출 제한 초과
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+  schemas:
+    ApiEnvelope:
+      type: object
+      required: [success, code, message, data, traceId]
+      description: 공통 성공 메타데이터. 실제 data 타입은 각 operation 전용 Envelope가 정의함
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        code:
+          type: string
+          example: OK
+        message:
+          type: string
+        data:
+          description: operation 전용 Envelope에서 구체 타입을 정의하는 성공 응답 본문
+        traceId:
+          type: string
+    ApiError:
+      type: object
+      required: [success, code, message, traceId]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        code:
+          type: string
+        message:
+          type: string
+        errors:
+          type: array
+          description: 입력 필드별 오류. 비필드 오류에서는 빈 배열 또는 생략 가능
+          items:
+            $ref: '#/components/schemas/ApiFieldError'
+        traceId:
+          type: string
+    CandidateSetEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/OnboardingCandidateSetResponse'
+    OnboardingCandidateSetResponse:
+      type: object
+      required: [candidateSetId, version, status, publishedAt, minSelection, maxSelection, items]
+      properties:
+        candidateSetId:
+          type: string
+          example: onb-curation-2026-07-v1
+        version:
+          type: integer
+          minimum: 1
+          example: 1
+        status:
+          $ref: '#/components/schemas/CandidateSetStatus'
+        publishedAt:
+          type: string
+          format: date-time
+        minSelection:
+          type: integer
+          enum: [1]
+        maxSelection:
+          type: integer
+          enum: [3]
+        items:
+          type: array
+          minItems: 10
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/OnboardingCandidateItem'
+    OnboardingCandidateItem:
+      type: object
+      required: [placeId, title, imageUrl, serviceRegionCode, serviceRegionName, tags, curatorMessage, displayOrder]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+          example: 1001
+        title:
+          type: string
+          example: 김천 김밥축제
+        imageUrl:
+          type: string
+          format: uri
+        serviceRegionCode:
+          $ref: '#/components/schemas/ServiceRegionCode'
+        serviceRegionName:
+          type: string
+          example: 경상
+        travelStyle:
+          $ref: '#/components/schemas/TravelStyle'
+        tags:
+          type: array
+          items:
+            type: string
+          example: [지역축제, 로컬음식, 체험]
+        curatorMessage:
+          type: string
+          example: 김밥을 주제로 먹고, 만들고, 즐기는 지역 축제예요.
+        displayOrder:
+          type: integer
+          minimum: 1
+          maximum: 10
+    LocationSearchEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/LocationSearchResponse'
+    LocationSearchResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LocationSearchItem'
+    LocationSearchItem:
+      type: object
+      required: [searchResultToken, provider, resultType, name, latitude, longitude, sido, sigungu, serviceRegionCode]
+      properties:
+        searchResultToken:
+          type: string
+          description: 프론트가 해석하지 않고 위치 저장 요청에 그대로 제출하는 10분 유효 token
+          example: locsrch_opaque_signed_token
+        provider:
+          type: string
+          enum: [KAKAO]
+        resultType:
+          $ref: '#/components/schemas/LocationSearchResultType'
+        providerPlaceId:
+          type: string
+          nullable: true
+          example: '123456789'
+        name:
+          type: string
+          example: 성신여자대학교
+        roadAddress:
+          type: string
+          nullable: true
+          example: 서울특별시 성북구 보문로34다길 2
+        address:
+          type: string
+          nullable: true
+          example: 서울특별시 성북구 돈암동 173-1
+        latitude:
+          type: number
+          format: double
+          example: 37.5913
+        longitude:
+          type: number
+          format: double
+          example: 127.0221
+        sido:
+          type: string
+          example: 서울특별시
+        sigungu:
+          type: string
+          example: 성북구
+        dong:
+          type: string
+          nullable: true
+          example: 돈암동
+        serviceRegionCode:
+          $ref: '#/components/schemas/ServiceRegionCode'
+    UserLocationEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/UserLocationResponse'
+    UserLocationResponse:
+      type: object
+      required: [locationId, displayName, latitude, longitude, serviceRegionCode, default, createdAt]
+      properties:
+        locationId:
+          type: integer
+          format: int64
+        displayName:
+          type: string
+        customLabel:
+          type: string
+          nullable: true
+        roadAddress:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        serviceRegionCode:
+          $ref: '#/components/schemas/ServiceRegionCode'
+        default:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    LanguageCode:
+      type: string
+      description: KO=한국어, EN=English
+      enum: [KO, EN]
+    SocialProvider:
+      type: string
+      description: 소셜 인증 제공자. KAKAO는 위치 provider이며 로그인 enum에 포함하지 않음
+      enum: [GOOGLE, APPLE]
+    ExternalApiProvider:
+      type: string
+      description: KTO=한국관광공사, TMAP=대중교통 경로, KAKAO=위치 검색, AI=번역·가공
+      enum: [KTO, TMAP, KAKAO, AI]
+    TravelPurpose:
+      type: string
+      description: 교환학생, 어학연수, 단기여행, 학위과정, 인턴·취업, 워킹홀리데이, 기타
+      enum: [EXCHANGE_STUDENT, LANGUAGE_STUDY, SHORT_TRIP, DEGREE_PROGRAM, INTERN_WORK, WORKING_HOLIDAY, ETC]
+    TravelStyle:
+      type: string
+      description: 로컬 맛집, 지역 축제, 전통시장, 문화체험, 자연 명소, 전시·미술관, 드라마 촬영지
+      enum: [LOCAL_FOOD, LOCAL_FESTIVAL, TRADITIONAL_MARKET, CULTURE_EXPERIENCE, NATURE, EXHIBITION_MUSEUM, DRAMA_LOCATION]
+    BuddyStyle:
+      type: string
+      description: Buddy 프로필 전용 관심사. 온보딩 TravelStyle과 다른 enum
+      enum: [TRADITIONAL_CULTURE, CAFE_TOUR, FOODIE, PHOTOGRAPHY, HANOK_EXPERIENCE, QUIET_TRAVEL]
+    KoreanLevel:
+      type: string
+      description: 한국어 초급, 중급, 고급. NONE과 NATIVE는 허용하지 않음
+      enum: [BEGINNER, INTERMEDIATE, ADVANCED]
+    ServiceRegionCode:
+      type: string
+      description: 서울, 경기·인천, 강원, 충청, 전라, 경상, 제주 7개 서비스 권역
+      enum: [SEOUL, GYEONGGI, GANGWON, CHUNGCHEONG, JEOLLA, GYEONGSANG, JEJU]
+    SortType:
+      type: string
+      description: 추천 점수순 또는 행사 종료 마감순
+      enum: [RECOMMENDED, DEADLINE]
+    DateFilterType:
+      type: string
+      description: 날짜 범위. CUSTOM이면 customStartDate와 customEndDate가 모두 필요
+      enum: [ALL, THIS_WEEK, THIS_MONTH, NEXT_MONTH, CUSTOM]
+    RecommendationScope:
+      type: string
+      description: NEARBY는 GPS 반경이 아니라 기본 위치와 같은 서비스 권역, NATIONWIDE는 전국
+      enum: [NEARBY, NATIONWIDE]
+    RecommendationEventType:
+      type: string
+      description: 추천 카드 탐색 이벤트. CARD_SERVED는 서버 전용이라 포함하지 않음
+      enum: [CARD_EXPANDED, CARD_PREVIOUS, CARD_NEXT, PLACE_DETAIL_CLICKED, PLACE_SAVED, PLACE_UNSAVED, ROUTE_OPENED]
+    RouteMode:
+      type: string
+      description: Koready가 TMAP 원본을 단순화한 화면 표시용 이동수단
+      enum: [WALK, BUS, SUBWAY, EXPRESS_BUS, TRAIN, AIRPLANE, FERRY, SHUTTLE_BUS]
+    Difficulty:
+      type: string
+      description: 환승, 도보, 총시간을 서버 알고리즘으로 계산한 이동 난이도
+      enum: [EASY, NORMAL, HARD]
+    DayTripStatus:
+      type: string
+      description: TMAP 원본 편도 10800초 미만만 당일치기 가능, 이상은 숙박 권장
+      enum: [DAY_TRIP_AVAILABLE, STAY_RECOMMENDED]
+    CandidateSetStatus:
+      type: string
+      description: 관리자 큐레이션 초안, 불변 발행본, 신규 노출 중지 보관본
+      enum: [DRAFT, PUBLISHED, ARCHIVED]
+    HoriTipStatus:
+      type: string
+      description: 운영 팁 초안, 사용자 노출 중, 일시 중지, 이력 보관
+      enum: [DRAFT, ACTIVE, INACTIVE, ARCHIVED]
+    HoriTipStatusChangeTarget:
+      type: string
+      description: 상태 변경 API가 허용하는 대상 상태. 생성 시에만 DRAFT가 자동 지정됨
+      enum: [ACTIVE, INACTIVE, ARCHIVED]
+    HoriTipScopeType:
+      type: string
+      description: 모든 경로 또는 지정 목적지 장소에만 적용
+      enum: [ALL_ROUTES, DESTINATION_PLACES]
+    HoriTipPlacement:
+      type: string
+      description: 경로 요약 상단 또는 처음 일치한 구간 뒤에 노출
+      enum: [TOP_SUMMARY, AFTER_SEGMENT]
+    HoriTipSource:
+      type: string
+      description: Hori Tip 본문은 운영진 저장 데이터만 허용
+      enum: [OPERATOR_CURATED]
+    LocationSearchResultType:
+      type: string
+      description: ADDRESS=주소 검색 결과, PLACE=학교·건물·장소 키워드 결과
+      enum: [ADDRESS, PLACE]
+    BatchJobStatus:
+      type: string
+      description: 비동기 배치 실행 상태
+      enum: [PENDING, RUNNING, COMPLETED, FAILED, PARTIAL_FAILED]
+    BatchJobType:
+      type: string
+      description: KTO 동기화·상세·영문·번역·이미지 보강 작업 유형
+      enum: [KTO_DAILY_SYNC, KTO_DETAIL_ENRICHMENT, KTO_EN_SYNC, AI_TRANSLATION, IMAGE_ENRICHMENT]
+    SocialLoginRequest:
+      type: object
+      required: [provider, deviceId]
+      properties:
+        provider:
+          $ref: '#/components/schemas/SocialProvider'
+        idToken:
+          type: string
+          nullable: true
+        authorizationCode:
+          type: string
+          nullable: true
+        deviceId:
+          type: string
+          minLength: 1
+          maxLength: 100
+        expoPushToken:
+          type: string
+          nullable: true
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken, deviceId]
+      properties:
+        refreshToken:
+          type: string
+          minLength: 1
+        deviceId:
+          type: string
+          minLength: 1
+          maxLength: 100
+    TermAgreementsRequest:
+      type: object
+      required: [agreements]
+      properties:
+        agreements:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [termVersionId, agreed]
+            properties:
+              termVersionId:
+                type: integer
+                format: int64
+              agreed:
+                type: boolean
+    LanguageRequest:
+      type: object
+      required: [language]
+      properties:
+        language:
+          $ref: '#/components/schemas/LanguageCode'
+    OnboardingRequest:
+      type: object
+      required: [travelPurpose, currentLocationId, travelStyles, candidateSetId, candidateSetVersion, selectedPreferencePlaceIds]
+      properties:
+        travelPurpose:
+          $ref: '#/components/schemas/TravelPurpose'
+        currentLocationId:
+          type: integer
+          format: int64
+        travelStyles:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/TravelStyle'
+        candidateSetId:
+          type: string
+        candidateSetVersion:
+          type: integer
+          minimum: 1
+        selectedPreferencePlaceIds:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: integer
+            format: int64
+    CreateLocationRequest:
+      type: object
+      required: [searchResultToken, setDefault]
+      properties:
+        searchResultToken:
+          type: string
+          minLength: 1
+          description: 위치 검색 응답에서 받은 10분 유효 서명 token
+        customLabel:
+          type: string
+          nullable: true
+          maxLength: 30
+        setDefault:
+          type: boolean
+    CreateCandidateSetRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        copyFromSetId:
+          type: string
+          nullable: true
+    CandidateSetItemInput:
+      type: object
+      required: [placeId, displayOrder, curatorMessageKo, displayTags]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+        displayOrder:
+          type: integer
+          minimum: 1
+          maximum: 10
+        representativeImageId:
+          type: integer
+          format: int64
+          nullable: true
+        curatorMessageKo:
+          type: string
+          minLength: 1
+          maxLength: 160
+        curatorMessageEn:
+          type: string
+          maxLength: 240
+          nullable: true
+        displayTags:
+          type: array
+          maxItems: 5
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 30
+        editorNote:
+          type: string
+          maxLength: 500
+          nullable: true
+    UpdateCandidateSetRequest:
+      type: object
+      required: [title, items]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        items:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/CandidateSetItemInput'
+    HoriTipScope:
+      type: object
+      required: [scopeType, destinationPlaceIds]
+      properties:
+        scopeType:
+          $ref: '#/components/schemas/HoriTipScopeType'
+        destinationPlaceIds:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          description: DESTINATION_PLACES이면 1개 이상 필수, ALL_ROUTES이면 빈 배열
+          items:
+            type: integer
+            format: int64
+          example: [1001]
+    HoriTipTrigger:
+      type: object
+      description: 값이 있는 조건 그룹은 AND, 각 ContainsAny 배열 안의 값은 OR로 평가
+      required: [segmentModes, routeNameContainsAny, segmentStartNameContainsAny, segmentEndNameContainsAny, minProviderTotalTimeSeconds, minTransferCount, minTotalWalkDistanceMeters]
+      properties:
+        segmentModes:
+          type: array
+          maxItems: 8
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/RouteMode'
+          example: [TRAIN]
+        routeNameContainsAny:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 80
+          example: [KTX, KTX-산천, KTX이음]
+        segmentStartNameContainsAny:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 100
+        segmentEndNameContainsAny:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 100
+          example: [김천(구미)역]
+        minProviderTotalTimeSeconds:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: TMAP 원본 totalTime 기준. 표시용 분 반올림 값을 사용하지 않음
+        minTransferCount:
+          type: integer
+          minimum: 0
+          nullable: true
+        minTotalWalkDistanceMeters:
+          type: integer
+          minimum: 0
+          nullable: true
+    HoriTipTranslationInput:
+      type: object
+      required: [language, body]
+      properties:
+        language:
+          $ref: '#/components/schemas/LanguageCode'
+        body:
+          type: string
+          minLength: 1
+          maxLength: 300
+          example: 김천역과 김천(구미)역은 다른 역이에요.
+    HoriTipEditableFields:
+      type: object
+      required: [placement, priority, scope, trigger, translations]
+      properties:
+        placement:
+          $ref: '#/components/schemas/HoriTipPlacement'
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 1000
+          example: 100
+        scope:
+          $ref: '#/components/schemas/HoriTipScope'
+        trigger:
+          $ref: '#/components/schemas/HoriTipTrigger'
+        translations:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          description: DRAFT는 일부 언어를 허용하지만 ACTIVE 전환에는 KO와 EN이 모두 필요
+          items:
+            $ref: '#/components/schemas/HoriTipTranslationInput'
+        validFrom:
+          type: string
+          format: date-time
+          nullable: true
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+        operatorNote:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: 사용자에게 노출하지 않는 운영 메모
+    CreateHoriTipRequest:
+      allOf:
+        - $ref: '#/components/schemas/HoriTipEditableFields'
+        - type: object
+          required: [code]
+          properties:
+            code:
+              type: string
+              pattern: '^TIP_[A-Z0-9_]+$'
+              minLength: 5
+              maxLength: 80
+              description: 생성 후 변경할 수 없는 안정 식별자
+              example: TIP_GIMCHEON_GUMI_STATION
+    UpdateHoriTipRequest:
+      allOf:
+        - $ref: '#/components/schemas/HoriTipEditableFields'
+        - type: object
+          required: [version]
+          properties:
+            version:
+              type: integer
+              minimum: 1
+              description: 상세 조회에서 받은 현재 version
+    UpdateHoriTipStatusRequest:
+      type: object
+      required: [status, version, reason]
+      properties:
+        status:
+          $ref: '#/components/schemas/HoriTipStatusChangeTarget'
+        version:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: 운영 검수 완료
+    RecommendationDeckRequest:
+      type: object
+      required: [scope, size]
+      properties:
+        scope:
+          $ref: '#/components/schemas/RecommendationScope'
+        originLocationId:
+          type: integer
+          format: int64
+          nullable: true
+        size:
+          type: integer
+          minimum: 1
+          maximum: 50
+    RecommendationEventRequest:
+      type: object
+      required: [placeId, eventType]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+        eventType:
+          $ref: '#/components/schemas/RecommendationEventType'
+        occurredAt:
+          type: string
+          format: date-time
+          nullable: true
+    PlaceDetailEnvelope:
+      type: object
+      required: [success, code, message, data, traceId]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        code:
+          type: string
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PlaceDetail'
+        traceId:
+          type: string
+    PlaceDetail:
+      type: object
+      required: [placeId, title, serviceRegionCode, locationText, address, latitude, longitude, images, tags, isSaved, description, relatedPlaces, availableTabs]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+          example: 1001
+        title:
+          type: string
+          example: 김천 김밥축제
+        serviceRegionCode:
+          $ref: '#/components/schemas/ServiceRegionCode'
+        locationText:
+          type: string
+          example: 경상북도 김천시
+        address:
+          type: string
+          example: 경상북도 김천시 삼락동 488-1
+        latitude:
+          type: number
+          format: double
+          example: 36.1398
+        longitude:
+          type: number
+          format: double
+          example: 128.1136
+        operatingHours:
+          type: string
+          nullable: true
+        operatingPeriod:
+          type: string
+          nullable: true
+        closedDays:
+          type: string
+          nullable: true
+        usageFee:
+          type: string
+          nullable: true
+        parkingInfo:
+          type: string
+          nullable: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaceImage'
+        tags:
+          type: array
+          items:
+            type: string
+        isSaved:
+          type: boolean
+        description:
+          $ref: '#/components/schemas/PlaceDescription'
+        relatedPlaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/RelatedPlace'
+        availableTabs:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailablePlaceTab'
+    RouteRequest:
+      type: object
+      required: [originLocationId, destinationPlaceId]
+      properties:
+        originLocationId:
+          type: integer
+          format: int64
+        destinationPlaceId:
+          type: integer
+          format: int64
+        departureAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 생략하면 현재 시각. 서버가 Asia/Seoul의 TMAP searchDttm으로 변환
+    RouteEnvelope:
+      type: object
+      required: [success, code, message, data, traceId]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        code:
+          type: string
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/RouteResponse'
+        traceId:
+          type: string
+    RouteResponse:
+      type: object
+      required: [routeId, provider, origin, destination, fetchedAt, expiresAt, summary, segments, warnings, detailAvailable]
+      properties:
+        routeId:
+          type: string
+          example: route_01J2ABCDEF
+        provider:
+          type: string
+          enum: [TMAP_TRANSIT]
+        origin:
+          $ref: '#/components/schemas/RoutePoint'
+        destination:
+          $ref: '#/components/schemas/RoutePoint'
+        fetchedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        summary:
+          $ref: '#/components/schemas/RouteSummary'
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteSegment'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteWarning'
+        detailAvailable:
+          type: boolean
+          description: true이면 expiresAt 전까지 GET /routes/{routeId} 상세 조회 가능
+    BuddyProfileRequest:
+      type: object
+      required: [nickname, availableLanguages, koreanLevel, buddyStyles, profilePublic, snsPublic, allowsMessages]
+      properties:
+        profileImageUrl:
+          type: string
+          format: uri
+          nullable: true
+        nickname:
+          type: string
+          minLength: 1
+          maxLength: 30
+        nationality:
+          type: string
+          nullable: true
+        availableLanguages:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/LanguageCode'
+        koreanLevel:
+          $ref: '#/components/schemas/KoreanLevel'
+        bio:
+          type: string
+          maxLength: 500
+          nullable: true
+        buddyStyles:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BuddyStyle'
+        socialLinks:
+          type: array
+          items:
+            $ref: '#/components/schemas/SocialLinkInput'
+        profilePublic:
+          type: boolean
+        snsPublic:
+          type: boolean
+        allowsMessages:
+          type: boolean
+    CreateMessageThreadRequest:
+      type: object
+      required: [receiverProfileId, placeId, content]
+      properties:
+        receiverProfileId:
+          type: integer
+          format: int64
+        placeId:
+          type: integer
+          format: int64
+        content:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    CreateMessageRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    ReportRequest:
+      type: object
+      required: [targetType, targetId, reason]
+      properties:
+        targetType:
+          $ref: '#/components/schemas/ReportTargetType'
+        targetId:
+          type: string
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+    CreateBatchJobRequest:
+      type: object
+      required: [jobType, reason]
+      properties:
+        jobType:
+          $ref: '#/components/schemas/BatchJobType'
+        parameters:
+          $ref: '#/components/schemas/BatchJobParameters'
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+    RetryBatchJobRequest:
+      type: object
+      required: [scope, reason]
+      properties:
+        scope:
+          type: string
+          enum: [FAILED_ITEMS]
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+    EnabledRequest:
+      type: object
+      required: [enabled, reason]
+      properties:
+        enabled:
+          type: boolean
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+    ResetCursorRequest:
+      type: object
+      required: [cursorValue, reason]
+      properties:
+        cursorValue:
+          type: string
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+    CreateEvidenceBundleRequest:
+      type: object
+      required: [name, from, to, providers, includeRawSnapshots, rawSampleLimitPerOperation]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        providers:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/ExternalApiProvider'
+        operations:
+          type: array
+          items:
+            type: string
+        includeRawSnapshots:
+          type: boolean
+        rawSampleLimitPerOperation:
+          type: integer
+          minimum: 0
+          maximum: 100
+    NextStep:
+      type: string
+      description: 로그인 또는 가입 단계 저장 뒤 프론트가 이동할 다음 화면
+      enum: [TERMS, LANGUAGE, ONBOARDING, COMPLETED]
+    SignupStatus:
+      type: string
+      description: 서버가 계산한 가입 진행 상태. 프론트에서 약관·언어·온보딩 값을 조합해 다시 계산하지 않음
+      enum: [TERMS_REQUIRED, LANGUAGE_REQUIRED, ONBOARDING_REQUIRED, ACTIVE]
+    OnboardingStep:
+      type: string
+      description: 앱이 중단된 온보딩을 이어서 표시할 화면
+      enum: [TRAVEL_PURPOSE, LOCATION, TRAVEL_STYLES, PREFERENCE_PLACES, COMPLETED]
+    SocialLinkType:
+      type: string
+      description: Buddy 프로필에서 사용자가 공개할 수 있는 SNS 종류
+      enum: [INSTAGRAM, KAKAOTALK, THREADS, TIKTOK, ETC]
+    AvailablePlaceTab:
+      type: string
+      description: 장소 상세에서 실제로 노출 가능한 탭
+      enum: [DESCRIPTION, ROUTE, MATES]
+    ReportTargetType:
+      type: string
+      enum: [PROFILE, MESSAGE]
+    ReportStatus:
+      type: string
+      description: 신고 처리 상태. 접수 직후 기본값은 RECEIVED
+      enum: [RECEIVED, REVIEWING, RESOLVED, REJECTED]
+    TokenEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/TokenResponse'
+    TokenResponse:
+      type: object
+      required: [tokenType, accessToken, refreshToken, accessTokenExpiresAt, refreshTokenExpiresAt, user, nextStep]
+      properties:
+        tokenType:
+          type: string
+          enum: [Bearer]
+          description: Authorization header에 사용할 인증 scheme
+        accessToken:
+          type: string
+          description: API 인증용 단기 JWT. 브라우저 일반 저장소에 평문으로 남기지 않음
+          example: eyJhbGciOiJIUzI1NiJ9.access
+        refreshToken:
+          type: string
+          description: access token 재발급용 장기 token. 응답 수신 즉시 보안 저장소에 교체 저장
+          example: rft_opaque_rotating_token
+        accessTokenExpiresAt:
+          type: string
+          format: date-time
+          example: '2026-07-13T13:00:00+09:00'
+        refreshTokenExpiresAt:
+          type: string
+          format: date-time
+          example: '2026-08-12T12:00:00+09:00'
+        user:
+          $ref: '#/components/schemas/UserSummary'
+        nextStep:
+          $ref: '#/components/schemas/NextStep'
+    UserSummary:
+      type: object
+      required: [userId, email, preferredLanguage]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          example: 1
+        email:
+          type: string
+          format: email
+          example: emma@example.com
+        profileImageUrl:
+          type: string
+          format: uri
+          nullable: true
+          example: https://cdn.koready.kr/profiles/1.jpg
+        preferredLanguage:
+          $ref: '#/components/schemas/LanguageCode'
+    TermsRequiredEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/TermsRequiredResponse'
+    TermsRequiredResponse:
+      type: object
+      required: [terms, allRequiredAgreed]
+      properties:
+        terms:
+          type: array
+          description: displayOrder 오름차순. 제출 시 배열 순서가 아니라 termVersionId를 사용
+          items:
+            $ref: '#/components/schemas/RequiredTermItem'
+        allRequiredAgreed:
+          type: boolean
+          description: 현재 버전의 필수 약관을 모두 동의했는지 여부
+          example: false
+    RequiredTermItem:
+      type: object
+      required: [termId, termVersionId, code, title, required, version, contentUrl, agreed, needsAgreement, displayOrder]
+      properties:
+        termId:
+          type: integer
+          format: int64
+          example: 1
+        termVersionId:
+          type: integer
+          format: int64
+          description: 동의 저장 요청에 그대로 보내는 현재 약관 버전 ID
+          example: 10
+        code:
+          type: string
+          example: SERVICE_TERMS
+        title:
+          type: string
+          example: 서비스 이용약관
+        required:
+          type: boolean
+          example: true
+        version:
+          type: string
+          example: '1.0'
+        contentUrl:
+          type: string
+          format: uri
+          example: https://koready.kr/terms/service/1.0
+        agreed:
+          type: boolean
+          description: 사용자가 이 정확한 버전에 동의했는지 여부
+          example: false
+        needsAgreement:
+          type: boolean
+          description: 신규 동의 또는 개정 약관 재동의가 필요한지 여부
+          example: true
+        displayOrder:
+          type: integer
+          minimum: 1
+          example: 1
+    TermAgreementEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/TermAgreementResponse'
+    TermAgreementResponse:
+      type: object
+      required: [agreements, allRequiredAgreed, nextStep]
+      properties:
+        agreements:
+          type: array
+          items:
+            $ref: '#/components/schemas/TermAgreementItem'
+        allRequiredAgreed:
+          type: boolean
+          enum: [true]
+        nextStep:
+          $ref: '#/components/schemas/NextStep'
+    TermAgreementItem:
+      type: object
+      required: [termVersionId, code, required, agreed, agreedAt]
+      properties:
+        termVersionId:
+          type: integer
+          format: int64
+        code:
+          type: string
+          example: PRIVACY_POLICY
+        required:
+          type: boolean
+        agreed:
+          type: boolean
+        agreedAt:
+          type: string
+          format: date-time
+          nullable: true
+    MyUserEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MyUserResponse'
+    MyUserResponse:
+      type: object
+      required: [user, signupStatus, nextStep, onboardingCompleted, buddyProfileExists, unreadMessageCount, termsNeedReAgreement]
+      properties:
+        user:
+          $ref: '#/components/schemas/UserSummary'
+        signupStatus:
+          $ref: '#/components/schemas/SignupStatus'
+        nextStep:
+          $ref: '#/components/schemas/NextStep'
+        defaultLocationId:
+          type: integer
+          format: int64
+          nullable: true
+          description: null이면 위치 등록 화면이 필요함
+          example: 100
+        onboardingCompleted:
+          type: boolean
+        buddyProfileExists:
+          type: boolean
+        unreadMessageCount:
+          type: integer
+          minimum: 0
+          example: 2
+        termsNeedReAgreement:
+          type: boolean
+    LanguageEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/LanguageResponse'
+    LanguageResponse:
+      type: object
+      required: [language, nextStep, updatedAt]
+      properties:
+        language:
+          $ref: '#/components/schemas/LanguageCode'
+        nextStep:
+          $ref: '#/components/schemas/NextStep'
+        updatedAt:
+          type: string
+          format: date-time
+    OnboardingProgressEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/OnboardingProgressResponse'
+    OnboardingProgressResponse:
+      type: object
+      required: [completed, currentStep, travelStyles, selectedPreferencePlaceIds]
+      properties:
+        completed:
+          type: boolean
+        currentStep:
+          $ref: '#/components/schemas/OnboardingStep'
+        travelPurpose:
+          type: string
+          allOf:
+            - $ref: '#/components/schemas/TravelPurpose'
+          nullable: true
+        currentLocationId:
+          type: integer
+          format: int64
+          nullable: true
+        travelStyles:
+          type: array
+          maxItems: 4
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/TravelStyle'
+        candidateSetId:
+          type: string
+          nullable: true
+        candidateSetVersion:
+          type: integer
+          minimum: 1
+          nullable: true
+        selectedPreferencePlaceIds:
+          type: array
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: integer
+            format: int64
+    OnboardingCompletionEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/OnboardingCompletionResponse'
+    OnboardingCompletionResponse:
+      type: object
+      required: [completed, completedAt, profile, nextStep]
+      properties:
+        completed:
+          type: boolean
+          enum: [true]
+        completedAt:
+          type: string
+          format: date-time
+        nextStep:
+          $ref: '#/components/schemas/NextStep'
+        profile:
+          $ref: '#/components/schemas/OnboardingProfile'
+    OnboardingProfile:
+      type: object
+      required: [travelPurpose, currentLocation, travelStyles, selectedPreferencePlaceIds, preferenceTags]
+      properties:
+        travelPurpose:
+          $ref: '#/components/schemas/TravelPurpose'
+        currentLocation:
+          $ref: '#/components/schemas/LocationSummary'
+        travelStyles:
+          type: array
+          items:
+            $ref: '#/components/schemas/TravelStyle'
+        selectedPreferencePlaceIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        preferenceTags:
+          type: array
+          description: 선택 장소에서 서버가 계산한 추천 seed. 프론트가 직접 생성하지 않음
+          items:
+            $ref: '#/components/schemas/PreferenceTag'
+    PreferenceTag:
+      type: object
+      required: [tagId, code, name, weight, source]
+      properties:
+        tagId:
+          type: integer
+          format: int64
+          example: 31
+        code:
+          type: string
+          example: LOCAL_MARKET
+        name:
+          type: string
+          example: 로컬시장
+        weight:
+          type: number
+          format: double
+          example: 2.0
+        source:
+          type: string
+          enum: [ONBOARDING_PLACE_SELECTION, MANUAL, BEHAVIOR_INFERRED]
+    LocationSummary:
+      type: object
+      required: [locationId, displayName, serviceRegionCode]
+      properties:
+        locationId:
+          type: integer
+          format: int64
+          example: 100
+        displayName:
+          type: string
+          example: 성신여자대학교
+        serviceRegionCode:
+          $ref: '#/components/schemas/ServiceRegionCode'
+    UserLocationListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/UserLocationListResponse'
+    UserLocationListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: default=true 항목을 먼저, 나머지는 최신 생성순으로 반환
+          items:
+            $ref: '#/components/schemas/UserLocationResponse'
+    HomeEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/HomeResponse'
+    HomeResponse:
+      type: object
+      required: [preferredLanguage, monthlyRecommendation]
+      properties:
+        currentLocation:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/LocationSummary'
+          nullable: true
+          description: 기본 위치가 없으면 null이며 프론트는 위치 등록 화면으로 이동
+        preferredLanguage:
+          $ref: '#/components/schemas/LanguageCode'
+        monthlyRecommendation:
+          $ref: '#/components/schemas/MonthlyRecommendationPreview'
+        unreadMessageCount:
+          type: integer
+          minimum: 0
+          example: 2
+    MonthlyRecommendationPreview:
+      type: object
+      required: [month, title, totalCount, items]
+      properties:
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+          example: 7
+        title:
+          type: string
+          example: 7월엔 이건 해야지!
+        totalCount:
+          type: integer
+          minimum: 0
+          description: 전체보기 badge와 버튼 노출 판단에 사용
+          example: 24
+        items:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/PlaceCard'
+    PlaceCard:
+      type: object
+      required: [placeId, title, serviceRegionCode, serviceRegionName, addressSummary, tags, saved]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+          example: 1001
+        title:
+          type: string
+          example: 김천 김밥축제
+        serviceRegionCode:
+          $ref: '#/components/schemas/ServiceRegionCode'
+        serviceRegionName:
+          type: string
+          example: 경상
+        addressSummary:
+          type: string
+          example: 경상북도 김천시
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: null이면 프론트 기본 이미지를 사용
+          example: https://cdn.koready.kr/places/1001/cover.jpg
+        dateRangeText:
+          type: string
+          nullable: true
+          description: 현재 언어로 이미 포맷된 표시 문자열. 프론트가 날짜를 재조합하지 않음
+          example: 7.25(토)~7.26(일)
+        startDate:
+          type: string
+          format: date
+          nullable: true
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        travelStyle:
+          type: string
+          allOf:
+            - $ref: '#/components/schemas/TravelStyle'
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          example: [지역축제, 로컬음식, 시즌추천]
+        shortDescription:
+          type: string
+          nullable: true
+          example: 김밥을 주제로 먹고, 만들고, 즐기는 지역 축제예요.
+        saved:
+          type: boolean
+          description: 현재 로그인 사용자의 저장 여부
+    MonthlyRecommendationListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MonthlyRecommendationListResponse'
+    MonthlyRecommendationListResponse:
+      type: object
+      required: [month, appliedFilters, items, hasMore, totalCount]
+      properties:
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        appliedFilters:
+          $ref: '#/components/schemas/MonthlyRecommendationFilters'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaceCard'
+        nextCursor:
+          type: string
+          nullable: true
+          description: hasMore=true일 때만 다음 요청에 그대로 전달하는 opaque 값
+        hasMore:
+          type: boolean
+        totalCount:
+          type: integer
+          minimum: 0
+    MonthlyRecommendationFilters:
+      type: object
+      required: [month, dateFilterType, travelStyles, sort]
+      properties:
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+        serviceRegionCode:
+          type: string
+          allOf:
+            - $ref: '#/components/schemas/ServiceRegionCode'
+          nullable: true
+        dateFilterType:
+          $ref: '#/components/schemas/DateFilterType'
+        customStartDate:
+          type: string
+          format: date
+          nullable: true
+        customEndDate:
+          type: string
+          format: date
+          nullable: true
+        travelStyles:
+          type: array
+          items:
+            $ref: '#/components/schemas/TravelStyle'
+        sort:
+          $ref: '#/components/schemas/SortType'
+    PlaceListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PlaceListResponse'
+    PlaceListResponse:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaceCard'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+        totalCount:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: 검색 비용에 따라 생략 가능한 전체 개수
+    RecommendationDeckEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RecommendationDeckResponse'
+    RecommendationDeckResponse:
+      type: object
+      required: [deckId, scope, originLocation, cards, hasMore, remainingThreshold, deduplication]
+      properties:
+        deckId:
+          type: string
+          description: 이벤트 전송과 다음 페이지 조회에 사용하는 opaque ID
+          example: rec-20260713-user1-001
+        scope:
+          $ref: '#/components/schemas/RecommendationScope'
+        originLocation:
+          $ref: '#/components/schemas/LocationSummary'
+        cards:
+          type: array
+          description: 서버 추천 순서 그대로 렌더링하며 프론트에서 shuffle하지 않음
+          items:
+            $ref: '#/components/schemas/RecommendationCard'
+        nextCursor:
+          type: string
+          nullable: true
+          example: eyJvZmZzZXQiOjIwfQ==
+        hasMore:
+          type: boolean
+        remainingThreshold:
+          type: integer
+          minimum: 1
+          description: 남은 카드가 이 수 이하가 되면 다음 페이지를 미리 요청
+          example: 5
+        deduplication:
+          $ref: '#/components/schemas/RecommendationDeduplication'
+    RecommendationCard:
+      type: object
+      required: [placeId, title, locationText, saved, tags, serviceRegionCode, matchRank, matchReason]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+          example: 1001
+        title:
+          type: string
+          example: 김천 김밥축제
+        locationText:
+          type: string
+          example: 경상북도 김천시
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+        saved:
+          type: boolean
+        tags:
+          type: array
+          items:
+            type: string
+          example: [지역축제, 로컬음식, 체험]
+        shortDescription:
+          type: string
+          nullable: true
+        serviceRegionCode:
+          $ref: '#/components/schemas/ServiceRegionCode'
+        travelStyle:
+          type: string
+          allOf:
+            - $ref: '#/components/schemas/TravelStyle'
+          nullable: true
+        matchRank:
+          type: integer
+          enum: [1, 2, 3]
+          description: 1=태그+유형 일치, 2=유형만 일치, 3=탐색 확장 후보
+        matchReason:
+          $ref: '#/components/schemas/RecommendationMatchReason'
+    RecommendationMatchReason:
+      type: object
+      required: [travelStyleMatched, preferenceTagMatched, matchedTagCodes]
+      properties:
+        travelStyleMatched:
+          type: boolean
+        preferenceTagMatched:
+          type: boolean
+        matchedTagCodes:
+          type: array
+          items:
+            type: string
+          example: [LOCAL_FOOD, HANDS_ON]
+    RecommendationDeduplication:
+      type: object
+      required: [guaranteedWithinDeck, suppressionDays]
+      properties:
+        guaranteedWithinDeck:
+          type: boolean
+          enum: [true]
+        suppressionDays:
+          type: integer
+          enum: [30]
+          description: CARD_SERVED 뒤 같은 장소의 재노출 금지 기간
+    RecommendationEventEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RecommendationEventResponse'
+    RecommendationEventResponse:
+      type: object
+      required: [eventId, deckId, placeId, eventType, recordedAt]
+      properties:
+        eventId:
+          type: string
+          example: recevt_01J2ABCDEF
+        deckId:
+          type: string
+        placeId:
+          type: integer
+          format: int64
+        eventType:
+          $ref: '#/components/schemas/RecommendationEventType'
+        recordedAt:
+          type: string
+          format: date-time
+    SavedPlaceListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/SavedPlaceListResponse'
+    SavedPlaceListResponse:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavedPlaceCard'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    SavedPlaceCard:
+      allOf:
+        - $ref: '#/components/schemas/PlaceCard'
+        - type: object
+          required: [savedAt]
+          properties:
+            savedAt:
+              type: string
+              format: date-time
+              description: 저장 목록 정렬 기준
+    SavePlaceEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/SavePlaceResponse'
+    SavePlaceResponse:
+      type: object
+      required: [placeId, saved, savedAt]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+        saved:
+          type: boolean
+          enum: [true]
+        savedAt:
+          type: string
+          format: date-time
+    PlaceImage:
+      type: object
+      required: [imageUrl, order]
+      properties:
+        imageUrl:
+          type: string
+          format: uri
+        order:
+          type: integer
+          minimum: 1
+        altText:
+          type: string
+          nullable: true
+    PlaceDescription:
+      type: object
+      required: [impactTitle, impactSubtitle, introParagraphs, enjoyPoints, sourceType]
+      properties:
+        impactTitle:
+          type: string
+          example: 김천에서 만나는
+        impactSubtitle:
+          type: string
+          example: 가장 맛있는 한 줄 여행
+        introParagraphs:
+          type: array
+          items:
+            type: string
+          example: [김밥을 주제로 먹고 만들고 즐길 수 있는 지역 축제예요.]
+        enjoyPoints:
+          type: array
+          items:
+            type: string
+          example: [다양한 김밥 맛보기, 김밥 만들기 체험, 포토존에서 사진 찍기]
+        sourceType:
+          type: string
+          enum: [KTO_ORIGINAL, AI_GENERATED, MANUAL_EDITED]
+          description: 화면에는 노출하지 않아도 되는 콘텐츠 계보 값
+    RelatedPlace:
+      type: object
+      required: [placeId, title, shortDescription]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+        title:
+          type: string
+          example: 직지사
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+        shortDescription:
+          type: string
+          example: 김천에서 함께 둘러보기 좋은 전통 명소예요.
+    RoutePoint:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: 성신여자대학교
+        address:
+          type: string
+          nullable: true
+          description: 화면 표시용 요약 주소. 좌표는 Route 응답에 노출하지 않음
+    RouteSource:
+      type: string
+      description: TMAP 원본 정규화 구간 또는 Koready가 별도 검수한 셔틀 구간
+      enum: [TMAP, KOREADY_CURATED]
+    FareCoverage:
+      type: string
+      description: 요금이 전체 경로를 포함하는지 여부
+      enum: [FULL_ROUTE, AVAILABLE_SEGMENTS_ONLY, UNAVAILABLE]
+    RouteFare:
+      type: object
+      required: [oneWayEstimated, roundTripEstimated, currencyCode, coverage, disclaimer]
+      properties:
+        oneWayEstimated:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: TMAP fare.regular.totalFare 기반 편도 예상 요금
+          example: 35100
+        roundTripEstimated:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: 편도 예상 요금의 단순 2배. 실제 왕복 할인은 반영하지 않음
+          example: 70200
+        currencyCode:
+          type: string
+          enum: [KRW]
+        coverage:
+          $ref: '#/components/schemas/FareCoverage'
+        disclaimer:
+          type: string
+          example: 실제 요금과 다를 수 있으며 일부 셔틀 비용은 제외될 수 있습니다.
+    RouteSummary:
+      type: object
+      required: [recommendedTransportText, estimatedOneWayMinutes, estimatedOneWayTimeText, transferCount, totalWalkDistanceMeters, totalWalkMinutes, difficulty, difficultyAlgorithmVersion, dayTripStatus, fare, transportModes, horiTips]
+      properties:
+        recommendedTransportText:
+          type: string
+          example: 지하철 + KTX + 축제 셔틀버스
+        estimatedOneWayMinutes:
+          type: integer
+          minimum: 0
+          example: 190
+        estimatedOneWayTimeText:
+          type: string
+          description: 현재 언어로 이미 포맷된 편도 시간
+          example: 약 3시간 10분
+        transferCount:
+          type: integer
+          minimum: 0
+          description: TMAP itinerary.transferCount
+          example: 3
+        totalWalkDistanceMeters:
+          type: integer
+          minimum: 0
+          description: TMAP itinerary.totalWalkDistance
+          example: 1250
+        totalWalkMinutes:
+          type: integer
+          minimum: 0
+          description: TMAP totalWalkTime을 분 단위로 올림
+          example: 18
+        difficulty:
+          $ref: '#/components/schemas/Difficulty'
+        difficultyAlgorithmVersion:
+          type: string
+          example: route-difficulty-v1
+        dayTripStatus:
+          $ref: '#/components/schemas/DayTripStatus'
+        fare:
+          $ref: '#/components/schemas/RouteFare'
+        transportModes:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/RouteMode'
+        horiTips:
+          type: array
+          items:
+            $ref: '#/components/schemas/HoriTip'
+    RouteSegment:
+      type: object
+      required: [order, source, startName, endName, mode, durationMinutes, distanceMeters, fare, instruction, serviceAvailable, horiTips]
+      properties:
+        order:
+          type: integer
+          minimum: 1
+        source:
+          $ref: '#/components/schemas/RouteSource'
+        startName:
+          type: string
+        endName:
+          type: string
+        mode:
+          $ref: '#/components/schemas/RouteMode'
+        routeName:
+          type: string
+          nullable: true
+          example: KTX
+        durationMinutes:
+          type: integer
+          minimum: 0
+        distanceMeters:
+          type: integer
+          minimum: 0
+        fare:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: TMAP routePayment 등 구간 요금이 있을 때만 제공
+        instruction:
+          type: string
+          description: 현재 언어로 정규화한 구간 안내
+        serviceAvailable:
+          type: boolean
+          description: WALK는 true, 대중교통은 TMAP service=1일 때 true
+        horiTips:
+          type: array
+          items:
+            $ref: '#/components/schemas/HoriTip'
+    HoriTip:
+      type: object
+      description: 운영진이 저장한 현재 ACTIVE Hori Tip을 Route 조회 시점에 매칭한 결과
+      required: [code, source, title, body, placement]
+      properties:
+        code:
+          type: string
+          example: TIP_GIMCHEON_GUMI_STATION
+        source:
+          $ref: '#/components/schemas/HoriTipSource'
+        title:
+          type: string
+          enum: [Hori Tip]
+        body:
+          type: string
+        placement:
+          $ref: '#/components/schemas/HoriTipPlacement'
+    RouteWarning:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [PARTIAL_FARE, CURATED_SEGMENT, PROVIDER_DATA_LIMITED]
+        message:
+          type: string
+        segmentOrder:
+          type: integer
+          minimum: 1
+          nullable: true
+    MyBuddyProfileEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MyBuddyProfileResponse'
+    MyBuddyProfileResponse:
+      type: object
+      required: [exists]
+      properties:
+        exists:
+          type: boolean
+          description: false이면 profile은 null이며 신규 작성 form을 표시
+        profile:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/BuddyProfile'
+          nullable: true
+    BuddyProfileEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/BuddyProfile'
+    BuddyProfile:
+      type: object
+      required: [profileId, nickname, availableLanguages, koreanLevel, buddyStyles, socialLinks, profilePublic, snsPublic, allowsMessages, canMessage, blockedByMe, updatedAt]
+      properties:
+        profileId:
+          type: integer
+          format: int64
+          example: 501
+        profileImageUrl:
+          type: string
+          format: uri
+          nullable: true
+        nickname:
+          type: string
+          example: Emma
+        nationality:
+          type: string
+          nullable: true
+          example: France
+        availableLanguages:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/LanguageCode'
+        koreanLevel:
+          $ref: '#/components/schemas/KoreanLevel'
+        bio:
+          type: string
+          nullable: true
+          maxLength: 500
+        buddyStyles:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BuddyStyle'
+        socialLinks:
+          type: array
+          description: snsPublic=false이면 공개 프로필 응답에서는 빈 배열
+          items:
+            $ref: '#/components/schemas/SocialLink'
+        profilePublic:
+          type: boolean
+        snsPublic:
+          type: boolean
+        allowsMessages:
+          type: boolean
+        canMessage:
+          type: boolean
+          description: 공개 범위·차단 관계·자기 자신 여부까지 서버가 계산한 메시지 가능 상태
+        blockedByMe:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+    SocialLink:
+      type: object
+      required: [type, displayValue]
+      properties:
+        type:
+          $ref: '#/components/schemas/SocialLinkType'
+        displayValue:
+          type: string
+          example: '@emma.travels'
+        url:
+          type: string
+          format: uri
+          nullable: true
+    PlaceMateListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PlaceMateListResponse'
+    PlaceMateListResponse:
+      type: object
+      required: [placeId, items, hasMore]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BuddyProfile'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    ProfileSummary:
+      type: object
+      required: [profileId, nickname]
+      properties:
+        profileId:
+          type: integer
+          format: int64
+        nickname:
+          type: string
+        profileImageUrl:
+          type: string
+          format: uri
+          nullable: true
+    PlaceSummary:
+      type: object
+      required: [placeId, title]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+        title:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+    MessageThreadListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MessageThreadListResponse'
+    MessageThreadListResponse:
+      type: object
+      required: [items, hasMore, unreadTotal]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageThreadSummary'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+        unreadTotal:
+          type: integer
+          minimum: 0
+          description: 앱 전역 쪽지 badge에 반영할 읽지 않은 전체 메시지 수
+    MessageThreadSummary:
+      type: object
+      required: [threadId, place, otherProfile, preview, lastSentAt, unreadCount]
+      properties:
+        threadId:
+          type: string
+          example: thread_01J2ABCDEF
+        place:
+          $ref: '#/components/schemas/PlaceSummary'
+        otherProfile:
+          $ref: '#/components/schemas/ProfileSummary'
+        preview:
+          type: string
+          example: 저도 김천 김밥축제에 관심 있어요.
+        lastSentAt:
+          type: string
+          format: date-time
+        unreadCount:
+          type: integer
+          minimum: 0
+        blocked:
+          type: boolean
+          description: true이면 새 메시지 입력창을 비활성화
+    MessageThreadEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MessageThreadResponse'
+    MessageThreadResponse:
+      type: object
+      required: [threadId, place, otherProfile, messages, hasMore, canReply]
+      properties:
+        threadId:
+          type: string
+        place:
+          $ref: '#/components/schemas/PlaceSummary'
+        otherProfile:
+          $ref: '#/components/schemas/ProfileSummary'
+        messages:
+          type: array
+          description: 화면에서는 배열 순서 그대로 위에서 아래로 렌더링
+          items:
+            $ref: '#/components/schemas/MessageResponse'
+        nextCursor:
+          type: string
+          nullable: true
+          description: 더 오래된 메시지를 가져올 때 그대로 전달
+        hasMore:
+          type: boolean
+        canReply:
+          type: boolean
+          description: 차단·공개 설정·계정 상태를 반영한 답장 가능 여부
+    MessageEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MessageResponse'
+    MessageResponse:
+      type: object
+      required: [messageId, threadId, senderProfileId, receiverProfileId, placeId, content, sentAt, read]
+      properties:
+        messageId:
+          type: integer
+          format: int64
+          example: 9001
+        threadId:
+          type: string
+        senderProfileId:
+          type: integer
+          format: int64
+        receiverProfileId:
+          type: integer
+          format: int64
+        placeId:
+          type: integer
+          format: int64
+        content:
+          type: string
+          maxLength: 1000
+        sentAt:
+          type: string
+          format: date-time
+        read:
+          type: boolean
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+    MessageReadEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MessageReadResponse'
+    MessageReadResponse:
+      type: object
+      required: [threadId, readAt, threadUnreadCount, unreadTotal]
+      properties:
+        threadId:
+          type: string
+        readAt:
+          type: string
+          format: date-time
+        threadUnreadCount:
+          type: integer
+          enum: [0]
+        unreadTotal:
+          type: integer
+          minimum: 0
+    BlockProfileEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/BlockProfileResponse'
+    BlockProfileResponse:
+      type: object
+      required: [profileId, blocked, blockedAt]
+      properties:
+        profileId:
+          type: integer
+          format: int64
+        blocked:
+          type: boolean
+          enum: [true]
+        blockedAt:
+          type: string
+          format: date-time
+    ReportEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ReportResponse'
+    ReportResponse:
+      type: object
+      required: [reportId, targetType, targetId, status, createdAt]
+      properties:
+        reportId:
+          type: integer
+          format: int64
+        targetType:
+          $ref: '#/components/schemas/ReportTargetType'
+        targetId:
+          type: string
+        status:
+          $ref: '#/components/schemas/ReportStatus'
+        createdAt:
+          type: string
+          format: date-time
+    AdminCandidateSetListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AdminCandidateSetListResponse'
+    AdminCandidateSetListResponse:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminCandidateSetSummary'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    AdminCandidateSetSummary:
+      type: object
+      required: [candidateSetId, title, version, status, itemCount, current, createdAt, updatedAt]
+      properties:
+        candidateSetId:
+          type: string
+          example: onb-curation-2026-07-v1
+        title:
+          type: string
+          example: 2026 여름 온보딩 큐레이션
+        version:
+          type: integer
+          minimum: 1
+        status:
+          $ref: '#/components/schemas/CandidateSetStatus'
+        itemCount:
+          type: integer
+          minimum: 0
+          maximum: 10
+        current:
+          type: boolean
+          description: 사용자 current endpoint가 현재 반환하는 발행본인지 여부
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AdminCandidateSetEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AdminCandidateSetResponse'
+    AdminCandidateSetResponse:
+      allOf:
+        - $ref: '#/components/schemas/AdminCandidateSetSummary'
+        - type: object
+          required: [items, editable]
+          properties:
+            editable:
+              type: boolean
+              description: DRAFT이면서 현재 actor가 수정 권한을 가졌는지 여부
+            items:
+              type: array
+              maxItems: 10
+              items:
+                $ref: '#/components/schemas/AdminCandidateSetItem'
+            publishedByUserId:
+              type: integer
+              format: int64
+              nullable: true
+            archivedAt:
+              type: string
+              format: date-time
+              nullable: true
+    AdminCandidateSetItem:
+      type: object
+      required: [placeId, titleKo, displayOrder, curatorMessageKo, displayTags, placeReady]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+        titleKo:
+          type: string
+        titleEn:
+          type: string
+          nullable: true
+        representativeImageId:
+          type: integer
+          format: int64
+          nullable: true
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+        displayOrder:
+          type: integer
+          minimum: 1
+          maximum: 10
+        curatorMessageKo:
+          type: string
+        curatorMessageEn:
+          type: string
+          nullable: true
+        displayTags:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+        editorNote:
+          type: string
+          nullable: true
+        placeReady:
+          type: boolean
+          description: 발행에 필요한 제목·주소·좌표·대표 이미지가 모두 있는지 여부
+        notReadyReasons:
+          type: array
+          items:
+            type: string
+            enum: [INACTIVE, MISSING_TITLE_KO, MISSING_ADDRESS, MISSING_COORDINATES, MISSING_IMAGE, IMAGE_NOT_OWNED_BY_PLACE]
+    AdminHoriTipListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AdminHoriTipListResponse'
+    AdminHoriTipListResponse:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminHoriTipResponse'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    AdminHoriTipEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AdminHoriTipResponse'
+    AdminHoriTipResponse:
+      type: object
+      required: [horiTipId, code, source, status, placement, priority, scope, trigger, translations, version, activeNow, editable, createdByUserId, updatedByUserId, createdAt, updatedAt]
+      properties:
+        horiTipId:
+          type: integer
+          format: int64
+          example: 7001
+        code:
+          type: string
+          example: TIP_GIMCHEON_GUMI_STATION
+        source:
+          $ref: '#/components/schemas/HoriTipSource'
+        status:
+          $ref: '#/components/schemas/HoriTipStatus'
+        placement:
+          $ref: '#/components/schemas/HoriTipPlacement'
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 1000
+          example: 100
+        scope:
+          $ref: '#/components/schemas/HoriTipScope'
+        trigger:
+          $ref: '#/components/schemas/HoriTipTrigger'
+        translations:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/HoriTipTranslationResponse'
+        validFrom:
+          type: string
+          format: date-time
+          nullable: true
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+        operatorNote:
+          type: string
+          nullable: true
+        version:
+          type: integer
+          minimum: 1
+          description: PUT과 상태 변경 때 그대로 제출할 낙관적 잠금 version
+        activeNow:
+          type: boolean
+          description: status와 현재 노출 기간을 함께 평가한 실제 사용자 노출 후보 여부
+        editable:
+          type: boolean
+          description: ARCHIVED가 아니고 현재 actor에게 편집 권한이 있는지 여부
+        createdByUserId:
+          type: integer
+          format: int64
+        updatedByUserId:
+          type: integer
+          format: int64
+        activatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    HoriTipTranslationResponse:
+      type: object
+      required: [language, title, body]
+      properties:
+        language:
+          $ref: '#/components/schemas/LanguageCode'
+        title:
+          type: string
+          enum: [Hori Tip]
+        body:
+          type: string
+          example: 김천역과 김천(구미)역은 다른 역이에요.
+    OpenApiSummaryEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/OpenApiSummaryResponse'
+    OpenApiSummaryResponse:
+      type: object
+      required: [period, totalCalls, successCalls, failureCalls, successRate, rawSnapshotCount, providers, recentFailures]
+      properties:
+        period:
+          $ref: '#/components/schemas/DateTimePeriod'
+        totalCalls:
+          type: integer
+          minimum: 0
+        successCalls:
+          type: integer
+          minimum: 0
+        failureCalls:
+          type: integer
+          minimum: 0
+        successRate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          example: 98.7
+        rawSnapshotCount:
+          type: integer
+          minimum: 0
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpenApiProviderSummary'
+        recentFailures:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpenApiCallSummary'
+    DateTimePeriod:
+      type: object
+      required: [from, to]
+      properties:
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+    OpenApiProviderSummary:
+      type: object
+      required: [provider, calls, success, failure]
+      properties:
+        provider:
+          $ref: '#/components/schemas/ExternalApiProvider'
+        calls:
+          type: integer
+          minimum: 0
+        success:
+          type: integer
+          minimum: 0
+        failure:
+          type: integer
+          minimum: 0
+        lastSuccessAt:
+          type: string
+          format: date-time
+          nullable: true
+    OpenApiCallListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/OpenApiCallListResponse'
+    OpenApiCallListResponse:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OpenApiCallSummary'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    OpenApiCallSummary:
+      type: object
+      required: [callLogId, provider, apiName, operation, requestStartedAt, durationMs, success, responseBytes, rawSnapshotStatus]
+      properties:
+        callLogId:
+          type: integer
+          format: int64
+        provider:
+          $ref: '#/components/schemas/ExternalApiProvider'
+        apiName:
+          type: string
+          example: KOR_TOUR
+        operation:
+          type: string
+          example: areaBasedList2
+        requestStartedAt:
+          type: string
+          format: date-time
+        responseReceivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        durationMs:
+          type: integer
+          format: int64
+          minimum: 0
+        success:
+          type: boolean
+        httpStatus:
+          type: integer
+          nullable: true
+          example: 200
+        externalResultCode:
+          type: string
+          nullable: true
+          example: '0000'
+        itemCount:
+          type: integer
+          minimum: 0
+          nullable: true
+        responseBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        rawSnapshotStatus:
+          $ref: '#/components/schemas/RawSnapshotStatus'
+        relatedJobId:
+          type: integer
+          format: int64
+          nullable: true
+    RawSnapshotStatus:
+      type: string
+      enum: [NOT_APPLICABLE, NOT_CAPTURED, AVAILABLE, EXPIRED, FAILED]
+    OpenApiCallEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/OpenApiCallResponse'
+    OpenApiCallResponse:
+      allOf:
+        - $ref: '#/components/schemas/OpenApiCallSummary'
+        - type: object
+          required: [endpoint, requestParamsMasked, responseSummary]
+          properties:
+            endpoint:
+              type: string
+              format: uri
+              description: secret query가 제거된 외부 endpoint
+            requestParamsMasked:
+              type: object
+              description: provider별 요청 parameter map. secret과 개인정보는 마스킹 또는 제거됨
+              additionalProperties:
+                type: string
+            responseSummary:
+              $ref: '#/components/schemas/ExternalResponseSummary'
+            error:
+              type: object
+              allOf:
+                - $ref: '#/components/schemas/ExternalCallError'
+              nullable: true
+            relatedJob:
+              type: object
+              allOf:
+                - $ref: '#/components/schemas/RelatedBatchJob'
+              nullable: true
+            rawSnapshot:
+              type: object
+              allOf:
+                - $ref: '#/components/schemas/RelatedRawSnapshot'
+              nullable: true
+    ExternalResponseSummary:
+      type: object
+      properties:
+        resultCode:
+          type: string
+          nullable: true
+        resultMessage:
+          type: string
+          nullable: true
+        totalCount:
+          type: integer
+          minimum: 0
+          nullable: true
+        itemCount:
+          type: integer
+          minimum: 0
+          nullable: true
+    ExternalCallError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        retryable:
+          type: boolean
+    RelatedBatchJob:
+      type: object
+      required: [jobId, jobType]
+      properties:
+        jobId:
+          type: integer
+          format: int64
+        jobType:
+          $ref: '#/components/schemas/BatchJobType'
+    RelatedRawSnapshot:
+      type: object
+      required: [snapshotId, status, rawContentSha256, storedObjectSha256, byteSize]
+      properties:
+        snapshotId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/RawSnapshotStatus'
+        rawContentSha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        storedObjectSha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        byteSize:
+          type: integer
+          format: int64
+          minimum: 0
+    RawSnapshotListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RawSnapshotListResponse'
+    RawSnapshotListResponse:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RawSnapshotResponse'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    RawSnapshotEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RawSnapshotResponse'
+    RawSnapshotResponse:
+      type: object
+      required: [snapshotId, callLogId, provider, apiName, operation, storageFormat, contentType, rawContentSha256, storedObjectSha256, byteSize, compressedByteSize, capturedAt, retentionClass, immutable, downloadable]
+      properties:
+        snapshotId:
+          type: integer
+          format: int64
+        callLogId:
+          type: integer
+          format: int64
+        provider:
+          $ref: '#/components/schemas/ExternalApiProvider'
+        apiName:
+          type: string
+        operation:
+          type: string
+        storageFormat:
+          type: string
+          enum: [JSON_GZIP]
+        contentType:
+          type: string
+          enum: [application/json]
+        rawContentSha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          description: 압축 전 원문 byte의 SHA-256
+        storedObjectSha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          description: object storage에 저장된 gzip byte의 SHA-256
+        byteSize:
+          type: integer
+          format: int64
+          minimum: 0
+        compressedByteSize:
+          type: integer
+          format: int64
+          minimum: 0
+        itemCount:
+          type: integer
+          minimum: 0
+          nullable: true
+        capturedAt:
+          type: string
+          format: date-time
+        retentionClass:
+          type: string
+          enum: [COMPETITION_EVIDENCE, TEMPORARY_PROVIDER_DATA, OPERATIONAL]
+        retentionUntil:
+          type: string
+          format: date-time
+          nullable: true
+        immutable:
+          type: boolean
+          enum: [true]
+        downloadable:
+          type: boolean
+    DownloadUrlEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DownloadUrlResponse'
+    DownloadUrlResponse:
+      type: object
+      required: [downloadUrl, expiresAt]
+      properties:
+        downloadUrl:
+          type: string
+          format: uri
+          description: 기본 5분 유효. 앱 저장소나 로그에 영구 보관하지 않음
+        expiresAt:
+          type: string
+          format: date-time
+        fileName:
+          type: string
+          nullable: true
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          nullable: true
+        rawContentSha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          nullable: true
+        storedObjectSha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          nullable: true
+    BatchJobListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/BatchJobListResponse'
+    BatchJobListResponse:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchJobResponse'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    BatchJobEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/BatchJobResponse'
+    BatchJobResponse:
+      type: object
+      required: [jobId, jobType, status, processedCount, successCount, failureCount, createdAt]
+      properties:
+        jobId:
+          type: integer
+          format: int64
+          example: 3001
+        jobType:
+          $ref: '#/components/schemas/BatchJobType'
+        status:
+          $ref: '#/components/schemas/BatchJobStatus'
+        parameters:
+          $ref: '#/components/schemas/BatchJobParameters'
+        originalJobId:
+          type: integer
+          format: int64
+          nullable: true
+          description: retry job이면 원본 job ID
+        processedCount:
+          type: integer
+          minimum: 0
+        successCount:
+          type: integer
+          minimum: 0
+        failureCount:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        message:
+          type: string
+          nullable: true
+        failureReason:
+          type: string
+          nullable: true
+        requestedByUserId:
+          type: integer
+          format: int64
+          nullable: true
+    BatchJobItemListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/BatchJobItemListResponse'
+    BatchJobItemListResponse:
+      type: object
+      required: [jobId, items, hasMore]
+      properties:
+        jobId:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchJobItemResponse'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    BatchJobItemResponse:
+      type: object
+      required: [itemId, operation, status, attemptCount, createdAt]
+      properties:
+        itemId:
+          type: integer
+          format: int64
+        contentId:
+          type: string
+          nullable: true
+          description: KTO contentId 등 개인정보가 아닌 외부 대상 식별자
+        operation:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, RUNNING, SUCCEEDED, FAILED, SKIPPED]
+        attemptCount:
+          type: integer
+          minimum: 0
+        errorCode:
+          type: string
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        relatedCallLogId:
+          type: integer
+          format: int64
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+    SyncCursorListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/SyncCursorListResponse'
+    SyncCursorListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SyncCursorResponse'
+    SyncCursorEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/SyncCursorResponse'
+    SyncCursorResponse:
+      type: object
+      required: [cursorId, provider, operation, cursorType, cursorValue, enabled, failureCount, updatedAt]
+      properties:
+        cursorId:
+          type: integer
+          format: int64
+        provider:
+          $ref: '#/components/schemas/ExternalApiProvider'
+        operation:
+          type: string
+          example: areaBasedSyncList2
+        cursorType:
+          type: string
+          enum: [MODIFIED_TIME, PAGE, OPAQUE]
+        cursorValue:
+          type: string
+          example: '20260713090000'
+        enabled:
+          type: boolean
+        failureCount:
+          type: integer
+          minimum: 0
+        lastSuccessAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastFailureAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastErrorCode:
+          type: string
+          nullable: true
+        lastErrorMessage:
+          type: string
+          nullable: true
+        nextRunAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+    EvidenceBundleStatus:
+      type: string
+      enum: [QUEUED, RUNNING, COMPLETED, FAILED]
+    EvidenceBundleListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/EvidenceBundleListResponse'
+    EvidenceBundleListResponse:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceBundleResponse'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    EvidenceBundleEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/EvidenceBundleResponse'
+    EvidenceBundleResponse:
+      type: object
+      required: [bundleId, name, status, period, providers, includeRawSnapshots, createdAt, excluded]
+      properties:
+        bundleId:
+          type: string
+          example: evidence_01J2ABCDEF
+        name:
+          type: string
+          example: 2026 공모전 OpenAPI 사용 증빙
+        status:
+          $ref: '#/components/schemas/EvidenceBundleStatus'
+        period:
+          $ref: '#/components/schemas/DateTimePeriod'
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExternalApiProvider'
+        operations:
+          type: array
+          items:
+            type: string
+        includeRawSnapshots:
+          type: boolean
+        fileName:
+          type: string
+          nullable: true
+          example: koready-openapi-evidence-202607.zip
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          nullable: true
+        byteSize:
+          type: integer
+          format: int64
+          minimum: 0
+          nullable: true
+        callCount:
+          type: integer
+          minimum: 0
+          nullable: true
+        rawSnapshotCount:
+          type: integer
+          minimum: 0
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        failureReason:
+          type: string
+          nullable: true
+        excluded:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceExclusion'
+        manifestFiles:
+          type: array
+          description: 완료된 번들에 실제 포함된 파일과 SHA-256 요약
+          items:
+            $ref: '#/components/schemas/EvidenceManifestFile'
+    EvidenceExclusion:
+      type: object
+      required: [provider, reason]
+      properties:
+        provider:
+          $ref: '#/components/schemas/ExternalApiProvider'
+        reason:
+          type: string
+          enum: [PROVIDER_RETENTION_RESTRICTED, EXPIRED, NOT_REQUESTED, SAMPLE_LIMIT]
+    EvidenceManifestFile:
+      type: object
+      required: [path, sha256, byteSize]
+      properties:
+        path:
+          type: string
+          example: open_api_calls.csv
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        byteSize:
+          type: integer
+          format: int64
+          minimum: 0
+    DataQualityEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DataQualityResponse'
+    DataQualityResponse:
+      type: object
+      required: [generatedAt, places, localization]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        places:
+          $ref: '#/components/schemas/PlaceQualitySummary'
+        localization:
+          $ref: '#/components/schemas/LocalizationQualitySummary'
+        lastSuccessfulSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+    PlaceQualitySummary:
+      type: object
+      required: [total, active, missingImage, missingEnglish, missingCoordinates, missingAddress, curationReady]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        active:
+          type: integer
+          minimum: 0
+        missingImage:
+          type: integer
+          minimum: 0
+        missingEnglish:
+          type: integer
+          minimum: 0
+        missingCoordinates:
+          type: integer
+          minimum: 0
+        missingAddress:
+          type: integer
+          minimum: 0
+        curationReady:
+          type: integer
+          minimum: 0
+    LocalizationQualitySummary:
+      type: object
+      required: [ktoEnglish, aiTranslated, manualEdited]
+      properties:
+        ktoEnglish:
+          type: integer
+          minimum: 0
+        aiTranslated:
+          type: integer
+          minimum: 0
+        manualEdited:
+          type: integer
+          minimum: 0
+    AuditLogListEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AuditLogListResponse'
+    AuditLogListResponse:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminAuditLogResponse'
+        nextCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+    AdminAuditLogResponse:
+      type: object
+      required: [auditLogId, actorUserId, actorRoles, action, targetType, targetId, occurredAt]
+      properties:
+        auditLogId:
+          type: integer
+          format: int64
+        actorUserId:
+          type: integer
+          format: int64
+        actorEmail:
+          type: string
+          format: email
+          description: 관리자 화면 표시용이며 증빙 ZIP에는 포함하지 않음
+        actorRoles:
+          type: array
+          items:
+            type: string
+            enum: [ADMIN, OPERATOR, AUDITOR]
+        action:
+          type: string
+          example: RAW_SNAPSHOT_DOWNLOAD_URL_ISSUED
+        targetType:
+          type: string
+          example: RAW_SNAPSHOT
+        targetId:
+          type: string
+          example: '80001'
+        reason:
+          type: string
+          nullable: true
+        beforeSummary:
+          type: object
+          nullable: true
+          description: secret과 개인정보가 제거된 변경 전 필드 map
+          additionalProperties: true
+        afterSummary:
+          type: object
+          nullable: true
+          description: secret과 개인정보가 제거된 변경 후 필드 map
+          additionalProperties: true
+        traceId:
+          type: string
+          nullable: true
+        occurredAt:
+          type: string
+          format: date-time
+    ApiFieldError:
+      type: object
+      required: [field, reason]
+      properties:
+        field:
+          type: string
+          description: 요청 body 또는 query의 필드 경로
+          example: travelStyles
+        rejectedValue:
+          type: string
+          nullable: true
+          description: 보안상 안전한 경우에만 반환하는 거절 값
+        reason:
+          type: string
+          example: 1개 이상 4개 이하로 선택해야 합니다.
+    SocialLinkInput:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          $ref: '#/components/schemas/SocialLinkType'
+        value:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: '@emma.travels'
+    BatchJobParameters:
+      type: object
+      description: |
+        jobType에 따라 사용하는 선택 필드가 다릅니다. KTO sync는 operations/pageSize,
+        특정 상세 보강은 contentIds, 번역은 sourceLanguage/targetLanguage를 사용합니다.
+      additionalProperties: false
+      properties:
+        operations:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+          example: [areaBasedSyncList2]
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          example: 500
+        contentIds:
+          type: array
+          maxItems: 1000
+          uniqueItems: true
+          items:
+            type: string
+        sourceLanguage:
+          $ref: '#/components/schemas/LanguageCode'
+        targetLanguage:
+          $ref: '#/components/schemas/LanguageCode'
+        dryRun:
+          type: boolean
+          default: false

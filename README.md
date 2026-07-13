@@ -8,7 +8,7 @@ KoReady는 2026 관광공모전 참가를 위해 개발하는 외국인 방한·
 - K-Local Pick: 사용자 취향과 지역을 반영한 개인화 추천
 - 월별 추천: 축제 기간과 계절성을 반영한 여행 후보
 - 장소 탐색: 7개 서비스 권역 기반 검색과 상세 조회
-- Buddy Route: TMAP 기반 대중교통 경로와 Hori Tip
+- Buddy Route: TMAP 기반 대중교통 경로와 운영진 큐레이션 Hori Tip 조합
 - Buddy Connect: 여행지 기반 공개 프로필, 메이트 탐색, 쪽지
 - Admin Evidence: 외부 API 호출 증빙과 마스킹된 운영 자료 관리
 
@@ -52,6 +52,8 @@ docker compose --env-file .env.local --profile full up --build
 ```
 
 기본 포트는 `8080`, 상태 확인 경로는 `/actuator/health`와 `/actuator/health/readiness`입니다.
+
+`local`과 `staging` 프로필에서는 `/swagger-ui.html`에서 프론트 연동용 Swagger UI를 제공합니다. UI는 `docs/koready-backend-design/openapi.yaml`을 빌드 시 포함한 단일 계약 파일을 표시합니다.
 
 ## Verification
 

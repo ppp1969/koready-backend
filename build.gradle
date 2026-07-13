@@ -26,6 +26,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-client'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'org.flywaydb:flyway-mysql'
@@ -38,6 +39,7 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'com.tngtech.archunit:archunit:1.4.2'
+	testImplementation 'org.yaml:snakeyaml'
 	testImplementation platform('org.testcontainers:testcontainers-bom:2.0.5')
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 	testImplementation 'org.testcontainers:testcontainers-mysql'
@@ -113,4 +115,11 @@ tasks.named('check') {
 
 tasks.named('bootJar') {
 	archiveFileName = 'app.jar'
+}
+
+tasks.named('processResources') {
+	from('docs/koready-backend-design/openapi.yaml') {
+		into 'static/openapi'
+		rename { 'koready.yaml' }
+	}
 }

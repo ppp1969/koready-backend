@@ -15,3 +15,9 @@ logging:
   level:
     root: INFO
     koready_backend: INFO
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

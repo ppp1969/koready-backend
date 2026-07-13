@@ -68,7 +68,7 @@
    - 공통 enum, 요청/응답 schema, 오류 응답
 
 11. `10_FRONTEND_API_FLOW_GUIDE.md`
-   - 초보 프론트 개발자를 위한 화면별 API 호출 순서
+   - 프론트 개발자를 위한 화면별 API 호출 순서
    - 공통 fetch wrapper, token 갱신, cursor, idempotency 처리
    - 성공/실패 후 화면 행동과 Figma 대조 체크리스트
 

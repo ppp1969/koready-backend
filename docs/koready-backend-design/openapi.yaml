@@ -11,7 +11,7 @@ info:
 servers:
   - url: /api/v1
 externalDocs:
-  description: 초보 프론트 개발자를 위한 화면별 호출 흐름과 오류 처리
+  description: 프론트 개발자를 위한 화면별 호출 흐름과 오류 처리
   url: https://github.com/ppp1969/koready-backend/blob/main/docs/koready-backend-design/10_FRONTEND_API_FLOW_GUIDE.md
 security:
   - bearerAuth: []

@@ -7,6 +7,10 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Asia/Seoul"
+    ignore:
+      - dependency-name: "gradle-wrapper"
+        update-types:
+          - "version-update:semver-major"
     labels:
       - "🧰 인프라"
       - "🔽 낮음"
@@ -20,6 +24,14 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Asia/Seoul"
+    groups:
+      node24-compatible-actions:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "gradle/actions"
+        update-types:
+          - "version-update:semver-major"
     labels:
       - "🧰 인프라"
       - "🔽 낮음"
@@ -33,6 +45,10 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Asia/Seoul"
+    ignore:
+      - dependency-name: "eclipse-temurin"
+        update-types:
+          - "version-update:semver-major"
     labels:
       - "🧰 인프라"
       - "🔽 낮음"

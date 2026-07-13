@@ -4,7 +4,7 @@
 
 ## 확인 기준
 
-- 작성/정리 기준일: 2026-07-13
+- 작성/정리 기준일: 2026-07-14
 - 원천 기획 자료: `koready_design_docs (1).zip`
 - 최종 UI 기준: [KOREADY Figma - UI 페이지](https://www.figma.com/design/7iibIcjbXL8lVn5J8DMuo1/KOREADY?node-id=58-2)
 - 외부 API 기준: 공공데이터포털 한국관광공사 국문/영문 관광정보 서비스, 관광사진 정보, 관광지별 연관 관광지 정보, TMAP 대중교통 API 공식 문서
@@ -77,6 +77,12 @@
    - 실제 응답 casing, mode/type, service flag와 HTTP 200 오류 구조
    - Route DTO 정규화, 오류 변환, 24시간 미만 보관 정책
 
+13. `12_PM_IMPLEMENTATION_APPROVAL.md`
+   - PM 개발 착수 판정용 제품·데이터·API 기준선
+   - 현재 구현 상태와 KTO/TMAP 프로파일 기반 기능 가능성
+   - ID, 유일성, 멱등성, 보관 정책과 기능별 완료 기준
+   - KTO 우선 개발 순서, 위험 목록, 승인 요청표
+
 ## 설계 원칙
 
 - 프론트는 외부 API를 직접 호출하지 않고, Koready 백엔드 API만 호출한다.
@@ -98,6 +104,7 @@
 | 기계 판독 API endpoint/schema | `openapi.yaml` |
 | 프론트 화면별 호출 흐름과 오류 처리 | `10_FRONTEND_API_FLOW_GUIDE.md` |
 | TMAP 실제 응답 구조와 Route 매핑 | `11_TMAP_API_PROFILE.md` |
+| PM 개발 착수 승인 기준과 전체 의사결정 | `12_PM_IMPLEMENTATION_APPROVAL.md` |
 | 기능별 백엔드 범위 | `01_FEATURE_BACKEND_DESIGN.md` |
 | 화면별 필요한 정보 | `01_FEATURE_BACKEND_DESIGN.md`, `02_FEATURE_DTO_DRAFT.md` |
 | 기능별 Request/Response DTO 초안 | `02_FEATURE_DTO_DRAFT.md` |

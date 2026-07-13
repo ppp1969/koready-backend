@@ -1,0 +1,27 @@
+name: "📝 문서 개선"
+description: "README, API 문서, 가이드, 주석 개선을 요청합니다."
+title: "[문서] "
+labels: ["📝 문서"]
+body:
+  - type: textarea
+    id: target
+    attributes:
+      label: "대상 문서"
+      description: "수정하거나 추가해야 할 문서 위치를 적어 주세요."
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: "필요한 변경"
+      description: "어떤 내용을 보완해야 하는지 적어 주세요."
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: "이유"
+      description: "이 변경이 필요한 이유를 적어 주세요."
+    validations:
+      required: false
+

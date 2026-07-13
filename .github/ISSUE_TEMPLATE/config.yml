@@ -1,0 +1,6 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "💬 질문 또는 논의"
+    url: "https://github.com/ppp1969/koready-backend/discussions"
+    about: "작업으로 바로 이어지지 않는 질문이나 논의는 Discussions를 사용해 주세요."
+

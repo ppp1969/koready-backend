@@ -1,0 +1,46 @@
+name: "🐛 버그 제보"
+description: "재현 가능한 오류나 예상과 다른 동작을 기록합니다."
+title: "[버그] "
+labels: ["🐛 버그", "👀 검토필요"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: "요약"
+      description: "문제를 한두 문장으로 설명해 주세요."
+      placeholder: "예: 로그인 성공 후 토큰이 응답에 포함되지 않습니다."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: "재현 절차"
+      description: "같은 문제를 다시 확인할 수 있도록 순서대로 적어 주세요."
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: "기대 동작"
+      description: "정상이라면 어떤 결과가 나와야 하나요?"
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: "실제 동작"
+      description: "실제로 확인한 결과와 오류 메시지를 적어 주세요."
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: "실행 환경"
+      placeholder: "예: local, dev, Java 21, Windows 11"
+    validations:
+      required: false
+

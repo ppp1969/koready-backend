@@ -26,7 +26,7 @@
 - 온보딩 선호 여행지 후보는 관리자가 발행한 불변 버전의 10개 큐레이션 세트다.
 - 위치 검색은 백엔드가 Kakao Local API를 호출하고, 위치 저장은 단기 `searchResultToken`으로 검증한다.
 
-초보 프론트 개발자를 위한 화면별 호출 순서, 상태 처리, TypeScript 예제는 `10_FRONTEND_API_FLOW_GUIDE.md`를 함께 본다.
+프론트 개발자를 위한 화면별 호출 순서, 상태 처리, TypeScript 예제는 `10_FRONTEND_API_FLOW_GUIDE.md`를 함께 본다.
 
 ---
 

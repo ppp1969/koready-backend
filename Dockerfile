@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jdk-noble AS builder
+FROM eclipse-temurin:25-jdk-noble AS builder
 
 WORKDIR /workspace
 
@@ -10,7 +10,7 @@ RUN chmod +x gradlew \
 COPY src ./src
 RUN ./gradlew clean bootJar --no-daemon
 
-FROM eclipse-temurin:21-jre-noble
+FROM eclipse-temurin:25-jre-noble
 
 RUN groupadd --system koready \
     && useradd --system --gid koready --home-dir /app --shell /usr/sbin/nologin koready

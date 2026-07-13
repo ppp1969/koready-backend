@@ -34,7 +34,7 @@ jobs:
 
       - name: "테스트와 커버리지 보고서 업로드"
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gradle-verification-reports
           path: |

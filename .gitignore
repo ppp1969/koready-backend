@@ -51,3 +51,14 @@ out/
 secrets/
 application-local.properties
 application-*.local.properties
+
+### Local deployment overrides ###
+compose.override.yml
+render.local.yaml
+
+### Generated API research artifacts ###
+__pycache__/
+*.py[cod]
+docs/kto-api-probes/[0-9]*/
+docs/kto-api-analysis/[0-9]*/
+docs/kto-api-analysis/supplements/[0-9]*/

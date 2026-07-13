@@ -1,55 +1,73 @@
 # KoReady Backend
 
-KoReady는 2026 관광공모전 참가를 목표로 만드는 외국인 방한·체류자 맞춤형 한국 로컬 여행 준비 서비스입니다. 한국관광공사 TourAPI 데이터를 기반으로 사용자의 체류 위치, 여행 목적, 관심 스타일을 반영해 관광지·축제·로컬 경험을 추천하고, 대중교통 이동 안내와 여행 메이트 연결까지 확장하는 백엔드입니다.
+KoReady는 2026 관광공모전 참가를 위해 개발하는 외국인 방한·체류자 맞춤형 한국 로컬 여행 준비 및 추천 서비스입니다. 한국관광공사 데이터를 기반으로 체류 위치와 여행 취향에 맞는 장소를 추천하고, 대중교통 이동과 여행 메이트 연결까지 지원합니다.
 
 ## Product Scope
 
-- 온보딩: 방문 목적, 현재 체류 위치, 여행 스타일, 선호 장소 수집
-- K-Local Pick: 한국관광공사 관광정보를 기반으로 한 개인화 추천 카드
-- 월별 추천: 축제·행사 기간과 계절 힌트를 반영한 월별 여행 후보
-- 장소 탐색: 7개 서비스 권역 기준의 장소 목록, 검색, 상세 조회
-- Buddy Route: 저장 위치에서 목적지까지 대중교통 경로 요약과 Hori Tip 제공
-- Buddy Connect: 여행지 기반 공개 프로필, 메이트 조회, 쪽지 스레드
-- Admin Evidence: 외부 API 호출 로그와 마스킹된 증빙 번들 관리
+- 온보딩: 방문 목적, 체류 위치, 여행 스타일, 선호 장소 수집
+- K-Local Pick: 사용자 취향과 지역을 반영한 개인화 추천
+- 월별 추천: 축제 기간과 계절성을 반영한 여행 후보
+- 장소 탐색: 7개 서비스 권역 기반 검색과 상세 조회
+- Buddy Route: TMAP 기반 대중교통 경로와 Hori Tip
+- Buddy Connect: 여행지 기반 공개 프로필, 메이트 탐색, 쪽지
+- Admin Evidence: 외부 API 호출 증빙과 마스킹된 운영 자료 관리
 
 ## Tech Stack
 
 - Java 21
-- Spring Boot 3.5
+- Spring Boot 4.1, Spring Framework 7
+- Spring Web MVC, Validation, Security, OAuth2 Client
+- Spring Data JPA, Flyway
+- MySQL 8.x, H2 test runtime, Testcontainers
 - Gradle Wrapper
-- Spring Web, Validation, Security, OAuth2 Client
-- Spring Data JPA
-- MySQL runtime
-- H2 test runtime
-- JUnit 5
+- Docker, Render staging, Aiven for MySQL
 
-## External Data Sources
+## Profiles
 
-- 한국관광공사 국문 관광정보 서비스
-- 한국관광공사 영문 관광정보 서비스
-- 한국관광공사 관광사진 정보
-- 한국관광공사 관광공모전 사진 수상작 정보
-- 한국관광공사 관광지별 연관 관광지 정보
-- TMAP 대중교통 API
-- Kakao 주소/장소 검색 API
+| Profile | Purpose | Database |
+|---|---|---|
+| `test` | Gradle 자동 테스트 | H2 또는 Testcontainers MySQL |
+| `local` | 로컬 개발 | Docker MySQL |
+| `staging` | Render 테스트 환경 | Aiven for MySQL |
+| `prod` | 향후 AWS 운영 환경 | 인프라 결정 보류 |
 
-외부 API 키와 OAuth 토큰은 로컬 환경변수 또는 git에서 제외된 `.env.local`에만 둡니다. 저장소에는 실제 키를 커밋하지 않습니다.
+`staging`은 `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`가 없으면 시작하지 않습니다. Aiven 연결에는 기본적으로 `sslmode=require`를 적용합니다.
 
 ## Local Development
 
-```bash
-./gradlew test
+Java 21과 Docker가 필요합니다. 환경변수 이름은 `.env.example`을 기준으로 관리합니다.
+
+```powershell
+Copy-Item .env.example .env.local
+docker compose --env-file .env.local up -d mysql
+$env:SPRING_PROFILES_ACTIVE='local'
+$env:DB_PASSWORD='replace-with-local-mysql-password'
 ./gradlew bootRun
 ```
 
-Windows PowerShell에서 Java 경로가 꼬인 경우:
+애플리케이션까지 컨테이너로 실행하려면:
 
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-21.0.6.7-hotspot'
-./gradlew test
+docker compose --env-file .env.local --profile full up --build
 ```
 
-로컬 환경변수 예시는 `.env.example`을 참고합니다. 실제 값은 `.env.local`에 작성하고 커밋하지 않습니다.
+기본 포트는 `8080`, 상태 확인 경로는 `/actuator/health`와 `/actuator/health/readiness`입니다.
+
+## Verification
+
+```powershell
+./gradlew clean test
+docker build --tag koready-backend:local .
+```
+
+Docker를 사용할 수 있으면 Testcontainers MySQL 통합 테스트가 실행됩니다. Docker가 없는 환경에서는 해당 테스트만 건너뜁니다.
+
+## Deployment
+
+- `main` CI 통과 후 Render의 `staging` 환경을 자동 배포하고 Aiven MySQL에 연결합니다.
+- Render 설정 초안은 `render.yaml`에서 관리하며 secret 값은 저장소에 기록하지 않습니다.
+- Aiven 연결 및 IP 허용목록 절차는 `docs/AIVEN_STAGING.md`에서 관리합니다.
+- AWS EC2/Elastic Beanstalk를 포함한 운영 인프라는 빠른 기능 개발 이후 약 한 달 뒤 다시 결정합니다.
 
 ## API Conventions
 
@@ -60,20 +78,11 @@ $env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-21.0.6.7-hotspot'
 - JSON field naming: `camelCase`
 - List response: `data.items`, `data.nextCursor`, `data.hasMore`
 
-주요 계약 문서는 `docs/koready-backend-design` 아래에서 관리합니다. 문서를 공개 저장소에 올릴 때는 API 키, 토큰, 개인 위치 정보, 이메일, 원본 provider payload가 제거됐는지 먼저 확인합니다.
-
-## GitHub Workflow
-
-1. 이슈로 작업 범위와 완료 조건을 남깁니다.
-2. 브랜치는 `feature/`, `fix/`, `docs/`, `chore/`, `refactor/` 접두어를 사용합니다.
-3. PR에는 관련 이슈, 변경 요약, 테스트 결과, 리뷰 포인트를 적습니다.
-4. `main` 반영은 PR 리뷰와 CI 통과 후 진행합니다.
-
 ## Secret Handling
 
-- `.env`, `.env.local`, `.env.*.local`은 git에서 제외합니다.
+- `.env`, `.env.local`, `.env.*.local`은 Git에서 제외합니다.
 - `.env.example`에는 placeholder만 둡니다.
-- `serviceKey`, `appKey`, OAuth token, JWT, refresh token, authorization header는 로그·문서·snapshot·API 응답에 원문으로 남기지 않습니다.
-- 외부 API 호출 증빙에는 secret과 PII를 마스킹한 메타데이터만 포함합니다.
-- public repo 전환 전에는 `git grep` 기반 민감정보 스캔과 GitHub Secret Scanning 설정을 확인합니다.
+- API 키, OAuth/JWT 토큰, Authorization 헤더, 개인 위치정보를 로그·문서·fixture에 기록하지 않습니다.
+- 원본 외부 API 응답은 공개 안전성 검토와 마스킹을 통과한 경우에만 저장합니다.
 
+기여 절차는 `CONTRIBUTING.md`, AI 개발 규칙은 `AGENTS.md`, 공개 가능한 데이터 기준은 `docs/PUBLIC_DATA_POLICY.md`를 참고합니다.

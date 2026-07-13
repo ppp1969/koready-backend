@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: koready-backend
+  jpa:
+    open-in-view: false
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  address: 0.0.0.0
+  port: ${PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+info:
+  app:
+    name: ${spring.application.name}
+    version: ${APP_VERSION:local}

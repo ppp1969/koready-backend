@@ -26,4 +26,16 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
-
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Seoul"
+    labels:
+      - "🧰 인프라"
+      - "🔽 낮음"
+    commit-message:
+      prefix: "chore"
+      include: "scope"

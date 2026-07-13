@@ -30,4 +30,15 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: "테스트 실행"
-        run: ./gradlew test
+        run: ./gradlew clean test
+
+  docker:
+    name: "Docker Build"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "소스 체크아웃"
+        uses: actions/checkout@v4
+
+      - name: "컨테이너 이미지 빌드"
+        run: docker build --tag koready-backend:ci .

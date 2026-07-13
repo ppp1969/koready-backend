@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:${DB_PORT:3306}/${DB_DATABASE:koready}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul}
+    username: ${DB_USERNAME:koready}
+    password: ${DB_PASSWORD:koready-local}
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+logging:
+  level:
+    koready_backend: DEBUG

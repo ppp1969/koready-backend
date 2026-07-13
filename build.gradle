@@ -1,5 +1,6 @@
 plugins {
 	id 'java'
+	id 'jacoco'
 	id 'org.springframework.boot' version '4.1.0'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
@@ -36,6 +37,7 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'com.tngtech.archunit:archunit:1.4.2'
 	testImplementation platform('org.testcontainers:testcontainers-bom:2.0.5')
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 	testImplementation 'org.testcontainers:testcontainers-mysql'
@@ -45,8 +47,68 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
+jacoco {
+	toolVersion = '0.8.14'
+}
+
 tasks.named('test') {
-	useJUnitPlatform()
+	description = '빠른 단위, 슬라이스, 아키텍처 테스트를 실행합니다.'
+	useJUnitPlatform {
+		excludeTags 'integration'
+	}
+	jacoco {
+		destinationFile = layout.buildDirectory.file('jacoco/test.exec').get().asFile
+	}
+}
+
+def integrationTest = tasks.register('integrationTest', Test) {
+	description = 'Docker가 필요한 Testcontainers 통합 테스트를 실행합니다.'
+	group = 'verification'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform {
+		includeTags 'integration'
+	}
+	jacoco {
+		destinationFile = layout.buildDirectory.file('jacoco/integrationTest.exec').get().asFile
+	}
+	shouldRunAfter tasks.named('test')
+}
+
+def coverageExecutionData = files(
+	layout.buildDirectory.file('jacoco/test.exec'),
+	layout.buildDirectory.file('jacoco/integrationTest.exec'))
+
+tasks.named('jacocoTestReport') {
+	description = '일반 테스트와 통합 테스트의 통합 커버리지 보고서를 생성합니다.'
+	dependsOn tasks.named('test'), integrationTest
+	executionData coverageExecutionData
+	reports {
+		xml.required = true
+		html.required = true
+		csv.required = false
+	}
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+	description = '프로덕션 코드의 라인 커버리지 80% 기준을 검증합니다.'
+	dependsOn tasks.named('test'), integrationTest
+	executionData coverageExecutionData
+	violationRules {
+		rule {
+			limit {
+				counter = 'LINE'
+				value = 'COVEREDRATIO'
+				minimum = 0.80
+			}
+		}
+	}
+}
+
+tasks.named('check') {
+	dependsOn integrationTest
+	dependsOn tasks.named('jacocoTestReport')
+	dependsOn tasks.named('jacocoTestCoverageVerification')
 }
 
 tasks.named('bootJar') {

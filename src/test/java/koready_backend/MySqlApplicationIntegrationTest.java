@@ -1,5 +1,6 @@
 package koready_backend;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -8,10 +9,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
+@Tag("integration")
 @SpringBootTest
 @ActiveProfiles("local")
 @Testcontainers(disabledWithoutDocker = true)
-class MySqlApplicationTests {
+class MySqlApplicationIntegrationTest {
 
 	@Container
 	@ServiceConnection

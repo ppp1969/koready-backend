@@ -8,7 +8,9 @@ RUN chmod +x gradlew \
     && ./gradlew dependencies --configuration runtimeClasspath --no-daemon --quiet
 
 COPY src ./src
-RUN ./gradlew clean bootJar --no-daemon
+COPY docs/koready-backend-design/openapi.yaml ./docs/koready-backend-design/openapi.yaml
+RUN ./gradlew clean bootJar --no-daemon \
+    && jar tf build/libs/app.jar | grep -q 'BOOT-INF/classes/static/openapi/koready.yaml'
 
 FROM eclipse-temurin:21-jre-noble
 

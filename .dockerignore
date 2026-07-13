@@ -4,7 +4,10 @@
 .idea
 .vscode
 build
-docs
+docs/*
+!docs/koready-backend-design/
+docs/koready-backend-design/*
+!docs/koready-backend-design/openapi.yaml
 scripts
 out
 

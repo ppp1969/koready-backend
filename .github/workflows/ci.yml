@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   test:
-    name: "Gradle 테스트"
+    name: "Gradle Test"
     runs-on: ubuntu-latest
 
     steps:
@@ -31,4 +31,3 @@ jobs:
 
       - name: "테스트 실행"
         run: ./gradlew test
-

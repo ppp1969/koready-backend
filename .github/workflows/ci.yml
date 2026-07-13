@@ -27,7 +27,7 @@ jobs:
           java-version: "21"
 
       - name: "Gradle 설정"
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: "품질 게이트 실행"
         run: ./gradlew clean check

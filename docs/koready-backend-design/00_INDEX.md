@@ -4,7 +4,7 @@
 
 ## 확인 기준
 
-- 작성/정리 기준일: 2026-07-14
+- 작성/정리 기준일: 2026-07-17
 - 원천 기획 자료: `koready_design_docs (1).zip`
 - 최종 UI 기준: [KOREADY Figma - UI 페이지](https://www.figma.com/design/7iibIcjbXL8lVn5J8DMuo1/KOREADY?node-id=58-2)
 - 외부 API 기준: 공공데이터포털 한국관광공사 국문/영문 관광정보 서비스, 관광사진 정보, 관광지별 연관 관광지 정보, TMAP 대중교통 API 공식 문서
@@ -45,10 +45,12 @@
    - 화면값과 확정 정책 간 보정 목록
 
 7. `07_CONFIRMED_PRODUCT_POLICIES.md`
+   - 유학생·교환학생·장기체류 외국인 중심의 핵심 타깃
+   - 방문 목적 없는 3단계 온보딩
    - 인천의 경기권 포함
    - 위치 저장/기본 위치/삭제
    - 추천 30일 재노출 금지
-   - AI 번역 허용과 축제 6개월 노출 규칙
+   - AI 번역 허용과 연도별 축제 회차·종료 상태 규칙
    - GPS 미사용, 경로/당일치기, 쪽지, Hori Tip 정책
 
 8. `08_API_CONTRACT.md`

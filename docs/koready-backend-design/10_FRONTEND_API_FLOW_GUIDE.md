@@ -2,7 +2,7 @@
 
 ## 0. 문서 목적
 
-이 문서는 API 경험이 많지 않은 프론트 개발자가 Figma 화면을 보면서 다음 질문에 답할 수 있도록 작성한다.
+이 문서는 프론트 개발자가 Figma 화면과 API 계약을 함께 보면서 다음 질문에 답할 수 있도록 작성한다.
 
 1. 이 API를 어느 화면에서 언제 호출하는가?
 2. 호출 전에 어떤 값이 준비되어 있어야 하는가?
@@ -165,8 +165,7 @@ flowchart TD
     C -->|COMPLETED| K[홈]
     D --> E
     E --> F
-    F --> G[방문 목적]
-    G --> H[위치 검색 및 저장]
+    F --> H[위치 검색 및 저장]
     H --> I[여행 스타일]
     I --> J[관리자 큐레이션 10개 중 1~3개 선택]
     J --> K
@@ -251,11 +250,13 @@ PUT /users/me/term-agreements
 
 ### 5.2 온보딩 재진입
 
-`GET /users/me/onboarding`은 `completed`, `currentStep`, `travelPurpose`, `currentLocationId`, `travelStyles`, `selectedPreferencePlaceIds`를 반환한다. 앱이 중간에 종료돼도 응답의 `currentStep`으로 복구한다.
+`GET /users/me/onboarding`은 `completed`, `currentStep`, `currentLocationId`, `travelStyles`, `selectedPreferencePlaceIds`를 반환한다. 앱이 중간에 종료돼도 응답의 `currentStep`으로 복구한다.
 
 ```text
-currentStep = TRAVEL_PURPOSE | LOCATION | TRAVEL_STYLES | PREFERENCE_PLACES | COMPLETED
+currentStep = LOCATION | TRAVEL_STYLES | PREFERENCE_PLACES | COMPLETED
 ```
+
+온보딩은 위치 입력, 여행 스타일 1~4개, 관심 관광지 1~3개 순서다. 방문 목적 화면과 관련 요청 필드는 만들지 않는다.
 
 ### 5.3 위치 검색과 저장
 
@@ -312,7 +313,6 @@ sequenceDiagram
 
 ```json
 {
-  "travelPurpose": "EXCHANGE_STUDENT",
   "currentLocationId": 100,
   "travelStyles": ["LOCAL_FOOD", "LOCAL_FESTIVAL"],
   "candidateSetId": "onb-curation-2026-07-v1",
@@ -330,10 +330,10 @@ sequenceDiagram
 
 ### 6.1 홈
 
-`GET /home`은 홈 화면 진입과 pull-to-refresh에서 호출한다. 응답은 `currentLocation`, `preferredLanguage`, `monthlyRecommendation{month,totalCount,items}`다.
+`GET /home`은 홈 화면 진입과 pull-to-refresh에서 호출한다. 응답은 `currentLocation`, `preferredLanguage`, `monthlyRecommendation{year,month,totalCount,items}`다.
 
 - `currentLocation=null`이면 위치 등록 화면으로 이동한다.
-- 월별 추천 미리보기는 API 순서를 그대로 사용한다.
+- 월별 추천 미리보기는 진행 중·예정 축제를 종료 축제보다 우선한 API 순서를 그대로 사용한다.
 - KTX 가이드 카드와 본문은 프론트 정적 asset이므로 API 응답에서 찾지 않는다.
 
 ### 6.2 월별 추천 전체보기
@@ -341,6 +341,7 @@ sequenceDiagram
 `GET /monthly-recommendations` query는 다음과 같다.
 
 ```text
+year=2000..2100
 month=1..12
 serviceRegionCode=SEOUL|GYEONGGI|GANGWON|CHUNGCHEONG|JEOLLA|GYEONGSANG|JEJU
 dateFilterType=ALL|THIS_WEEK|THIS_MONTH|NEXT_MONTH|CUSTOM
@@ -353,10 +354,13 @@ size=1..50
 ```
 
 - `CUSTOM`일 때 시작일과 종료일을 모두 보낸다.
-- 월과 날짜 필터는 합집합이 아니라 교집합이다.
+- 연월과 날짜 필터는 합집합이 아니라 교집합이다.
 - 필터가 바뀌면 기존 cursor를 폐기한다.
-- 카드의 `dateRangeText`는 서버 표시값을 사용할 수 있지만 날짜 계산에는 `startDate/endDate`를 사용한다.
-- 저장 버튼은 카드의 `isSaved`로 초기화하고 저장 API 성공 뒤 갱신한다.
+- 축제 카드는 `festivalOccurrence{occurrenceId,eventYear,startDate,endDate,status,dateRangeText}`를 사용한다.
+- 같은 축제라도 `eventYear`와 `occurrenceId`가 다르면 다른 개최 회차이므로 프론트 상태와 cache key를 섞지 않는다.
+- `status=UPCOMING | ONGOING | ENDED`를 예정·진행 중·종료 badge로 표시한다. 종료 항목도 해당 개최 연도·월 목록에서는 숨기지 않는다.
+- `dateRangeText`는 화면 표시에만 쓰고 날짜 계산이 필요하면 `festivalOccurrence.startDate/endDate`를 사용한다.
+- 저장 버튼은 카드의 `saved`로 초기화하고 저장 API 성공 뒤 갱신한다.
 
 ### 6.3 지역 지도
 
@@ -366,6 +370,18 @@ size=1..50
 - 선택 query는 `travelStyles`, `sort`, `cursor`, `size`다.
 - GPS, `bbox`, `zoom`, 화면 중심 좌표는 보내지 않는다.
 - 지도 확대·축소만으로 API를 재호출하지 않는다.
+
+### 6.4 KTX 예매 가이드·시뮬레이션
+
+KTX 가이드는 백엔드를 호출하지 않는 프론트 정적 기능이다. 기획에서 다음 자료를 가이드별로 정리해 프론트에 전달한다.
+
+1. 전체 화면 순서와 단계 수
+2. 단계별 제목, 본문, 버튼 문구, 주의사항
+3. 사용할 화면 이미지 예시, crop 기준, 대체 텍스트, 출처와 사용 가능 여부
+4. 이전, 다음, 건너뛰기, 완료 동작과 재진입 위치
+5. KO/EN 문구와 업데이트 담당자·버전
+
+프론트는 이를 정적 JSON 또는 TypeScript 데이터와 asset으로 구성한다. Route 응답의 Hori Tip과 결합하거나 Hori Tip API로 조회하지 않는다. 영상·오디오 가이드는 MVP에서 만들지 않는다.
 
 ## 7. K-Local Pick 추천 흐름
 
@@ -428,6 +444,7 @@ GET /routes/{routeId}
 - Hori Tip을 위한 별도 사용자 API는 호출하지 않는다. 서버가 운영진 등록 팁을 조회 시점에 조합하므로 `summary.horiTips[]`와 `segments[].horiTips[]`를 받은 순서대로 표시한다.
 - `horiTips`가 빈 배열이면 팁 영역을 숨긴다. 프론트가 TMAP 노선명이나 이동시간으로 팁 문구를 직접 생성하지 않는다.
 - 모든 Hori Tip의 `source`는 `OPERATOR_CURATED`이며 `title`은 `Hori Tip`으로 고정한다.
+- Hori Tip은 경로 구간의 짧은 안내다. 코레일톡 화면을 따라가는 KTX 예매 가이드·시뮬레이션은 6.4의 정적 콘텐츠로 별도 구현한다.
 - `providerTotalTimeSeconds < 10800`만 `DAY_TRIP_AVAILABLE`이고 정확히 10800초부터 `STAY_RECOMMENDED`다.
 - `segments`는 `WALK | BUS | SUBWAY | EXPRESS_BUS | TRAIN | AIRPLANE | FERRY | SHUTTLE_BUS` 순서 조합이다.
 - `422 ROUTE_NOT_FOUND`면 해당 출발지와 목적지 사이 대중교통 경로가 없음을 안내한다.
@@ -511,12 +528,13 @@ flowchart LR
 | Enum | 값 | 기본 한글 표시 |
 |---|---|---|
 | `LanguageCode` | `KO`, `EN` | 한국어, English |
-| `TravelPurpose` | `EXCHANGE_STUDENT`, `LANGUAGE_STUDY`, `SHORT_TRIP`, `DEGREE_PROGRAM`, `INTERN_WORK`, `WORKING_HOLIDAY`, `ETC` | 교환학생, 어학연수, 단기여행, 학위과정, 인턴/취업, 워킹홀리데이, 기타 |
+| `OnboardingStep` | `LOCATION`, `TRAVEL_STYLES`, `PREFERENCE_PLACES`, `COMPLETED` | 위치, 여행 스타일, 관심 관광지, 완료 |
 | `TravelStyle` | `LOCAL_FOOD`, `LOCAL_FESTIVAL`, `TRADITIONAL_MARKET`, `CULTURE_EXPERIENCE`, `NATURE`, `EXHIBITION_MUSEUM`, `DRAMA_LOCATION` | 로컬 맛집, 지역 축제, 전통시장, 문화체험, 자연 명소, 전시/미술관, 드라마 촬영지 |
 | `ServiceRegionCode` | `SEOUL`, `GYEONGGI`, `GANGWON`, `CHUNGCHEONG`, `JEOLLA`, `GYEONGSANG`, `JEJU` | 서울, 경기·인천, 강원, 충청, 전라, 경상, 제주 |
 | `RecommendationScope` | `NEARBY`, `NATIONWIDE` | 근교, 전국 |
 | `SortType` | `RECOMMENDED`, `DEADLINE` | 추천순, 마감순 |
 | `DateFilterType` | `ALL`, `THIS_WEEK`, `THIS_MONTH`, `NEXT_MONTH`, `CUSTOM` | 전체, 이번 주, 이번 달, 다음 달, 직접 선택 |
+| `FestivalOccurrenceStatus` | `UPCOMING`, `ONGOING`, `ENDED` | 예정, 진행 중, 종료 |
 | `Difficulty` | `EASY`, `NORMAL`, `HARD` | 쉬움, 보통, 어려움 |
 | `DayTripStatus` | `DAY_TRIP_AVAILABLE`, `STAY_RECOMMENDED` | 당일치기 가능, 숙박 권장 |
 | `CandidateSetStatus` | `DRAFT`, `PUBLISHED`, `ARCHIVED` | 초안, 발행, 보관 |
@@ -527,12 +545,15 @@ flowchart LR
 ## 13. Figma 대조 체크리스트
 
 - 로그인 뒤 약관, 언어, 온보딩 이동 순서가 `nextStep`과 일치하는가?
-- 온보딩 단계가 방문 목적, 위치, 여행 스타일, 선호 여행지 순서인가?
+- 방문 목적 화면과 요청 필드가 삭제됐는가?
+- 온보딩 단계가 위치, 여행 스타일, 선호 여행지 순서인가?
 - 선호 여행지 화면은 정확히 10개를 보여주며 1~3개 선택인가?
 - 큐레이션 카드에 필요한 필드가 이미지, 제목, 지역, 태그, 한 줄 설명, 선택 상태로 충분한가?
 - 위치 화면에 GPS 또는 현재 위치 버튼이 남아 있지 않은가?
 - 홈의 KTX 가이드가 서버 데이터처럼 설계되지 않았는가?
-- 월별 추천 필터가 API의 월, 권역, 날짜, 관광유형, 정렬과 일치하는가?
+- KTX 단계별 문구와 이미지가 프론트 정적 데이터·asset으로 준비됐는가?
+- 월별 추천 필터가 API의 연도, 월, 권역, 날짜, 관광유형, 정렬과 일치하는가?
+- 종료 축제가 해당 개최 연도·월에는 종료 badge와 함께 남는가?
 - 추천 카드의 이전·다음이 좋아요·싫어요로 표현되지 않았는가?
 - 장소 상세 탭이 설명, 이동, 메이트 세 개인가?
 - 편도 180분 이상 예시가 숙박 권장으로 표시되는가?

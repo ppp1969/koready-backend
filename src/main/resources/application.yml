@@ -38,6 +38,14 @@ springdoc:
 
 koready:
   kto:
+    api:
+      base-url: ${KTO_API_BASE_URL:https://apis.data.go.kr/B551011/KorService2}
+      service-key: ${KTO_SERVICE_KEY:}
+      max-response-bytes: ${KTO_MAX_RESPONSE_BYTES:4194304}
+      connect-timeout: ${KTO_CONNECT_TIMEOUT:3s}
+      read-timeout: ${KTO_READ_TIMEOUT:10s}
+      mobile-os: ${KTO_MOBILE_OS:ETC}
+      mobile-app: ${KTO_MOBILE_APP:KoReady}
     batch:
       page-size: ${KTO_BATCH_PAGE_SIZE:200}
       flush-size: ${KTO_BATCH_FLUSH_SIZE:50}

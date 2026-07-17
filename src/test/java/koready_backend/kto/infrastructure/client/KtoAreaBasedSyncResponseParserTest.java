@@ -2,6 +2,7 @@ package koready_backend.kto.infrastructure.client;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -62,6 +63,7 @@ class KtoAreaBasedSyncResponseParserTest {
 		assertEquals("VE", first.classificationCode1());
 		assertEquals("VE01", first.classificationCode2());
 		assertEquals("VE010100", first.classificationCode3());
+		assertTrue(first.sourceHash().matches("[0-9a-f]{64}"));
 
 		KtoPlaceItem hidden = page.items().get(1);
 		assertNull(hidden.areaCode());
@@ -88,6 +90,19 @@ class KtoAreaBasedSyncResponseParserTest {
 
 		assertEquals(1, page.items().size());
 		assertEquals("100003", page.items().getFirst().contentId());
+	}
+
+	@Test
+	void includesUnknownSourceFieldsInTheItemHash() {
+		String first = "{\"contentid\":\"100004\",\"title\":\"해시 장소\",\"futureField\":\"A\"}";
+		String second = "{\"contentid\":\"100004\",\"title\":\"해시 장소\",\"futureField\":\"B\"}";
+
+		String firstHash = parser.parse(successResponse("{\"item\":" + first + "}")
+			.getBytes(StandardCharsets.UTF_8)).items().getFirst().sourceHash();
+		String secondHash = parser.parse(successResponse("{\"item\":" + second + "}")
+			.getBytes(StandardCharsets.UTF_8)).items().getFirst().sourceHash();
+
+		assertNotEquals(firstHash, secondHash);
 	}
 
 	@Test

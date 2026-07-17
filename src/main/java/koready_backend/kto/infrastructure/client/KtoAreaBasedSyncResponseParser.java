@@ -58,7 +58,7 @@ public final class KtoAreaBasedSyncResponseParser {
 		}
 	}
 
-	private List<KtoPlaceItem> parseItems(JsonNode itemsNode) {
+	private List<KtoPlaceItem> parseItems(JsonNode itemsNode) throws JacksonException {
 		if (isEmptyNode(itemsNode)) {
 			return List.of();
 		}
@@ -85,7 +85,7 @@ public final class KtoAreaBasedSyncResponseParser {
 		return List.copyOf(items);
 	}
 
-	private KtoPlaceItem parseItem(JsonNode item) {
+	private KtoPlaceItem parseItem(JsonNode item) throws JacksonException {
 		if (!item.isObject()) {
 			throw new KtoResponseParseException("KTO item is invalid");
 		}
@@ -121,7 +121,8 @@ public final class KtoAreaBasedSyncResponseParser {
 			text(item, "lDongSignguCd"),
 			text(item, "lclsSystm1"),
 			text(item, "lclsSystm2"),
-			text(item, "lclsSystm3"));
+			text(item, "lclsSystm3"),
+			sha256(jsonMapper.writeValueAsBytes(item)));
 	}
 
 	private boolean isEmptyNode(JsonNode node) {

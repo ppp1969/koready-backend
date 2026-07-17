@@ -8,9 +8,6 @@ spring:
       minimum-idle: ${DB_MIN_IDLE:1}
   flyway:
     enabled: true
-  jpa:
-    hibernate:
-      ddl-auto: validate
 
 logging:
   level:

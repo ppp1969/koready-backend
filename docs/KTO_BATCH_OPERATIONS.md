@@ -113,8 +113,23 @@ JSON으로 계산한다.
 같은 500MB 조건에서 다시 RSS를 측정하고, 400MiB를 지속해서 넘으면 page 크기를
 100건으로 낮춘다.
 
-같은 날 DB 저장 adapter를 포함한 이미지를 다시 측정한 결과 readiness와 OOM 상태는
-정상이었고, 5회 cgroup 사용량은 377.2~377.7MiB였다. 이때 Java 프로세스 RSS는
-약 303MiB, cgroup file cache는 약 94MiB였다. file cache는 회수 가능하지만 전체
-한도 여유는 약 122MiB이므로, object storage 업로드까지 연결한 200건 end-to-end
-측정에서 400MiB를 지속해서 넘으면 page 100건으로 낮춘다.
+같은 날 DB 저장 adapter와 사용하지 않는 JPA/Hibernate ORM을 함께 포함한 이미지를
+측정한 결과 readiness와 OOM 상태는 정상이었고, 5회 cgroup 사용량은
+377.2~377.7MiB였다. 이 상태의 Render Free 배포에서는 Hibernate 초기화 뒤
+readiness가 장시간 열리지 않아 배포를 취소했다.
+
+프로덕션 코드가 `JdbcTemplate`만 사용하는 것을 확인한 뒤 JPA/Hibernate ORM
+runtime을 제거하고 다시 측정한 최신 기준선은 다음과 같다.
+
+- Spring Boot 기동 로그: 8.122초
+- readiness 도달: 컨테이너 시작 후 10.3초
+- OOM 종료: 없음
+- 5회 cgroup 사용량: 247.1~247.5MiB
+- cgroup peak: 약 250.6MiB
+- cgroup file cache: 약 0.1MiB
+- readiness와 Swagger HTTP 응답: 모두 200
+- Aiven 연결, Flyway V1 검증과 schema 최신 상태 확인
+
+최신 기준선은 JPA 제거 전보다 cgroup 사용량이 약 130MiB 낮고 512MB 제한에서
+약 264MiB의 여유가 있다. object storage 업로드까지 연결한 200건 end-to-end
+측정에서 400MiB를 지속해서 넘으면 page 크기를 100건으로 낮춘다.

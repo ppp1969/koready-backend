@@ -7,9 +7,6 @@ spring:
       maximum-pool-size: ${DB_POOL_SIZE:10}
   flyway:
     enabled: true
-  jpa:
-    hibernate:
-      ddl-auto: validate
 
 logging:
   level:

@@ -26,12 +26,16 @@ public record KtoPlaceItem(
 	String legalDongDistrictCode,
 	String classificationCode1,
 	String classificationCode2,
-	String classificationCode3
+	String classificationCode3,
+	String sourceHash
 ) {
 
 	public KtoPlaceItem {
 		if (contentId == null || contentId.isBlank()) {
 			throw new IllegalArgumentException("KTO content id is required");
+		}
+		if (sourceHash == null || !sourceHash.matches("[0-9a-f]{64}")) {
+			throw new IllegalArgumentException("KTO item source hash is invalid");
 		}
 	}
 

@@ -77,6 +77,8 @@ docker build --tag koready-backend:local .
 - `main` CI 통과 후 Render의 `staging` 환경을 자동 배포하고 Aiven MySQL에 연결합니다.
 - Render 설정 초안은 `render.yaml`에서 관리하며 secret 값은 저장소에 기록하지 않습니다.
 - Aiven 연결 및 IP 허용목록 절차는 `docs/AIVEN_STAGING.md`에서 관리합니다.
+- Render 약 500MB 환경의 KTO 페이지·동시성·JVM 메모리 기준은
+  `docs/KTO_BATCH_OPERATIONS.md`에서 관리합니다.
 - AWS EC2/Elastic Beanstalk를 포함한 운영 인프라는 빠른 기능 개발 이후 약 한 달 뒤 다시 결정합니다.
 
 ## API Conventions

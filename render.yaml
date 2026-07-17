@@ -23,7 +23,15 @@ services:
       - key: DB_SSL_MODE
         value: require
       - key: DB_POOL_SIZE
-        value: 5
+        value: 3
+      - key: DB_MIN_IDLE
+        value: 1
+      - key: KTO_BATCH_PAGE_SIZE
+        value: 200
+      - key: KTO_BATCH_FLUSH_SIZE
+        value: 50
+      - key: KTO_BATCH_MAX_CONCURRENCY
+        value: 1
       - key: JWT_SECRET
         generateValue: true
       - key: KTO_SERVICE_KEY

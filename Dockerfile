@@ -22,7 +22,7 @@ COPY --from=builder --chown=koready:koready /workspace/build/libs/app.jar ./app.
 
 USER koready
 
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0 -Dfile.encoding=UTF-8"
+ENV JAVA_OPTS="-Xms128m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8"
 
 EXPOSE 8080
 

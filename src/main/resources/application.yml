@@ -35,3 +35,10 @@ springdoc:
     path: /swagger-ui.html
     disable-swagger-default-url: true
     url: /openapi/koready.yaml
+
+koready:
+  kto:
+    batch:
+      page-size: ${KTO_BATCH_PAGE_SIZE:200}
+      flush-size: ${KTO_BATCH_FLUSH_SIZE:50}
+      max-concurrency: ${KTO_BATCH_MAX_CONCURRENCY:1}

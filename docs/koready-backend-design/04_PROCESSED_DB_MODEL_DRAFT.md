@@ -1,6 +1,9 @@
 # Koready 가공 저장형 DB 모델 초안
 
-이 문서는 migration 확정본이 아니라, Figma 기반 기능 구현을 위해 필요한 데이터 모델 초안이다. 실제 테이블/컬럼명은 개발 컨벤션에 맞게 조정한다.
+이 문서의 전체 모델은 여전히 초안이다. 다만 KTO 수집 기반에 필요한 권역, 장소,
+축제 개최 회차, 원천 추적, 호출 로그, sync cursor, batch job 범위는
+`V1__create_kto_ingestion_foundation.sql`로 확정됐다. V1의 실제 테이블과 제약은
+migration 파일을 기준으로 하며, 이후 변경은 새 migration으로만 추가한다.
 
 ## 0. 모델링 원칙
 

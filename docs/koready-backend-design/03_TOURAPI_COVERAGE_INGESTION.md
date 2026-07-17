@@ -450,6 +450,16 @@ AI/룰 기반 태그.
 4. 상세/이미지/영문/AI 보강은 모든 장소가 아니라 추천 후보 우선순위가 높은 장소부터 한다.
 5. API 호출 로그를 통해 공모전 증빙과 디버깅을 동시에 처리한다.
 
+## 5.4 Render 500MB 메모리 대응
+
+- KTO 목록은 기본 200건, 최대 500건의 page로 요청한다.
+- DB에는 기본 50건씩 반영하고 page가 끝날 때 참조를 해제한다.
+- 현재 staging에서는 KTO batch를 한 번에 하나만 실행한다.
+- Java 최대 힙은 256MB로 제한해 Metaspace, thread stack, HTTP/DB buffer가
+  사용할 컨테이너 메모리를 남긴다.
+- 한 page가 원본 보관과 DB 반영까지 완료된 뒤에만 sync cursor를 전진시킨다.
+- 실제 실행과 장애 대응 기준은 `../KTO_BATCH_OPERATIONS.md`를 따른다.
+
 ---
 
 ## 6. OpenAPI 호출 로그

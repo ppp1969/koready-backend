@@ -320,10 +320,14 @@ related_place_staging
 
 - 축제는 `detailIntro2.eventstartdate/eventenddate`와 `searchFestival2`를 사실값으로 사용
 - 현재 표출 가능한 축제는 922건, 카드 준비 축제는 912건
-- 축제 노출 기간은 `[시작일 - 6개월, 종료일]`로 고정하며 범위 밖의 축제는 추천하지 않음
+- 반복 축제는 축제 시리즈와 연도별 개최 회차를 분리하고, 회차마다 `eventYear`, 시작일, 종료일을 저장
+- 축제 상세 목록은 시작일 6개월 전부터 조회할 수 있으며, 종료 후에도 해당 개최 연도·월에는 `ENDED` 상태로 유지
+- 홈과 현재 월 추천은 `ONGOING`, `UPCOMING` 회차를 `ENDED`보다 우선 노출
+- 회차 상태는 저장하지 않고 `Asia/Seoul` 조회일과 시작일·종료일로 계산
 - 일반 명소는 사진 촬영월, 수상작 계절 키워드, AI 계절 태그를 보조 점수로 사용
 - 촬영월 하나만으로 추천월을 확정하지 않음
-- `reason_type=EVENT_PERIOD`를 `PHOTO_SEASON_HINT`보다 우선
+- `reason_type=EVENT_OCCURRENCE`를 `PHOTO_SEASON_HINT`보다 우선
+- 시작일·종료일 누락 또는 파싱 실패 회차는 날짜 기반 추천에서 제외하고 데이터 보정 대상으로 분류
 
 ### 지도 추천
 

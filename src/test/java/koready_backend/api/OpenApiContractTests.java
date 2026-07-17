@@ -75,6 +75,80 @@ class OpenApiContractTests {
 		}
 	}
 
+	@Test
+	void onboardingDoesNotCollectTravelPurpose() throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> schemas = componentSchemas(contract);
+
+		assertFalse(schemas.containsKey("TravelPurpose"),
+			"방문 목적은 온보딩에서 삭제되어 schema로도 노출하면 안 된다");
+
+		Map<String, Object> request = asMap(schemas.get("OnboardingRequest"), "OnboardingRequest");
+		assertEquals(List.of(
+			"currentLocationId", "travelStyles", "candidateSetId", "candidateSetVersion",
+			"selectedPreferencePlaceIds"), asList(request.get("required"), "OnboardingRequest.required"));
+		assertFalse(asMap(request.get("properties"), "OnboardingRequest.properties")
+			.containsKey("travelPurpose"));
+
+		Map<String, Object> progress = asMap(
+			schemas.get("OnboardingProgressResponse"), "OnboardingProgressResponse");
+		assertFalse(asMap(progress.get("properties"), "OnboardingProgressResponse.properties")
+			.containsKey("travelPurpose"));
+
+		Map<String, Object> profile = asMap(schemas.get("OnboardingProfile"), "OnboardingProfile");
+		assertFalse(asList(profile.get("required"), "OnboardingProfile.required")
+			.contains("travelPurpose"));
+		assertFalse(asMap(profile.get("properties"), "OnboardingProfile.properties")
+			.containsKey("travelPurpose"));
+
+		Map<String, Object> onboardingStep = asMap(schemas.get("OnboardingStep"), "OnboardingStep");
+		assertEquals(List.of("LOCATION", "TRAVEL_STYLES", "PREFERENCE_PLACES", "COMPLETED"),
+			asList(onboardingStep.get("enum"), "OnboardingStep.enum"));
+	}
+
+	@Test
+	void monthlyRecommendationsDistinguishFestivalYearOccurrenceAndStatus() throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> monthlyPath = asMap(
+			paths.get("/monthly-recommendations"), "/monthly-recommendations");
+		Map<String, Object> monthlyGet = asMap(monthlyPath.get("get"), "GET /monthly-recommendations");
+
+		Map<String, Object> yearParameter = asList(
+			monthlyGet.get("parameters"), "GET /monthly-recommendations.parameters").stream()
+			.filter(Map.class::isInstance)
+			.map(value -> asMap(value, "monthly parameter"))
+			.filter(value -> "year".equals(value.get("name")))
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("월별 추천은 required year query가 필요하다"));
+		assertEquals(Boolean.TRUE, yearParameter.get("required"));
+		Map<String, Object> yearSchema = asMap(yearParameter.get("schema"), "year schema");
+		assertEquals(2000, yearSchema.get("minimum"));
+		assertEquals(2100, yearSchema.get("maximum"));
+
+		Map<String, Object> status = asMap(
+			schemas.get("FestivalOccurrenceStatus"), "FestivalOccurrenceStatus");
+		assertEquals(List.of("UPCOMING", "ONGOING", "ENDED"),
+			asList(status.get("enum"), "FestivalOccurrenceStatus.enum"));
+
+		Map<String, Object> occurrence = asMap(
+			schemas.get("FestivalOccurrenceSummary"), "FestivalOccurrenceSummary");
+		assertEquals(List.of(
+			"occurrenceId", "eventYear", "startDate", "endDate", "status", "dateRangeText"),
+			asList(occurrence.get("required"), "FestivalOccurrenceSummary.required"));
+
+		Map<String, Object> placeCard = asMap(schemas.get("PlaceCard"), "PlaceCard");
+		Map<String, Object> placeCardProperties = asMap(placeCard.get("properties"), "PlaceCard.properties");
+		assertTrue(placeCardProperties.containsKey("festivalOccurrence"));
+		assertFalse(placeCardProperties.containsKey("startDate"));
+		assertFalse(placeCardProperties.containsKey("endDate"));
+
+		assertRequiredContains(schemas, "MonthlyRecommendationPreview", "year");
+		assertRequiredContains(schemas, "MonthlyRecommendationListResponse", "year");
+		assertRequiredContains(schemas, "MonthlyRecommendationFilters", "year");
+	}
+
 	private static Map<String, Object> loadContract() throws IOException {
 		LoaderOptions options = new LoaderOptions();
 		options.setAllowDuplicateKeys(false);
@@ -85,6 +159,18 @@ class OpenApiContractTests {
 			assertNotNull(input, "Processed OpenAPI contract is missing");
 			return asMap(yaml.load(input), "OpenAPI root");
 		}
+	}
+
+	private static Map<String, Object> componentSchemas(Map<String, Object> contract) {
+		Map<String, Object> components = asMap(contract.get("components"), "components");
+		return asMap(components.get("schemas"), "components.schemas");
+	}
+
+	private static void assertRequiredContains(
+		Map<String, Object> schemas, String schemaName, String requiredProperty) {
+		Map<String, Object> schema = asMap(schemas.get(schemaName), schemaName);
+		assertTrue(asList(schema.get("required"), schemaName + ".required").contains(requiredProperty),
+			() -> schemaName + " must require " + requiredProperty);
 	}
 
 	private static void collectReferences(Object value, List<String> references) {
@@ -115,5 +201,11 @@ class OpenApiContractTests {
 	private static Map<String, Object> asMap(Object value, String location) {
 		assertTrue(value instanceof Map<?, ?>, () -> location + " must be an object");
 		return (Map<String, Object>) value;
+	}
+
+	@SuppressWarnings("unchecked")
+	private static List<Object> asList(Object value, String location) {
+		assertTrue(value instanceof List<?>, () -> location + " must be an array");
+		return (List<Object>) value;
 	}
 }

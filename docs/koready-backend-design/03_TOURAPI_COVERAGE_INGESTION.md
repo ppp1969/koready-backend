@@ -51,7 +51,7 @@ Koready는 한국관광공사 OpenAPI를 프론트에서 직접 호출하지 않
 | `areaBasedList2` | 지역/카테고리 기반 관광정보 목록 | `places` upsert의 기본 수집원. contentId, contentTypeId, 좌표, 주소, firstImage, modifiedTime 저장 | 1 |
 | `locationBasedList2` | 좌표 기반 주변 관광정보 목록 | GPS 미사용이므로 핵심 아님. 사용자 저장 위치 주변 품질 확인/지도 추천 fallback에 제한 사용 | 3 |
 | `searchKeyword2` | 키워드 기반 관광정보 검색 | 전통시장, 드라마촬영지, 로컬 키워드 후보 보강. 결과는 `places` upsert 후 `place_tags`/`place_style_mappings`에 키워드 출처 저장 | 1 |
-| `searchFestival2` | 행사/축제 정보 검색 | 월별 추천 핵심. `places`, `place_event_periods`, `place_monthly_features` 저장 | 1 |
+| `searchFestival2` | 행사/축제 정보 검색 | 월별 추천 핵심. `places`, `festival_series`, `place_event_occurrences`, `place_monthly_features` 저장 | 1 |
 | `searchStay2` | 숙박 정보 검색 | MVP에서는 숙박 리스트 추천 제외. Buddy Route가 `STAY_RECOMMENDED`일 때 향후 숙박 추천 후보로 확장 | 4 |
 | `detailCommon2` | 공통 상세 조회 | `places`, `place_localizations(KO)` 보강. overview, homepage, tel, 주소, 좌표, modifiedTime hash 계산에 사용 | 1 |
 | `detailIntro2` | 타입별 소개정보 조회 | `place_intro_details` key-value 저장. 운영시간, 휴무일, 주차, 요금, 행사 세부정보를 표준 필드로 매핑 | 1 |
@@ -122,12 +122,12 @@ API 결과가 없으면 자체 fallback을 사용한다.
 | 제목 | 국문/영문 TourAPI | place_localizations | language별 title 저장 |
 | 지역 | TourAPI area/sigungu/lDong | places, administrative_regions | 7권역 serviceRegionCode 매핑 |
 | 사진 | firstimage/detailImage2/관광사진 API | place_images | 대표 이미지 선정 |
-| 날짜 | searchFestival2 | place_event_periods | start/end date 저장, dateRangeText 생성 |
+| 개최 회차 | searchFestival2 | festival_series, place_event_occurrences | 행사 연도와 start/end date를 회차별 저장, 상태/dateRangeText 계산 |
 | 관광유형 | contentTypeId/lcls/keyword | place_style_mappings | 사용자용 7개 유형으로 매핑 |
 | 추천순 | 자체 점수 | place_recommendation_scores | 이미지/영문/태그/월 적합성 점수 |
-| 마감순 | eventEndDate | place_event_periods | endDate null은 뒤로 정렬 |
+| 마감순 | eventEndDate | place_event_occurrences | 진행/예정 회차 우선, endDate null은 뒤로 정렬 |
 
-축제 공통 노출 가능 기간은 `[eventStartDate - 6개월, eventEndDate]`다. `Asia/Seoul`의 현재 날짜가 이 범위 밖이면 홈/지도/추천에서 제외한다. 날짜 누락/파싱 실패 행은 날짜 기반 추천에서 제외한다.
+축제 회차는 `eventStartDate - 6개월`부터 조회 가능하다. 종료 뒤에도 해당 `eventYear/month` 상세 목록에는 `ENDED`로 남기며, 홈과 현재 추천은 `ONGOING`, `UPCOMING`에 더 높은 우선순위를 준다. 상태는 `Asia/Seoul`의 조회일과 회차 기간으로 계산한다. 날짜 누락/파싱 실패 행은 날짜 기반 추천에서 제외한다.
 
 ## 2.2 K-Local Pick
 
@@ -143,7 +143,7 @@ API 결과가 없으면 자체 fallback을 사용한다.
 | 추천 우선순위 | 자체 계산 | recommendation_deck_items | 태그/관광유형 매칭 여부로 1/2/3순위 bucket |
 | 중복 방지 | 자체 DB | recommendation_decks, user_place_recommendation_states | deck 내 중복 금지, suppressUntil 전 재노출 방지 |
 
-`suppressUntil`은 `CARD_SERVED` 시각부터 정확히 30일로 계산하며 후보 부족을 이유로 단축하지 않는다.
+MVP v1의 `suppressUntil`은 `CARD_SERVED` 시각부터 정확히 30일로 계산하며 후보 부족을 이유로 단축하지 않는다. `servedAt`, `suppressionDays=30`, `policyVersion=recommendation-suppression-v1`, 후보 소진율을 함께 남긴다. 서비스 테스트에서 후보가 지나치게 빨리 줄어드는 근거가 확인되면 새 정책 버전에서 기록 시점 또는 기간을 조정하고 기존 노출 이력을 소급 변경하지 않는다.
 
 ### K-Local Pick 우선순위
 
@@ -159,7 +159,7 @@ API 결과가 없으면 자체 fallback을 사용한다.
 |---|---|---|---|
 | 기본 사진/정보 | TourAPI | places/place_images | 그대로 표시 가능한 필드 정규화 |
 | 운영시간 | detailIntro2 | place_intro_details | type별 필드 flatten 또는 key-value 저장 |
-| 운영기간 | searchFestival2/detailIntro2 | place_event_periods | 날짜 텍스트 생성 |
+| 운영기간 | searchFestival2/detailIntro2 | place_event_occurrences | 행사 연도·회차별 날짜 텍스트와 상태 생성 |
 | 임팩트 소개 | TourAPI + AI | place_ai_descriptions | AI 생성 |
 | 간단 소개 | TourAPI + AI | place_ai_descriptions | 2~3문단 생성 |
 | 즐기는 포인트 | TourAPI + AI | place_ai_description_points | 리스트 생성 |
@@ -273,12 +273,24 @@ TourAPI contentId 단위의 핵심 관광지 마스터.
 3. 관광사진 API 이미지 보강
 4. 없으면 추천 점수 감점 또는 기본 이미지 사용
 
-## 3.4 place_event_periods
+## 3.4 festival_series / place_event_occurrences
 
-행사/축제/기간성 콘텐츠.
+매년 반복되는 축제의 공통 정체성과 실제 개최 회차를 분리한다.
 
-- eventPeriodId
+`festival_series`:
+
+- festivalSeriesId
+- seriesKey
+- canonicalPlaceId
+- titleKo/titleEn
+
+`place_event_occurrences`:
+
+- occurrenceId
+- festivalSeriesId
 - placeId
+- eventYear
+- occurrenceSequence
 - startDate
 - endDate
 - startTime
@@ -287,7 +299,11 @@ TourAPI contentId 단위의 핵심 관광지 마스터.
 - playTime
 - sponsor
 - useFee
+- provider/sourceContentId
 - sourceOperation
+- sourceHash
+
+KTO 회차는 `(provider, sourceContentId, eventYear, occurrenceSequence)`, 시리즈 회차는 `(festivalSeriesId, eventYear, occurrenceSequence)`를 unique로 둔다. 공급자가 개최 기간을 정정하면 같은 회차의 날짜를 갱신하고 원천 snapshot/hash 이력으로 변경 전 값을 추적한다. `UPCOMING/ONGOING/ENDED`는 DB에 고정 저장하지 않고 조회 시 계산한다.
 
 ## 3.5 place_intro_details
 
@@ -356,7 +372,7 @@ AI/룰 기반 태그.
 
 - placeId
 - month
-- reasonType: EVENT_PERIOD / AI_SEASON / MANUAL
+- reasonType: EVENT_OCCURRENCE / PHOTO_SEASON_HINT / AI_SEASON / MANUAL
 - reasonText
 - score
 

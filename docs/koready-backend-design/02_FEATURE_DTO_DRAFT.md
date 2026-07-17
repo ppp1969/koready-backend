@@ -21,12 +21,12 @@
 LanguageCode = KO | EN
 SocialProvider = GOOGLE | APPLE
 ServiceRegionCode = SEOUL | GYEONGGI | GANGWON | CHUNGCHEONG | JEOLLA | GYEONGSANG | JEJU
-TravelPurpose = EXCHANGE_STUDENT | LANGUAGE_STUDY | SHORT_TRIP | DEGREE_PROGRAM | INTERN_WORK | WORKING_HOLIDAY | ETC
 TravelStyle = LOCAL_FOOD | LOCAL_FESTIVAL | TRADITIONAL_MARKET | CULTURE_EXPERIENCE | NATURE | EXHIBITION_MUSEUM | DRAMA_LOCATION
 BuddyStyle = TRADITIONAL_CULTURE | CAFE_TOUR | FOODIE | PHOTOGRAPHY | HANOK_EXPERIENCE | QUIET_TRAVEL
 RecommendationScope = NEARBY | NATIONWIDE
 SortType = RECOMMENDED | DEADLINE
 DateFilterType = ALL | THIS_WEEK | THIS_MONTH | NEXT_MONTH | CUSTOM
+FestivalOccurrenceStatus = UPCOMING | ONGOING | ENDED
 Difficulty = EASY | NORMAL | HARD
 DayTripStatus = DAY_TRIP_AVAILABLE | STAY_RECOMMENDED
 TransportMode = WALK | SUBWAY | CITY_BUS | LOCAL_BUS | INTERCITY_BUS | EXPRESS_BUS | SHUTTLE_BUS | TRAIN | KTX | SRT | AIRPLANE | ETC
@@ -152,7 +152,6 @@ nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
 
 ```json
 {
-  "travelPurpose": "EXCHANGE_STUDENT",
   "currentLocationId": 100,
   "travelStyles": ["LOCAL_FOOD", "LOCAL_FESTIVAL", "TRADITIONAL_MARKET"],
   "candidateSetId": "onb-curation-2026-07-v1",
@@ -177,7 +176,6 @@ currentLocationId: 현재 사용자에게 속한 삭제되지 않은 위치
 {
   "completed": true,
   "profile": {
-    "travelPurpose": "EXCHANGE_STUDENT",
     "currentLocation": {
       "locationId": 100,
       "displayName": "성북구 보문로30가길",
@@ -379,6 +377,7 @@ Validation:
   },
   "preferredLanguage": "EN",
   "monthlyRecommendation": {
+    "year": 2026,
     "month": 6,
     "title": "6월달엔 이건 해야지!",
     "items": []
@@ -390,6 +389,7 @@ Validation:
 
 ```json
 {
+  "year": 2026,
   "month": 6,
   "serviceRegionCode": "GYEONGSANG",
   "dateFilterType": "THIS_MONTH",
@@ -397,21 +397,24 @@ Validation:
   "customEndDate": null,
   "travelStyles": ["LOCAL_FESTIVAL"],
   "sort": "RECOMMENDED",
-  "page": 0,
-  "size": 20,
-  "language": "KO"
+  "cursor": null,
+  "size": 20
 }
 ```
+
+응답 언어는 query가 아니라 공통 `Accept-Language` 헤더로 전달한다.
 
 축제 노출 공통 정책:
 
 ```text
 zoneId = Asia/Seoul
 visibleFrom = eventStartDate - 6개월
-visibleUntil = eventEndDate
 today < visibleFrom 이면 미노출
-today > visibleUntil 이면 미노출
-visibleFrom <= today <= visibleUntil 이면 노출 가능
+today < eventStartDate 이면 UPCOMING
+eventStartDate <= today <= eventEndDate 이면 ONGOING
+today > eventEndDate 이면 ENDED
+visibleFrom 이후에는 종료돼도 해당 eventYear/month 상세 목록에 ENDED로 유지
+홈과 현재 추천은 ONGOING/UPCOMING을 ENDED보다 우선
 시작일/종료일 누락 또는 파싱 실패 시 날짜 기반 목록에서 제외
 ```
 
@@ -425,9 +428,14 @@ visibleFrom <= today <= visibleUntil 이면 노출 가능
   "serviceRegionName": "경상",
   "addressSummary": "경상북도 김천시",
   "imageUrl": "https://...",
-  "dateRangeText": "4.25(토)~4.26(일)",
-  "startDate": "2026-04-25",
-  "endDate": "2026-04-26",
+  "festivalOccurrence": {
+    "occurrenceId": 81001,
+    "eventYear": 2026,
+    "startDate": "2026-04-25",
+    "endDate": "2026-04-26",
+    "status": "ENDED",
+    "dateRangeText": "4.25(토)~4.26(일)"
+  },
   "travelStyle": "LOCAL_FESTIVAL",
   "tags": ["지역축제", "음식", "시즌추천"],
   "saved": false

@@ -23,7 +23,7 @@ tags:
   - name: User
     description: 내 정보와 기본 표시 언어
   - name: Onboarding
-    description: 방문 목적, 위치, 여행 스타일, 관리자 큐레이션 여행지 선택
+    description: 위치, 여행 스타일, 관리자 큐레이션 여행지 선택
   - name: Location
     description: Kakao 기반 주소·학교·동네 검색과 사용자 저장 위치
   - name: Home
@@ -197,7 +197,7 @@ paths:
       summary: 온보딩 진행 상태 복구
       description: |
         **호출 시점:** 로그인 응답이 `nextStep=ONBOARDING`이거나 온보딩 화면을 재진입할 때 호출합니다.
-        `currentStep`을 기준으로 방문 목적, 위치, 스타일, 선호 여행지 중 이어서 보여줄 화면을 결정합니다.
+        `currentStep`을 기준으로 위치, 스타일, 선호 여행지 중 이어서 보여줄 화면을 결정합니다.
       x-implementation-status: PLANNED
       responses:
         '401':
@@ -368,7 +368,8 @@ paths:
       summary: 홈 화면 초기 데이터 조회
       description: |
         **호출 시점:** 온보딩 완료 후 홈 진입, 앱 재실행, pull-to-refresh에서 호출합니다.
-        기본 위치, 기본 언어, 현재 월 추천 미리보기를 한 번에 반환합니다.
+        기본 위치, 기본 언어, 현재 연도·월 추천 미리보기를 한 번에 반환합니다.
+        현재 월 축제는 ONGOING, UPCOMING 회차를 ENDED 회차보다 우선해 정렬합니다.
         currentLocation이 null이면 위치 등록 화면으로 이동하며 KTX 가이드는 프론트 정적 콘텐츠라 응답에 포함하지 않습니다.
       x-implementation-status: PLANNED
       responses:
@@ -383,10 +384,21 @@ paths:
       summary: 월별 추천 전체보기 조회
       description: |
         **호출 시점:** 홈의 월별 추천 전체보기를 열거나 월, 권역, 날짜, 관광유형, 정렬 필터를 바꿀 때 호출합니다.
-        month 범위와 dateFilterType 범위는 교집합으로 적용합니다. CUSTOM이면 시작일과 종료일이 모두 필요합니다.
+        year/month는 행사 개최 기간이 겹치는 연도와 월입니다. 행사 정보는 시작 6개월 전부터 조회할 수 있고,
+        종료 뒤에도 해당 개최 연도·월 목록에는 ENDED 상태로 남습니다. 선택한 year/month 범위와 dateFilterType 범위는
+        교집합으로 적용하며 CUSTOM이면 시작일과 종료일이 모두 필요합니다.
+        RECOMMENDED 정렬에서는 ONGOING, UPCOMING 회차가 ENDED 회차보다 높은 우선순위를 가집니다.
         필터가 바뀌면 기존 items와 cursor를 폐기하고 첫 페이지부터 다시 조회합니다.
       x-implementation-status: PLANNED
       parameters:
+        - name: year
+          in: query
+          required: true
+          description: 행사 개최 연도. 반복 축제의 이전 회차와 현재 회차를 구분합니다.
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
         - name: month
           in: query
           required: true
@@ -2407,10 +2419,6 @@ components:
       type: string
       description: KTO=한국관광공사, TMAP=대중교통 경로, KAKAO=위치 검색, AI=번역·가공
       enum: [KTO, TMAP, KAKAO, AI]
-    TravelPurpose:
-      type: string
-      description: 교환학생, 어학연수, 단기여행, 학위과정, 인턴·취업, 워킹홀리데이, 기타
-      enum: [EXCHANGE_STUDENT, LANGUAGE_STUDY, SHORT_TRIP, DEGREE_PROGRAM, INTERN_WORK, WORKING_HOLIDAY, ETC]
     TravelStyle:
       type: string
       description: 로컬 맛집, 지역 축제, 전통시장, 문화체험, 자연 명소, 전시·미술관, 드라마 촬영지
@@ -2435,6 +2443,10 @@ components:
       type: string
       description: 날짜 범위. CUSTOM이면 customStartDate와 customEndDate가 모두 필요
       enum: [ALL, THIS_WEEK, THIS_MONTH, NEXT_MONTH, CUSTOM]
+    FestivalOccurrenceStatus:
+      type: string
+      description: Asia/Seoul 조회일과 해당 회차의 개최 기간으로 계산하는 축제 상태
+      enum: [UPCOMING, ONGOING, ENDED]
     RecommendationScope:
       type: string
       description: NEARBY는 GPS 반경이 아니라 기본 위치와 같은 서비스 권역, NATIONWIDE는 전국
@@ -2545,10 +2557,8 @@ components:
           $ref: '#/components/schemas/LanguageCode'
     OnboardingRequest:
       type: object
-      required: [travelPurpose, currentLocationId, travelStyles, candidateSetId, candidateSetVersion, selectedPreferencePlaceIds]
+      required: [currentLocationId, travelStyles, candidateSetId, candidateSetVersion, selectedPreferencePlaceIds]
       properties:
-        travelPurpose:
-          $ref: '#/components/schemas/TravelPurpose'
         currentLocationId:
           type: integer
           format: int64
@@ -3122,7 +3132,7 @@ components:
     OnboardingStep:
       type: string
       description: 앱이 중단된 온보딩을 이어서 표시할 화면
-      enum: [TRAVEL_PURPOSE, LOCATION, TRAVEL_STYLES, PREFERENCE_PLACES, COMPLETED]
+      enum: [LOCATION, TRAVEL_STYLES, PREFERENCE_PLACES, COMPLETED]
     SocialLinkType:
       type: string
       description: Buddy 프로필에서 사용자가 공개할 수 있는 SNS 종류
@@ -3357,11 +3367,6 @@ components:
           type: boolean
         currentStep:
           $ref: '#/components/schemas/OnboardingStep'
-        travelPurpose:
-          type: string
-          allOf:
-            - $ref: '#/components/schemas/TravelPurpose'
-          nullable: true
         currentLocationId:
           type: integer
           format: int64
@@ -3409,10 +3414,8 @@ components:
           $ref: '#/components/schemas/OnboardingProfile'
     OnboardingProfile:
       type: object
-      required: [travelPurpose, currentLocation, travelStyles, selectedPreferencePlaceIds, preferenceTags]
+      required: [currentLocation, travelStyles, selectedPreferencePlaceIds, preferenceTags]
       properties:
-        travelPurpose:
-          $ref: '#/components/schemas/TravelPurpose'
         currentLocation:
           $ref: '#/components/schemas/LocationSummary'
         travelStyles:
@@ -3506,8 +3509,13 @@ components:
           example: 2
     MonthlyRecommendationPreview:
       type: object
-      required: [month, title, totalCount, items]
+      required: [year, month, title, totalCount, items]
       properties:
+        year:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+          example: 2026
         month:
           type: integer
           minimum: 1
@@ -3551,19 +3559,11 @@ components:
           nullable: true
           description: null이면 프론트 기본 이미지를 사용
           example: https://cdn.koready.kr/places/1001/cover.jpg
-        dateRangeText:
-          type: string
+        festivalOccurrence:
+          allOf:
+            - $ref: '#/components/schemas/FestivalOccurrenceSummary'
           nullable: true
-          description: 현재 언어로 이미 포맷된 표시 문자열. 프론트가 날짜를 재조합하지 않음
-          example: 7.25(토)~7.26(일)
-        startDate:
-          type: string
-          format: date
-          nullable: true
-        endDate:
-          type: string
-          format: date
-          nullable: true
+          description: 축제 카드에서만 존재합니다. 개최 회차의 연도·기간·현재 상태를 한 묶음으로 사용합니다.
         travelStyle:
           type: string
           allOf:
@@ -3590,8 +3590,12 @@ components:
               $ref: '#/components/schemas/MonthlyRecommendationListResponse'
     MonthlyRecommendationListResponse:
       type: object
-      required: [month, appliedFilters, items, hasMore, totalCount]
+      required: [year, month, appliedFilters, items, hasMore, totalCount]
       properties:
+        year:
+          type: integer
+          minimum: 2000
+          maximum: 2100
         month:
           type: integer
           minimum: 1
@@ -3613,8 +3617,12 @@ components:
           minimum: 0
     MonthlyRecommendationFilters:
       type: object
-      required: [month, dateFilterType, travelStyles, sort]
+      required: [year, month, dateFilterType, travelStyles, sort]
       properties:
+        year:
+          type: integer
+          minimum: 2000
+          maximum: 2100
         month:
           type: integer
           minimum: 1
@@ -3640,6 +3648,32 @@ components:
             $ref: '#/components/schemas/TravelStyle'
         sort:
           $ref: '#/components/schemas/SortType'
+    FestivalOccurrenceSummary:
+      type: object
+      description: 반복 축제의 한 개최 회차. status는 저장값이 아니라 Asia/Seoul 조회일 기준으로 계산합니다.
+      required: [occurrenceId, eventYear, startDate, endDate, status, dateRangeText]
+      properties:
+        occurrenceId:
+          type: integer
+          format: int64
+          description: 연도별 개최 회차를 식별하는 내부 ID
+        eventYear:
+          type: integer
+          minimum: 2000
+          maximum: 2100
+          description: 개최 시작일 기준 연도
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/FestivalOccurrenceStatus'
+        dateRangeText:
+          type: string
+          description: 현재 언어로 포맷된 표시 문자열. 상태 계산에는 사용하지 않습니다.
+          example: 7.25(토)~7.26(일)
     PlaceListEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'

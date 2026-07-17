@@ -32,6 +32,12 @@ services:
         value: 50
       - key: KTO_BATCH_MAX_CONCURRENCY
         value: 1
+      - key: KTO_MAX_RESPONSE_BYTES
+        value: 4194304
+      - key: KTO_CONNECT_TIMEOUT
+        value: 3s
+      - key: KTO_READ_TIMEOUT
+        value: 10s
       - key: JWT_SECRET
         generateValue: true
       - key: KTO_SERVICE_KEY

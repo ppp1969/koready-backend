@@ -1,0 +1,74 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "0000",
+      "resultMsg": "OK"
+    },
+    "body": {
+      "items": {
+        "item": [
+          {
+            "addr1": "서울특별시 테스트구",
+            "addr2": "테스트로 1",
+            "areacode": "1",
+            "cat1": "A01",
+            "cat2": "A0101",
+            "cat3": "A01010100",
+            "contentid": "100001",
+            "contenttypeid": "12",
+            "createdtime": "20260101090000",
+            "firstimage": "https://example.invalid/image.jpg",
+            "firstimage2": "https://example.invalid/thumbnail.jpg",
+            "cpyrhtDivCd": "Type3",
+            "mapx": "126.9780000000",
+            "mapy": "37.5665000000",
+            "mlevel": "6",
+            "modifiedtime": "20260701090000",
+            "sigungucode": "1",
+            "tel": "",
+            "title": "테스트 관광지",
+            "zipcode": "00000",
+            "showflag": "1",
+            "lDongRegnCd": "11",
+            "lDongSignguCd": "110",
+            "lclsSystm1": "VE",
+            "lclsSystm2": "VE01",
+            "lclsSystm3": "VE010100",
+            "futureField": "ignored"
+          },
+          {
+            "addr1": "부산광역시 테스트구",
+            "addr2": "",
+            "areacode": "",
+            "cat1": "",
+            "cat2": "",
+            "cat3": "",
+            "contentid": "100002",
+            "contenttypeid": "14",
+            "createdtime": "20260102090000",
+            "firstimage": "",
+            "firstimage2": "",
+            "cpyrhtDivCd": "",
+            "mapx": "129.0756000000",
+            "mapy": "35.1796000000",
+            "mlevel": "6",
+            "modifiedtime": "20260702090000",
+            "sigungucode": "",
+            "tel": "",
+            "title": "비노출 테스트 관광지",
+            "zipcode": "",
+            "showflag": "0",
+            "lDongRegnCd": "26",
+            "lDongSignguCd": "230",
+            "lclsSystm1": "VE",
+            "lclsSystm2": "VE12",
+            "lclsSystm3": "VE120100"
+          }
+        ]
+      },
+      "numOfRows": 200,
+      "pageNo": 3,
+      "totalCount": 68493
+    }
+  }
+}

@@ -637,6 +637,22 @@ eventType =
 | DELETE | `/users/me/saved-places/{placeId}` | 멱등 저장 취소 |
 | GET | `/users/me/saved-places?cursor=...&size=20` | 저장 목록 |
 
+저장 요청은 하트를 누른 화면을 본문에 함께 보낸다.
+
+```json
+{
+  "source": "RECOMMENDATION_CARD"
+}
+```
+
+```text
+source = HOME_MONTHLY | RECOMMENDATION_CARD | PLACE_DETAIL | MAP
+```
+
+같은 장소를 연속으로 저장해도 행을 추가하거나 최초 `savedAt`을 변경하지 않는다. 저장을
+취소한 뒤 다시 저장한 경우에만 새 `savedAt`과 새 `source`로 복원한다. 목록은
+`savedAt` 최신순이며 `nextCursor`는 분해하거나 직접 만들지 않고 다음 요청에 그대로 보낸다.
+
 ---
 
 ## 8. Buddy Route

@@ -332,10 +332,13 @@ sequenceDiagram
 
 ### 6.1 홈
 
-`GET /home`은 홈 화면 진입과 pull-to-refresh에서 호출한다. 응답은 `currentLocation`, `preferredLanguage`, `monthlyRecommendation{year,month,totalCount,items}`다.
+`GET /home`은 홈 화면 진입과 pull-to-refresh에서 호출한다. 보호 API이며 성공 code는 `HOME_OK`다. 응답은 `currentLocation`, `preferredLanguage`, `monthlyRecommendation{year,month,title,totalCount,items}`다.
 
-- `currentLocation=null`이면 위치 등록 화면으로 이동한다.
+- 월별 미리보기는 `Asia/Seoul`의 현재 연월, 사용자 선호 언어, 기본 위치와 같은 서비스 권역을 기준으로 최대 5개를 반환한다.
+- `currentLocation=null`이면 월별 미리보기도 `items=[]`, `totalCount=0`이므로 위치 등록 화면으로 이동한다.
 - 월별 추천 미리보기는 진행 중·예정 축제를 종료 축제보다 우선한 API 순서를 그대로 사용한다.
+- 로그인 구현 전 개발 서버의 익명 호출은 401이며, 백엔드는 테스트 principal과 DB fixture로 계약을 검증한다.
+- 읽지 않은 쪽지 개수는 Buddy 쪽지 구현 뒤 추가하며 현재 응답에는 없다.
 - KTX 가이드 카드와 본문은 프론트 정적 asset이므로 API 응답에서 찾지 않는다.
 
 ### 6.2 월별 추천 전체보기

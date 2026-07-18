@@ -371,9 +371,11 @@ paths:
       description: |
         **호출 시점:** 온보딩 완료 후 홈 진입, 앱 재실행, pull-to-refresh에서 호출합니다.
         기본 위치, 기본 언어, 현재 연도·월 추천 미리보기를 한 번에 반환합니다.
+        월별 미리보기는 사용자의 preferredLanguage와 기본 위치의 서비스 권역을 사용하며 최대 5개입니다.
         현재 월 축제는 ONGOING, UPCOMING 회차를 ENDED 회차보다 우선해 정렬합니다.
-        currentLocation이 null이면 위치 등록 화면으로 이동하며 KTX 가이드는 프론트 정적 콘텐츠라 응답에 포함하지 않습니다.
-      x-implementation-status: PLANNED
+        currentLocation이 null이면 monthlyRecommendation은 같은 연월과 제목을 유지한 빈 items, totalCount=0이며
+        프론트는 위치 등록 화면으로 이동합니다. KTX 가이드와 unreadMessageCount는 현재 응답에 포함하지 않습니다.
+      x-implementation-status: IMPLEMENTED
       responses:
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -1915,7 +1917,7 @@ components:
           schema:
             $ref: '#/components/schemas/UserLocationEnvelope'
     HomeSuccess:
-      description: 홈 화면 초기 데이터
+      description: 홈 화면 초기 데이터. code는 HOME_OK입니다.
       content:
         application/json:
           schema:

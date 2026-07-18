@@ -152,6 +152,31 @@ tasks.register('importKtoFestivals', JavaExec) {
 	}
 }
 
+tasks.register('bootstrapCuratedOnboarding', JavaExec) {
+	description = 'Imports the approved KTO places and publishes onboarding candidate set v1.'
+	group = 'application'
+	dependsOn tasks.named('classes')
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'koready_backend.kto.infrastructure.runner.KtoCuratedOnboardingBootstrapApplication'
+	minHeapSize = '128m'
+	maxHeapSize = '256m'
+	jvmArgs '-XX:MaxMetaspaceSize=128m'
+	systemProperty 'spring.devtools.restart.enabled', 'false'
+
+	doFirst {
+		def profile = providers.gradleProperty('profile').getOrElse('local')
+		if (!(profile in ['local', 'staging'])) {
+			throw new GradleException('Curated onboarding bootstrap profile must be local or staging')
+		}
+		setArgs([
+			"--spring.profiles.active=${profile}",
+			'--spring.devtools.restart.enabled=false',
+			'--spring.devtools.add-properties=false',
+			'--koready.kto.curated-bootstrap.confirm=true'
+		])
+	}
+}
+
 tasks.named('processResources') {
 	from('docs/koready-backend-design/openapi.yaml') {
 		into 'static/openapi'

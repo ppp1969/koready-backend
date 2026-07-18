@@ -1,0 +1,36 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "0000",
+      "resultMsg": "OK"
+    },
+    "body": {
+      "items": {
+        "item": {
+          "addr1": "서울특별시 종로구 사직로 161",
+          "areacode": "1",
+          "contentid": "126508",
+          "contenttypeid": "12",
+          "createdtime": "20040218000000",
+          "firstimage": "https://example.invalid/gyeongbokgung.jpg",
+          "homepage": "https://www.royalpalace.go.kr",
+          "lDongRegnCd": "11",
+          "lDongSignguCd": "11110",
+          "lclsSystm1": "VE",
+          "lclsSystm2": "VE01",
+          "lclsSystm3": "VE010100",
+          "mapx": "126.9769930325",
+          "mapy": "37.5788222356",
+          "modifiedtime": "20260701090000",
+          "overview": "경복궁 소개",
+          "sigungucode": "23",
+          "title": "경복궁",
+          "zipcode": "03045"
+        }
+      },
+      "numOfRows": 1,
+      "pageNo": 1,
+      "totalCount": 1
+    }
+  }
+}

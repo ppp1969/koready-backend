@@ -46,6 +46,19 @@ page만 요청한다. 응답의
 `scripts/import-kto-festivals.ps1`에서 `local` 또는 `staging`을 명시했을 때만
 실행한다. 한 번에 최대 20page까지 허용하지만 기본값은 1page다.
 
+온보딩 대표 관광지 초기 등록도 개발자 PC의
+`scripts/bootstrap-curated-onboarding.ps1`에서만 실행한다. 승인된 KTO
+`contentId` 10개를 코드 카탈로그에 고정하고, 각 장소마다 `searchKeyword2` 1회와
+`detailCommon2` 1회를 순서대로 호출한다. 검색 결과는 `contentId`, 공식 국문명,
+관광 타입이 모두 승인값과 일치해야 하며, 상세 응답에는 주소·좌표·대표 이미지와
+7개 서비스 권역으로 변환 가능한 지역 코드가 있어야 한다.
+
+대표 관광지 작업은 KTO 원본 응답을 snapshot이나 로그로 남기지 않고, 정규화한
+장소 데이터와 항목별 SHA-256만 저장한다. 10개 장소가 모두 저장되고 공개 준비도
+검사를 통과한 뒤에만 고정 ID `onb-kto-curated-v1` 세트를 발행한다. 재실행 시
+장소와 세트를 upsert하고, 이미 발행된 세트가 승인 카탈로그와 다르면 자동 수정하지
+않고 중단한다. `prod` 프로필과 Render 시작 과정에서는 실행할 수 없다.
+
 DB 저장 adapter는 private object storage 업로드가 끝난 snapshot 메타데이터만
 입력받는다. 실제 원문 JSON이나 service key는 DB adapter로 전달하지 않는다. 한
 page는 다음 순서로 하나의 transaction에서 처리한다.

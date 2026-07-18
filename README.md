@@ -85,6 +85,43 @@ snapshot과 DB 결과를 재사용합니다.
 Aiven 소량 반영은 같은 명령에 `-Profile staging`을 명시한 경우에만 실행되며,
 Render에는 scheduler를 두지 않습니다.
 
+### 온보딩 대표 관광지 10곳 초기 등록
+
+위치 입력 다음 단계에서 보여줄 대표 관광지는 운영 승인된 아래 10곳으로 고정합니다.
+
+1. 경복궁
+2. 광장시장
+3. 국립중앙박물관
+4. 한국민속촌
+5. 경포해수욕장
+6. 공주 공산성
+7. 보령머드축제
+8. 전북 전주 한옥마을
+9. 부산 감천문화마을
+10. 성산일출봉
+
+초기 등록 명령은 이 목록 외의 검색 결과를 저장하지 않습니다. 각 장소의 KTO
+`contentId`, 공식 국문명, 관광 타입을 다시 확인한 뒤 주소·좌표·대표 이미지가 모두
+있는 경우에만 공개 가능한 장소로 저장합니다. 10곳이 전부 준비된 후에만
+`onb-kto-curated-v1` 후보 세트를 현재 버전으로 발행합니다.
+
+```powershell
+# 로컬 Docker MySQL에 등록
+./scripts/bootstrap-curated-onboarding.ps1 -Profile local
+
+# Aiven staging에 등록하는 명시적 일회성 작업
+./scripts/bootstrap-curated-onboarding.ps1 -Profile staging
+```
+
+같은 명령을 다시 실행하면 KTO `contentId`와 고정 후보 세트 ID를 기준으로 기존
+데이터를 갱신하며 장소나 후보 세트를 중복 생성하지 않습니다. 이미 발행된 후보
+세트의 카드 순서나 문구가 승인 목록과 다르면 자동으로 덮어쓰지 않고 실패합니다.
+KTO 영문 API는 국문 `contentId`를 그대로 조회할 수 없으므로 영문 표시는 이 승인
+목록에서 관리하는 이름을 `MANUAL_EDITED` 출처로 저장합니다.
+
+이 작업도 Render 시작 시 자동 실행되지 않습니다. JVM은 heap 128~256MB,
+Metaspace 128MB로 제한하고 검색 1회와 상세 1회를 장소별로 순차 호출합니다.
+
 PC의 기존 MySQL이 3306을 사용 중이면 다음처럼 KoReady MySQL만 3307로 띄웁니다.
 
 ```powershell

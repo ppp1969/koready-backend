@@ -1,0 +1,142 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private immutable-by-contract storage for KoReady KTO raw snapshots.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: shared
+    AllowedPattern: '[a-z0-9-]{2,20}'
+
+Resources:
+  SnapshotBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Project
+          Value: KoReady
+        - Key: Environment
+          Value:
+            Ref: EnvironmentName
+        - Key: DataClassification
+          Value: PrivateKtoSnapshot
+
+  SnapshotWriterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Minimum permissions for KoReady KTO snapshot writes from EC2 or EB.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: KtoSnapshotObjectAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: BucketLocation
+                Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                Resource:
+                  Fn::GetAtt:
+                    - SnapshotBucket
+                    - Arn
+              - Sid: SnapshotPrefix
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  Fn::GetAtt:
+                    - SnapshotBucket
+                    - Arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - kto/*
+              - Sid: SnapshotObjects
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  Fn::Sub: '${SnapshotBucket.Arn}/kto/*'
+
+  SnapshotWriterInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - Ref: SnapshotWriterRole
+
+  SnapshotBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: SnapshotBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - Fn::GetAtt:
+                  - SnapshotBucket
+                  - Arn
+              - Fn::Sub: '${SnapshotBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Sid: DenyUnconditionalSnapshotWrites
+            Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource:
+              Fn::Sub: '${SnapshotBucket.Arn}/kto/*'
+            Condition:
+              StringNotEquals:
+                s3:if-none-match: '*'
+
+Outputs:
+  SnapshotBucketName:
+    Description: Private bucket for KTO gzip snapshots.
+    Value:
+      Ref: SnapshotBucket
+  SnapshotWriterRoleArn:
+    Description: IAM role ARN for a future EB EC2 instance profile.
+    Value:
+      Fn::GetAtt:
+        - SnapshotWriterRole
+        - Arn
+  SnapshotWriterInstanceProfileName:
+    Description: Instance profile name for a future EB environment.
+    Value:
+      Ref: SnapshotWriterInstanceProfile

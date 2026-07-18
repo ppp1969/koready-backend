@@ -181,6 +181,9 @@ docker build --tag koready-backend:local .
 - Aiven 연결 및 IP 허용목록 절차는 `docs/AIVEN_STAGING.md`에서 관리합니다.
 - Render 약 500MB 환경의 KTO 페이지·동시성·JVM 메모리 기준은
   `docs/KTO_BATCH_OPERATIONS.md`에서 관리합니다.
+- KTO 원본 snapshot용 서울 리전 private S3와 IAM 기준은
+  `docs/AWS_S3_SNAPSHOT_STORAGE.md`에서 관리합니다. local 저장이 기본이며 S3는
+  명시적으로 선택한 수집 프로세스에서만 사용합니다.
 - AWS EC2/Elastic Beanstalk를 포함한 운영 인프라는 빠른 기능 개발 이후 약 한 달 뒤 다시 결정합니다.
 
 ## API Conventions

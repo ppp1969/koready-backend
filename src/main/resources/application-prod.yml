@@ -12,3 +12,8 @@ logging:
   level:
     root: INFO
     koready_backend: INFO
+
+koready:
+  kto:
+    snapshot:
+      storage: ${KTO_SNAPSHOT_STORAGE:s3}

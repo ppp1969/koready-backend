@@ -8,13 +8,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import koready_backend.kto.application.exception.KtoSnapshotConflictException;
@@ -25,10 +23,13 @@ import koready_backend.kto.application.port.KtoRawSnapshotStore;
 import koready_backend.kto.infrastructure.config.KtoSnapshotProperties;
 
 @Component
+@ConditionalOnProperty(
+	prefix = "koready.kto.snapshot",
+	name = "storage",
+	havingValue = "local",
+	matchIfMissing = true)
 public final class LocalKtoRawSnapshotStore implements KtoRawSnapshotStore {
 
-	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
-	private static final DateTimeFormatter DATE = DateTimeFormatter.BASIC_ISO_DATE;
 	private static final int HASH_BUFFER_BYTES = 8 * 1024;
 	private static final Path WORKING_DIRECTORY = Path.of("").toAbsolutePath().normalize();
 
@@ -43,7 +44,7 @@ public final class LocalKtoRawSnapshotStore implements KtoRawSnapshotStore {
 		if (rootDirectory.startsWith(WORKING_DIRECTORY)) {
 			throw new KtoSnapshotStorageException();
 		}
-		String storageKey = storageKey(snapshot);
+		String storageKey = KtoSnapshotObjectKeyFactory.create(snapshot);
 		Path target = rootDirectory.resolve(storageKey).normalize();
 		if (!target.startsWith(rootDirectory)) {
 			throw new KtoSnapshotStorageException();
@@ -92,16 +93,6 @@ public final class LocalKtoRawSnapshotStore implements KtoRawSnapshotStore {
 			sha256(Files.newInputStream(target)),
 			Files.size(target),
 			snapshot.capturedAt());
-	}
-
-	private String storageKey(KtoRawSnapshot snapshot) {
-		LocalDate capturedDate = LocalDate.ofInstant(snapshot.capturedAt(), SEOUL_ZONE);
-		return "kto/kor/%s/%s/event-start-%s-page-%d-%s.json.gz".formatted(
-			snapshot.operation(),
-			DATE.format(capturedDate),
-			DATE.format(snapshot.eventStartDate()),
-			snapshot.pageNumber(),
-			snapshot.rawContentSha256().substring(0, 16));
 	}
 
 	private void moveAtomically(Path source, Path target) throws IOException {

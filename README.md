@@ -152,6 +152,7 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 - `GET /api/v1/home`: 기본 위치·선호 언어·현재 월 축제 추천 미리보기
 - `POST /api/v1/recommendation-decks`: 위치·여행 스타일 기반 K-Local Pick 덱 생성
 - `GET /api/v1/recommendation-decks/{deckId}`: 고정된 추천 덱 페이지 조회
+- `POST /api/v1/recommendation-decks/{deckId}/events`: 노출된 추천 카드의 탐색 행동 기록
 - `GET /api/v1/users/me/saved-places`: 저장한 장소 최신순 cursor 목록
 - `PUT /api/v1/users/me/saved-places/{placeId}`: 화면 출처를 포함한 멱등 장소 저장
 - `DELETE /api/v1/users/me/saved-places/{placeId}`: 멱등 장소 저장 취소

@@ -28,6 +28,7 @@ class OpenApiContractTests {
 		"GET /monthly-recommendations",
 		"POST /recommendation-decks",
 		"GET /recommendation-decks/{deckId}",
+		"POST /recommendation-decks/{deckId}/events",
 		"GET /places",
 		"GET /places/search",
 		"GET /places/{placeId}",
@@ -241,6 +242,54 @@ class OpenApiContractTests {
 		assertTrue(responses.containsKey("400"));
 		assertTrue(responses.containsKey("401"));
 		assertTrue(responses.containsKey("200"));
+	}
+
+	@Test
+	void recommendationEventsDocumentBestEffortTrackingAndServedCardOwnership()
+		throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> operation = asMap(
+			asMap(
+				paths.get("/recommendation-decks/{deckId}/events"),
+				"/recommendation-decks/{deckId}/events")
+				.get("post"),
+			"POST /recommendation-decks/{deckId}/events");
+		String description = String.valueOf(operation.get("description"));
+		assertTrue(description.contains("한 번만"));
+		assertTrue(description.contains("자동 재시도"));
+		assertTrue(description.contains("실제 저장 API 성공"));
+		assertTrue(description.contains("재노출 제한"));
+		assertTrue(description.contains("노출된 카드"));
+
+		Map<String, Object> responses = asMap(
+			operation.get("responses"), "recommendation event responses");
+		assertTrue(responses.keySet().containsAll(Set.of("400", "401", "404", "201")));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> eventType = asMap(
+			schemas.get("RecommendationEventType"), "RecommendationEventType");
+		assertEquals(List.of(
+			"CARD_EXPANDED",
+			"CARD_PREVIOUS",
+			"CARD_NEXT",
+			"PLACE_DETAIL_CLICKED",
+			"PLACE_SAVED",
+			"PLACE_UNSAVED",
+			"ROUTE_OPENED"),
+			asList(eventType.get("enum"), "RecommendationEventType.enum"));
+		assertFalse(asList(eventType.get("enum"), "RecommendationEventType.enum")
+			.contains("CARD_SERVED"));
+
+		Map<String, Object> request = asMap(
+			schemas.get("RecommendationEventRequest"), "RecommendationEventRequest");
+		Map<String, Object> properties = asMap(
+			request.get("properties"), "RecommendationEventRequest.properties");
+		assertEquals(1, asMap(properties.get("placeId"), "placeId").get("minimum"));
+		String occurredAtDescription = String.valueOf(
+			asMap(properties.get("occurredAt"), "occurredAt").get("description"));
+		assertTrue(occurredAtDescription.contains("분석"));
+		assertTrue(occurredAtDescription.contains("재노출 제한"));
 	}
 
 	private static Map<String, Object> loadContract() throws IOException {

@@ -430,7 +430,11 @@ sequenceDiagram
 - 덱 응답 순서를 프론트가 다시 random shuffle하지 않는다.
 - 같은 `deckId+cursor` 재요청은 동일 결과이므로 네트워크 재시도에 안전하다.
 - `CARD_SERVED`는 서버가 응답 시 기록하므로 프론트 event로 보내지 않는다.
-- `PLACE_SAVED/UNSAVED` 이벤트는 실제 저장 API가 성공한 뒤 전송한다. 이벤트 실패 때문에 저장 UI를 되돌리지 않는다.
+- 행동 이벤트는 실제 사용자 동작 한 번에 한 번만 비차단으로 전송하며 실패해도 자동 재시도하지 않는다.
+- 행동 이벤트 실패 때문에 카드 전환, 상세·경로 진입, 저장 UI를 되돌리거나 막지 않는다.
+- `PLACE_SAVED/UNSAVED` 이벤트는 실제 저장 API가 성공한 뒤 전송한다.
+- `occurredAt`에는 가능하면 사용자 동작 시각을 ISO 8601로 보낸다. 생략 시 서버 수신 시각이 사용되며, 어떤 경우에도 30일 재노출 제한에는 영향을 주지 않는다.
+- 현재 덱 응답에서 실제로 받은 카드만 기록할 수 있다. 없는 덱, 타인 덱, 미노출 카드는 모두 404이며 이벤트 전송만 포기하고 화면 흐름은 유지한다.
 
 `RecommendationEventType`은 `CARD_EXPANDED | CARD_PREVIOUS | CARD_NEXT | PLACE_DETAIL_CLICKED | PLACE_SAVED | PLACE_UNSAVED | ROUTE_OPENED`다.
 

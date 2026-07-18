@@ -178,7 +178,13 @@ paths:
       description: |
         **호출 시점:** 온보딩 언어 화면 또는 홈 언어 toggle에서 KO/EN을 선택할 때 호출합니다.
         성공 후 앱 i18n 상태와 이후 요청의 Accept-Language를 같은 언어로 갱신합니다.
-      x-implementation-status: PLANNED
+        서버는 현재 가입 상태를 기준으로 다음 화면을 계산하며 프론트가 단계를 추측하지 않습니다.
+        - `NEED_TERMS`: 언어는 저장하지만 약관을 건너뛰지 않고 `nextStep=TERMS`
+        - `NEED_LANGUAGE`: 최초 언어 선택을 마치고 `NEED_ONBOARDING`, `nextStep=ONBOARDING`
+        - `NEED_ONBOARDING`: 언어만 변경하고 `nextStep=ONBOARDING` 유지
+        - `COMPLETED`: 언어만 변경하고 `nextStep=COMPLETED` 유지
+        같은 언어와 같은 상태를 다시 보내면 기존 updatedAt을 유지합니다.
+      x-implementation-status: IMPLEMENTED
       requestBody:
         required: true
         content:
@@ -186,6 +192,8 @@ paths:
             schema:
               $ref: '#/components/schemas/LanguageRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '200':

@@ -248,6 +248,22 @@ PUT /users/me/term-agreements
 
 `PATCH /users/me/language`에 `{ "language": "KO" }` 또는 `{ "language": "EN" }`을 보낸다. 성공 뒤 앱의 i18n 상태와 `Accept-Language`를 함께 변경한다.
 
+```json
+{
+  "language": "EN",
+  "nextStep": "ONBOARDING",
+  "updatedAt": "2026-07-19T12:00:00+09:00"
+}
+```
+
+응답의 `nextStep`으로 이동한다. 서버는 `NEED_TERMS` 사용자가 이 API를 먼저 호출해도
+`TERMS`를 반환해 필수 약관을 건너뛰지 못하게 한다. `NEED_LANGUAGE`에서 성공하면
+`ONBOARDING`, 온보딩 중이면 계속 `ONBOARDING`, 가입 완료 사용자는 `COMPLETED`다.
+프론트는 저장 전 화면이나 로컬 값으로 다음 단계를 다시 계산하지 않는다.
+
+이 API는 구현 완료지만 소셜 로그인·token 발급 전까지 실행 환경에서는 유효한 인증
+principal이 있어야 호출할 수 있다.
+
 ### 5.2 온보딩 재진입
 
 `GET /users/me/onboarding`은 `completed`, `currentStep`, `currentLocationId`, `travelStyles`, `selectedPreferencePlaceIds`를 반환한다. 앱이 중간에 종료돼도 응답의 `currentStep`으로 복구한다.

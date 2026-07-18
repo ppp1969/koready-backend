@@ -459,7 +459,11 @@ paths:
         **호출 시점:** 추천 탭에 처음 들어가거나 근교/전국 범위를 새로 선택할 때 호출합니다.
         NEARBY는 실제 거리 반경이 아니라 출발 위치와 같은 서비스 권역입니다. originLocationId를 생략하면 기본 위치를 사용합니다.
         응답의 카드 순서를 그대로 표시하고 deckId와 nextCursor를 다음 페이지 호출까지 보관합니다.
-      x-implementation-status: PLANNED
+        현재 데이터 단계에서는 사용자 여행 스타일이 장소 스타일과 일치하면 matchRank=2,
+        일치하지 않는 확장 후보는 matchRank=3입니다. preference tag가 연결되는 온보딩 구현 뒤
+        태그와 유형이 모두 일치하는 matchRank=1을 활성화합니다.
+        deckId와 cursor는 내용을 해석할 수 없는 서버 저장 무작위 값이며 덱은 생성 뒤 24시간 동안 조회할 수 있습니다.
+      x-implementation-status: IMPLEMENTED
       requestBody:
         required: true
         content:
@@ -467,6 +471,8 @@ paths:
             schema:
               $ref: '#/components/schemas/RecommendationDeckRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '201':
@@ -481,13 +487,22 @@ paths:
       description: |
         **호출 시점:** 현재 카드 묶음이 소진되고 hasMore=true일 때 nextCursor로 호출합니다.
         같은 deckId와 cursor 재요청은 같은 순서와 결과를 반환합니다. 프론트는 응답을 다시 섞거나 중복 제거 규칙을 재구현하지 않습니다.
-      x-implementation-status: PLANNED
+        cursor를 생략하면 첫 페이지를 다시 조회하며 CARD_SERVED 기록과 30일 제한은 늘어나지 않습니다.
+        페이지를 처음 반환하기 직전에 사용자 전체 노출 기록을 다시 확인합니다. 다른 덱에서 먼저 노출된 장소는
+        이 페이지에서 제외되므로 cards가 요청한 size보다 적거나 비어 있을 수 있으며, 같은 cursor 재요청에는
+        처음 확정된 결과를 그대로 반환합니다.
+        다른 사용자의 덱, 만료된 덱과 잘못된 cursor는 모두 404로 처리해 덱 존재 여부를 노출하지 않습니다.
+      x-implementation-status: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/DeckId'
         - $ref: '#/components/parameters/Cursor'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '200':
           $ref: '#/components/responses/RecommendationDeckSuccess'
   /recommendation-decks/{deckId}/events:
@@ -3858,7 +3873,7 @@ components:
         deckId:
           type: string
           description: 이벤트 전송과 다음 페이지 조회에 사용하는 opaque ID
-          example: rec-20260713-user1-001
+          example: rec_3f2504e0-4f89-41d3-9a0c-0305e82c3301
         scope:
           $ref: '#/components/schemas/RecommendationScope'
         originLocation:
@@ -3871,7 +3886,7 @@ components:
         nextCursor:
           type: string
           nullable: true
-          example: eyJvZmZzZXQiOjIwfQ==
+          example: reccur_7d444840-9dc0-11d1-b245-5ffdce74fad2
         hasMore:
           type: boolean
         remainingThreshold:

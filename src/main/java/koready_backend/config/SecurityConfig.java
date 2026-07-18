@@ -28,6 +28,8 @@ public class SecurityConfig {
 				.permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/v1/places", "/api/v1/places/**")
 				.permitAll()
+				.requestMatchers(HttpMethod.GET, "/api/v1/monthly-recommendations")
+				.permitAll()
 				.anyRequest().authenticated());
 
 		return http.build();

@@ -340,6 +340,8 @@ sequenceDiagram
 
 `GET /monthly-recommendations` query는 다음과 같다.
 
+로그인 토큰 없이 호출할 수 있다. 성공하면 `code=MONTHLY_RECOMMENDATIONS_OK`이며 현재 모든 `saved`는 `false`다.
+
 ```text
 year=2000..2100
 month=1..12
@@ -353,14 +355,18 @@ cursor=<첫 요청 생략>
 size=1..50
 ```
 
-- `CUSTOM`일 때 시작일과 종료일을 모두 보낸다.
+- `ALL`은 선택 연월 전체다.
+- `THIS_WEEK`는 서울 오늘이 속한 월요일~일요일, `THIS_MONTH`는 오늘의 달, `NEXT_MONTH`는 다음 달이다.
+- `CUSTOM`일 때 시작일과 종료일을 모두 보내고 다른 날짜 필터에서는 custom 날짜를 보내지 않는다.
 - 연월과 날짜 필터는 합집합이 아니라 교집합이다.
+- 두 범위가 겹치지 않으면 정상 응답의 빈 `items`가 온다.
 - 필터가 바뀌면 기존 cursor를 폐기한다.
 - 축제 카드는 `festivalOccurrence{occurrenceId,eventYear,startDate,endDate,status,dateRangeText}`를 사용한다.
 - 같은 축제라도 `eventYear`와 `occurrenceId`가 다르면 다른 개최 회차이므로 프론트 상태와 cache key를 섞지 않는다.
 - `status=UPCOMING | ONGOING | ENDED`를 예정·진행 중·종료 badge로 표시한다. 종료 항목도 해당 개최 연도·월 목록에서는 숨기지 않는다.
 - `dateRangeText`는 화면 표시에만 쓰고 날짜 계산이 필요하면 `festivalOccurrence.startDate/endDate`를 사용한다.
 - 저장 버튼은 카드의 `saved`로 초기화하고 저장 API 성공 뒤 갱신한다.
+- `400 INVALID_DATE_RANGE`이면 직접 선택한 두 날짜를 확인하고, `400 INVALID_CURSOR`이면 목록과 cursor를 비운 뒤 첫 페이지를 다시 요청한다.
 
 ### 6.3 지역 지도
 

@@ -384,12 +384,24 @@ paths:
       summary: 월별 추천 전체보기 조회
       description: |
         **호출 시점:** 홈의 월별 추천 전체보기를 열거나 월, 권역, 날짜, 관광유형, 정렬 필터를 바꿀 때 호출합니다.
-        year/month는 행사 개최 기간이 겹치는 연도와 월입니다. 행사 정보는 시작 6개월 전부터 조회할 수 있고,
-        종료 뒤에도 해당 개최 연도·월 목록에는 ENDED 상태로 남습니다. 선택한 year/month 범위와 dateFilterType 범위는
-        교집합으로 적용하며 CUSTOM이면 시작일과 종료일이 모두 필요합니다.
-        RECOMMENDED 정렬에서는 ONGOING, UPCOMING 회차가 ENDED 회차보다 높은 우선순위를 가집니다.
+        로그인 없이 호출할 수 있으며 익명 응답의 saved는 항상 false입니다.
+
+        **행사 선택 규칙:** year/month는 행사 시작일만 보는 값이 아니라 개최 기간이 하루라도 겹치는 연월입니다.
+        활성·공개 장소에 연결된 유효 회차 중 visibleFrom이 지났고 시작일까지 6개월 이내인 행사만 조회합니다.
+        종료 뒤에도 해당 개최 연월의 ALL 목록에는 ENDED 상태로 남습니다. 같은 축제의 연도별 회차는
+        occurrenceId, eventYear, startDate, endDate가 서로 다른 항목으로 반환됩니다.
+
+        **날짜 필터:** ALL은 선택 연월 전체, THIS_WEEK는 서울 오늘이 속한 월요일~일요일,
+        THIS_MONTH는 서울 오늘이 속한 달, NEXT_MONTH는 서울 오늘의 다음 달입니다. CUSTOM이면
+        customStartDate와 customEndDate가 모두 필요하고 시작일은 종료일보다 늦을 수 없습니다.
+        모든 날짜 필터는 선택한 year/month와 교집합으로 적용하며 교집합이 없으면 200과 빈 items를 반환합니다.
+
+        **정렬과 다음 페이지:** RECOMMENDED는 ONGOING, UPCOMING, ENDED 순서를 품질 점수보다 먼저 적용하고,
+        DEADLINE은 행사 종료일이 빠른 순서입니다. totalCount는 현재 필터의 전체 회차 수입니다.
         필터가 바뀌면 기존 items와 cursor를 폐기하고 첫 페이지부터 다시 조회합니다.
-      x-implementation-status: PLANNED
+        cursor를 다른 필터, 언어, 정렬에 재사용하면 400 INVALID_CURSOR입니다.
+      security: []
+      x-implementation-status: IMPLEMENTED
       parameters:
         - name: year
           in: query
@@ -402,6 +414,7 @@ paths:
         - name: month
           in: query
           required: true
+          description: 개최 기간이 겹치는 월. 1월은 1, 12월은 12로 보냅니다.
           schema:
             type: integer
             minimum: 1
@@ -409,15 +422,20 @@ paths:
         - $ref: '#/components/parameters/ServiceRegionCodeQueryOptional'
         - name: dateFilterType
           in: query
+          description: 선택 연월 안에서 한 번 더 좁힐 상대·사용자 지정 날짜 범위
           schema:
-            $ref: '#/components/schemas/DateFilterType'
+            allOf:
+              - $ref: '#/components/schemas/DateFilterType'
+            default: ALL
         - name: customStartDate
           in: query
+          description: dateFilterType=CUSTOM일 때 필수인 포함 시작일. 그 외 필터에서는 보내지 않습니다.
           schema:
             type: string
             format: date
         - name: customEndDate
           in: query
+          description: dateFilterType=CUSTOM일 때 필수인 포함 종료일. customStartDate 이상이어야 합니다.
           schema:
             type: string
             format: date
@@ -426,8 +444,8 @@ paths:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Size50'
       responses:
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '200':
           $ref: '#/components/responses/MonthlyRecommendationListSuccess'
   /recommendation-decks:
@@ -1853,11 +1871,49 @@ components:
           schema:
             $ref: '#/components/schemas/HomeEnvelope'
     MonthlyRecommendationListSuccess:
-      description: 필터가 적용된 월별 추천 목록
+      description: 필터가 적용된 월별 추천 목록. code는 MONTHLY_RECOMMENDATIONS_OK입니다.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/MonthlyRecommendationListEnvelope'
+          example:
+            success: true
+            code: MONTHLY_RECOMMENDATIONS_OK
+            message: OK
+            data:
+              year: 2026
+              month: 7
+              appliedFilters:
+                year: 2026
+                month: 7
+                serviceRegionCode: SEOUL
+                dateFilterType: ALL
+                customStartDate: null
+                customEndDate: null
+                travelStyles: [LOCAL_FESTIVAL]
+                sort: RECOMMENDED
+              items:
+                - placeId: 1001
+                  title: KoReady 여름축제
+                  serviceRegionCode: SEOUL
+                  serviceRegionName: 서울
+                  addressSummary: 서울특별시 중구
+                  imageUrl: null
+                  festivalOccurrence:
+                    occurrenceId: 81001
+                    eventYear: 2026
+                    startDate: 2026-07-15
+                    endDate: 2026-07-20
+                    status: ONGOING
+                    dateRangeText: 7.15 - 7.20
+                  travelStyle: LOCAL_FESTIVAL
+                  tags: []
+                  shortDescription: 서울에서 열리는 로컬 축제입니다.
+                  saved: false
+              nextCursor: null
+              hasMore: false
+              totalCount: 1
+            traceId: 01JZEXAMPLETRACE
     RecommendationDeckCreated:
       description: 새 추천 덱 생성 성공
       content:
@@ -2479,7 +2535,11 @@ components:
       enum: [RECOMMENDED, DEADLINE]
     DateFilterType:
       type: string
-      description: 날짜 범위. CUSTOM이면 customStartDate와 customEndDate가 모두 필요
+      description: |
+        월별 추천에서 선택 연월과 교집합으로 적용하는 날짜 범위입니다.
+        ALL은 선택 연월 전체, THIS_WEEK는 Asia/Seoul 오늘의 월요일~일요일,
+        THIS_MONTH는 오늘이 속한 달, NEXT_MONTH는 다음 달입니다.
+        CUSTOM이면 customStartDate와 customEndDate가 모두 필요합니다.
       enum: [ALL, THIS_WEEK, THIS_MONTH, NEXT_MONTH, CUSTOM]
     FestivalOccurrenceStatus:
       type: string
@@ -3661,6 +3721,7 @@ components:
         totalCount:
           type: integer
           minimum: 0
+          description: cursor와 size에 무관한 현재 필터 전체 축제 회차 수
     MonthlyRecommendationFilters:
       type: object
       required: [year, month, dateFilterType, travelStyles, sort]
@@ -3684,10 +3745,12 @@ components:
           type: string
           format: date
           nullable: true
+          description: CUSTOM이 아니면 null
         customEndDate:
           type: string
           format: date
           nullable: true
+          description: CUSTOM이 아니면 null
         travelStyles:
           type: array
           items:
@@ -3718,8 +3781,8 @@ components:
           $ref: '#/components/schemas/FestivalOccurrenceStatus'
         dateRangeText:
           type: string
-          description: 현재 언어로 포맷된 표시 문자열. 상태 계산에는 사용하지 않습니다.
-          example: 7.25(토)~7.26(일)
+          description: 한국어는 M.d - M.d, 영어는 MMM d, yyyy - MMM d, yyyy 형식인 표시 문자열. 상태 계산에는 사용하지 않습니다.
+          example: 7.25 - 7.26
     PlaceListEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'

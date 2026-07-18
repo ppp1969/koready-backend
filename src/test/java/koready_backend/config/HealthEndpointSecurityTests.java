@@ -53,6 +53,12 @@ class HealthEndpointSecurityTests {
 	}
 
 	@Test
+	void monthlyRecommendationReadIsPublic() throws Exception {
+		mockMvc.perform(get("/api/v1/monthly-recommendations"))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void swaggerUiAndTypedContractArePublic() throws Exception {
 		mockMvc.perform(get("/swagger-ui.html"))
 			.andExpect(status().isFound())

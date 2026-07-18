@@ -434,7 +434,7 @@ visibleFrom 이후에는 종료돼도 해당 eventYear/month 상세 목록에 EN
     "startDate": "2026-04-25",
     "endDate": "2026-04-26",
     "status": "ENDED",
-    "dateRangeText": "4.25(토)~4.26(일)"
+    "dateRangeText": "4.25 - 4.26"
   },
   "travelStyle": "LOCAL_FESTIVAL",
   "tags": ["지역축제", "음식", "시즌추천"],
@@ -592,7 +592,7 @@ source = HOME_MONTHLY | RECOMMENDATION_CARD | PLACE_DETAIL | MAP
       "title": "김천 김밥축제",
       "imageUrl": "https://...",
       "addressSummary": "경상북도 김천시",
-      "dateRangeText": "4.25(토)~4.26(일)",
+      "dateRangeText": "4.25 - 4.26",
       "tags": ["지역축제", "음식"],
       "savedAt": "2026-06-28T12:00:00+09:00"
     }

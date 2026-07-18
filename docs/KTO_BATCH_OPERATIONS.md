@@ -80,6 +80,13 @@ JSON으로 계산한다.
 immutable snapshot 충돌로 중단한다. AWS 전환 전까지 이 로컬 저장소가 임시 private
 object storage 역할을 하며, Render에서는 수집 명령을 실행하지 않는다.
 
+서울 리전 private S3를 사용할 때는 `KTO_SNAPSHOT_STORAGE=s3`,
+`KTO_SNAPSHOT_S3_BUCKET`, `AWS_REGION=ap-northeast-2`를 수집 프로세스에만
+설정한다. 첫 PUT은 `If-None-Match: *` 조건으로 실행하고, 이미 존재하는 key는
+객체를 읽어 압축 해제 원문 hash가 같은 경우에만 멱등 재실행으로 인정한다. Render
+웹 프로세스에는 AWS 자격증명을 설정하지 않으며 향후 EB에서는 instance profile을
+사용한다. 자세한 리소스와 IAM 기준은 `docs/AWS_S3_SNAPSHOT_STORAGE.md`를 따른다.
+
 `searchFestival2` 저장 시 KTO `contentid`를 축제 series key로 사용하고,
 `contentid + 행사 연도`를 개최 회차의 고유 기준으로 사용한다. `visible_from`은
 시작일 6개월 전으로 계산한다. KTO의 2026 법정동 코드 `12`와 시군구가 결합된

@@ -49,4 +49,10 @@ koready:
       flush-size: ${KTO_BATCH_FLUSH_SIZE:50}
       max-concurrency: ${KTO_BATCH_MAX_CONCURRENCY:1}
     snapshot:
+      storage: ${KTO_SNAPSHOT_STORAGE:local}
       directory: ${KTO_SNAPSHOT_DIRECTORY:${user.home}/.koready/kto-snapshots}
+      s3:
+        bucket: ${KTO_SNAPSHOT_S3_BUCKET:}
+        region: ${AWS_REGION:ap-northeast-2}
+        connect-timeout: ${KTO_SNAPSHOT_S3_CONNECT_TIMEOUT:3s}
+        read-timeout: ${KTO_SNAPSHOT_S3_READ_TIMEOUT:10s}

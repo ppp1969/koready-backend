@@ -158,6 +158,7 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 - `DELETE /api/v1/users/me/saved-places/{placeId}`: 멱등 장소 저장 취소
 - `GET /api/v1/onboarding/place-candidate-sets/current`: 현재 발행된 온보딩 관광지 후보 10개
 - `/api/v1/admin/onboarding/place-candidate-sets/**`: 관리자 후보 세트 초안·조회·수정·발행·보관
+- `/api/v1/admin/hori-tips/**`: 운영진 Hori Tip 초안·조회·수정·활성·비활성·보관과 변경 이력 기록
 
 소셜 로그인과 JWT 발급은 후속 범위이므로 현재 실행 환경에서는 위 보호 API를 익명으로 호출하면 `401`입니다. 추천 덱은 테스트 principal과 MySQL fixture로 사용자별 고정 순서, 30일 재노출 제한, 소유권을 검증합니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
 

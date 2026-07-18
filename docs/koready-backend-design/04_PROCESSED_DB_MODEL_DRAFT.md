@@ -649,6 +649,8 @@ deck에 실제 포함된 관광지와 순서다.
 
 ## 9. Buddy Route / Hori Tip
 
+> 2026-07-19 구현 메모: 운영 API용 V10에서는 `hori_tips`, `hori_tip_destination_places`, `hori_tip_translations`, `hori_tip_audit_logs`를 사용한다. 구조화 trigger는 현재 `hori_tips`의 검증된 JSON 배열·숫자 컬럼에 저장하고, 운영자는 숫자 사용자 ID가 아니라 인증 `subject` 문자열로 기록한다. 아래 `buddy_tip_*` 이름은 Route 매칭과 노출 이력을 포함한 초기 논리 모델이며, 구현된 운영 테이블명은 V10 migration을 기준으로 한다.
+
 ## 9.1 route_query_logs
 
 TMAP 경로 결과를 재현할 수 없는 호출 메타데이터만 장기 저장한다. 원본과 정규화된 시간·요금·구간은 Redis 등 임시 캐시에 두고 24시간 전에 삭제한다.

@@ -26,6 +26,18 @@ class OpenApiContractTests {
 		"GET /monthly-recommendations",
 		"GET /places",
 		"GET /places/search",
+		"GET /places/{placeId}",
+		"GET /onboarding/place-candidate-sets/current",
+		"GET /admin/onboarding/place-candidate-sets",
+		"POST /admin/onboarding/place-candidate-sets",
+		"GET /admin/onboarding/place-candidate-sets/{candidateSetId}",
+		"PUT /admin/onboarding/place-candidate-sets/{candidateSetId}",
+		"POST /admin/onboarding/place-candidate-sets/{candidateSetId}/publish",
+		"POST /admin/onboarding/place-candidate-sets/{candidateSetId}/archive");
+	private static final Set<String> ANONYMOUS_IMPLEMENTED_OPERATIONS = Set.of(
+		"GET /monthly-recommendations",
+		"GET /places",
+		"GET /places/search",
 		"GET /places/{placeId}");
 
 	@Test
@@ -86,7 +98,7 @@ class OpenApiContractTests {
 	void implementedAnonymousReadsAreExplicitlyAnonymous() throws IOException {
 		Map<String, Object> paths = asMap(loadContract().get("paths"), "paths");
 
-		for (String location : IMPLEMENTED_OPERATIONS) {
+		for (String location : ANONYMOUS_IMPLEMENTED_OPERATIONS) {
 			String path = location.substring("GET ".length());
 			Map<String, Object> operation = asMap(
 				asMap(paths.get(path), path).get("get"), location);

@@ -299,6 +299,8 @@ sequenceDiagram
 
 ### 5.5 관리자 큐레이션 후보 10개
 
+백엔드 구현 상태: 현재 후보 조회와 관리자 초안·발행·보관 API는 구현 완료다. 다만 로그인·JWT 발급은 후속 작업이므로 실제 앱 호출은 인증 기능이 연결된 뒤 가능하다.
+
 ```text
 1. PREFERENCE_PLACES 화면 진입 시 GET /onboarding/place-candidate-sets/current
 2. candidateSetId와 version을 화면 상태에 저장
@@ -516,6 +518,9 @@ flowchart LR
 - 발행: `POST /admin/onboarding/place-candidate-sets/{candidateSetId}/publish`
 - 보관: `POST /admin/onboarding/place-candidate-sets/{candidateSetId}/archive`
 - 발행은 후보가 정확히 10개이고 장소·순서 중복과 필수 카드 데이터 누락이 없어야 성공한다.
+- 발행본은 수정하지 않고 새 DRAFT를 복제해 다음 버전을 만든다.
+- 현재 발행본을 보관하면 current 응답은 404가 되며 과거 발행본을 자동으로 다시 노출하지 않는다.
+- 현 단계에서는 `representativeImageId`를 보내지 않고 장소의 KTO 대표 이미지를 사용한다. 장소별 이미지 자산 관리는 후속 범위다.
 
 ### 11.2 OpenAPI 증빙 운영
 

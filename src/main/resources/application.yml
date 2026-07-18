@@ -48,3 +48,5 @@ koready:
       page-size: ${KTO_BATCH_PAGE_SIZE:200}
       flush-size: ${KTO_BATCH_FLUSH_SIZE:50}
       max-concurrency: ${KTO_BATCH_MAX_CONCURRENCY:1}
+    snapshot:
+      directory: ${KTO_SNAPSHOT_DIRECTORY:${user.home}/.koready/kto-snapshots}

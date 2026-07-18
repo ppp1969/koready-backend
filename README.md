@@ -52,6 +52,39 @@ $env:DB_PASSWORD='koready-local'
 로컬 시드는 화면 연동 확인용 장소 13개와 상태·정렬 확인용 축제 회차 4개를 Docker Compose의 `mysql` 서비스에만 넣습니다.
 여러 번 실행해도 같은 장소를 갱신하며 Aiven과 Render에는 적용되지 않습니다.
 
+### KTO 축제 수동 수집
+
+KTO `searchFestival2` 축제는 Render에서 자동 실행하지 않고 개발자 PC에서 작은
+페이지 단위로 수집합니다. `.env.local`의 `KTO_SERVICE_KEY`만 읽으며 키와 원본
+응답은 콘솔이나 Git에 남기지 않습니다.
+
+```powershell
+# 2026-07-01 이후 축제의 첫 1페이지(최대 200건)
+./scripts/import-kto-festivals.ps1 `
+  -EventStartDate 20260701 `
+  -StartPage 1 `
+  -MaxPages 1 `
+  -Profile local
+
+# 다음 페이지부터 이어서 실행
+./scripts/import-kto-festivals.ps1 `
+  -EventStartDate 20260701 `
+  -StartPage 2 `
+  -MaxPages 1 `
+  -Profile local
+```
+
+스크립트는 KoReady Docker MySQL의 공개 포트를 자동으로 찾고 Java 21을 사용합니다.
+JVM은 시작 힙 128MB, 최대 힙 256MB, Metaspace 128MB로 제한되며 페이지는 직렬로
+처리합니다. 원본 gzip은 기본적으로 저장소 밖의
+`$HOME/.koready/kto-snapshots`에 저장됩니다. 같은 원본을 다시 실행하면 기존
+snapshot과 DB 결과를 재사용합니다.
+
+수집된 축제는 `show_flag=true`, `active=false`로 저장되어 자동 공개되지 않습니다.
+운영진 검토 또는 별도 공개 작업 전까지 장소·월별 추천 API에는 노출되지 않습니다.
+Aiven 소량 반영은 같은 명령에 `-Profile staging`을 명시한 경우에만 실행되며,
+Render에는 scheduler를 두지 않습니다.
+
 PC의 기존 MySQL이 3306을 사용 중이면 다음처럼 KoReady MySQL만 3307로 띄웁니다.
 
 ```powershell
@@ -122,5 +155,7 @@ docker build --tag koready-backend:local .
 - Aiven 연결정보가 든 `.env.local`을 `docker compose --env-file`로 전달하지 않습니다.
 - API 키, OAuth/JWT 토큰, Authorization 헤더, 개인 위치정보를 로그·문서·fixture에 기록하지 않습니다.
 - 원본 외부 API 응답은 공개 안전성 검토와 마스킹을 통과한 경우에만 저장합니다.
+- KTO 수집 원본 gzip은 Git 저장소 밖의 로컬 snapshot 디렉터리에만 저장하고,
+  향후 AWS 전환 시 private S3로 교체합니다.
 
 기여 절차는 `CONTRIBUTING.md`, AI 개발 규칙은 `AGENTS.md`, 자동 품질 게이트는 `docs/AI_DEVELOPMENT_HARNESS.md`, 공개 가능한 데이터 기준은 `docs/PUBLIC_DATA_POLICY.md`를 참고합니다.

@@ -56,6 +56,10 @@ application-*.local.properties
 compose.override.yml
 render.local.yaml
 
+### Local KTO snapshots ###
+.koready/
+kto-snapshots/
+
 ### Generated API research artifacts ###
 __pycache__/
 *.py[cod]

@@ -23,6 +23,7 @@ class OpenApiContractTests {
 	private static final Set<String> HTTP_METHODS = Set.of(
 		"get", "post", "put", "patch", "delete", "options", "head", "trace");
 	private static final Set<String> IMPLEMENTED_OPERATIONS = Set.of(
+		"GET /home",
 		"GET /monthly-recommendations",
 		"POST /recommendation-decks",
 		"GET /recommendation-decks/{deckId}",

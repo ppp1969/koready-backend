@@ -148,6 +148,7 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 
 인증·역할 검증까지 구현된 API는 다음과 같습니다.
 
+- `GET /api/v1/home`: 기본 위치·선호 언어·현재 월 축제 추천 미리보기
 - `POST /api/v1/recommendation-decks`: 위치·여행 스타일 기반 K-Local Pick 덱 생성
 - `GET /api/v1/recommendation-decks/{deckId}`: 고정된 추천 덱 페이지 조회
 - `GET /api/v1/onboarding/place-candidate-sets/current`: 현재 발행된 온보딩 관광지 후보 10개

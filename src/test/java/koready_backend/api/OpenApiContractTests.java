@@ -23,6 +23,7 @@ class OpenApiContractTests {
 	private static final Set<String> HTTP_METHODS = Set.of(
 		"get", "post", "put", "patch", "delete", "options", "head", "trace");
 	private static final Set<String> IMPLEMENTED_OPERATIONS = Set.of(
+		"GET /monthly-recommendations",
 		"GET /places",
 		"GET /places/search",
 		"GET /places/{placeId}");
@@ -82,7 +83,7 @@ class OpenApiContractTests {
 	}
 
 	@Test
-	void implementedPlaceReadsAreExplicitlyAnonymous() throws IOException {
+	void implementedAnonymousReadsAreExplicitlyAnonymous() throws IOException {
 		Map<String, Object> paths = asMap(loadContract().get("paths"), "paths");
 
 		for (String location : IMPLEMENTED_OPERATIONS) {

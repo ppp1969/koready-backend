@@ -86,6 +86,27 @@ VALUES
         '마감순 정렬과 축제 상태 화면을 확인하기 위한 로컬 개발 전용 데이터입니다.',
         'Local-only data for testing festival status and deadline sorting.',
         'LOCAL_FESTIVAL', 70.00
+    ),
+    (
+        'LOCAL-DEMO-011', 'GYEONGGI', '경기도 수원시 팔달구 정조로 825',
+        '[로컬 테스트] KoReady 진행축제', '[Local Test] KoReady Ongoing Festival',
+        '진행 중 배지와 추천순 우선순위를 확인하기 위한 로컬 개발 전용 데이터입니다.',
+        'Local-only data for testing the ongoing badge and recommendation priority.',
+        'LOCAL_FESTIVAL', 75.00
+    ),
+    (
+        'LOCAL-DEMO-012', 'JEOLLA', '전북특별자치도 전주시 완산구 기린대로 99',
+        '[로컬 테스트] KoReady 종료축제', '[Local Test] KoReady Ended Festival',
+        '종료 뒤에도 개최 월 목록에 남는지 확인하기 위한 로컬 개발 전용 데이터입니다.',
+        'Local-only data for checking that ended events remain in their event month.',
+        'LOCAL_FESTIVAL', 99.00
+    ),
+    (
+        'LOCAL-DEMO-013', 'GYEONGSANG', '부산광역시 중구 용두산길 37-55',
+        '[로컬 테스트] KoReady 다음달축제', '[Local Test] KoReady Next Month Festival',
+        '다음 달 날짜 필터와 월 전환을 확인하기 위한 로컬 개발 전용 데이터입니다.',
+        'Local-only data for testing the next-month filter and month navigation.',
+        'LOCAL_FESTIVAL', 85.00
     );
 
 INSERT INTO places
@@ -143,24 +164,50 @@ ON DUPLICATE KEY UPDATE
     source = VALUES(source),
     confidence = VALUES(confidence);
 
+CREATE TEMPORARY TABLE local_festival_occurrence_seed (
+    place_source_id VARCHAR(100) NOT NULL,
+    occurrence_source_id VARCHAR(100) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    PRIMARY KEY (occurrence_source_id)
+);
+
+INSERT INTO local_festival_occurrence_seed
+    (place_source_id, occurrence_source_id, start_date, end_date)
+VALUES
+    ('LOCAL-DEMO-010', 'LOCAL-DEMO-FESTIVAL-UPCOMING',
+     DATE_ADD(CURRENT_DATE, INTERVAL 7 DAY), DATE_ADD(CURRENT_DATE, INTERVAL 10 DAY)),
+    ('LOCAL-DEMO-011', 'LOCAL-DEMO-FESTIVAL-ONGOING',
+     DATE_SUB(CURRENT_DATE, INTERVAL 1 DAY), DATE_ADD(CURRENT_DATE, INTERVAL 1 DAY)),
+    ('LOCAL-DEMO-012', 'LOCAL-DEMO-FESTIVAL-ENDED',
+     DATE_SUB(CURRENT_DATE, INTERVAL 10 DAY), DATE_SUB(CURRENT_DATE, INTERVAL 7 DAY)),
+    ('LOCAL-DEMO-013', 'LOCAL-DEMO-FESTIVAL-NEXT-MONTH',
+     DATE_ADD(LAST_DAY(CURRENT_DATE), INTERVAL 1 DAY),
+     DATE_ADD(LAST_DAY(CURRENT_DATE), INTERVAL 3 DAY));
+
+DELETE FROM place_event_occurrences
+WHERE provider = 'MANUAL'
+  AND source_content_id = 'LOCAL-DEMO-FESTIVAL'
+  AND source_operation = 'LOCAL_SEED';
+
 INSERT INTO place_event_occurrences
     (place_id, event_year, occurrence_sequence, start_date, end_date,
      event_place, provider, source_content_id, source_operation,
      visible_from, date_validation_status)
 SELECT
     place.id,
-    YEAR(DATE_ADD(CURRENT_DATE, INTERVAL 7 DAY)),
+    YEAR(seed.start_date),
     1,
-    DATE_ADD(CURRENT_DATE, INTERVAL 7 DAY),
-    DATE_ADD(CURRENT_DATE, INTERVAL 10 DAY),
+    seed.start_date,
+    seed.end_date,
     place.address,
     'MANUAL',
-    'LOCAL-DEMO-FESTIVAL',
+    seed.occurrence_source_id,
     'LOCAL_SEED',
-    DATE_SUB(CURRENT_DATE, INTERVAL 1 DAY),
+    DATE_SUB(seed.start_date, INTERVAL 6 MONTH),
     'VALID'
-FROM places place
-WHERE place.kto_content_id = 'LOCAL-DEMO-010'
+FROM local_festival_occurrence_seed seed
+JOIN places place ON place.kto_content_id = seed.place_source_id
 ON DUPLICATE KEY UPDATE
     start_date = VALUES(start_date),
     end_date = VALUES(end_date),
@@ -168,6 +215,7 @@ ON DUPLICATE KEY UPDATE
     visible_from = VALUES(visible_from),
     date_validation_status = VALUES(date_validation_status);
 
+DROP TEMPORARY TABLE local_festival_occurrence_seed;
 DROP TEMPORARY TABLE local_place_seed;
 
 COMMIT;

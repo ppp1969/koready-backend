@@ -33,7 +33,7 @@ try {
         throw 'Failed to apply the local place seed.'
     }
 
-    Write-Host 'Local place seed applied: 10 demo places.'
+    Write-Host 'Local seed applied: 13 demo places and 4 festival occurrences.'
 }
 finally {
     & docker compose -p $ProjectName exec -T mysql rm -f $containerSeedFile 2>$null | Out-Null

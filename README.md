@@ -49,7 +49,7 @@ $env:DB_PASSWORD='koready-local'
 ./gradlew.bat bootRun
 ```
 
-로컬 시드는 화면 연동 확인용 장소 10개와 예정 축제 1개를 Docker Compose의 `mysql` 서비스에만 넣습니다.
+로컬 시드는 화면 연동 확인용 장소 13개와 상태·정렬 확인용 축제 회차 4개를 Docker Compose의 `mysql` 서비스에만 넣습니다.
 여러 번 실행해도 같은 장소를 갱신하며 Aiven과 Render에는 적용되지 않습니다.
 
 PC의 기존 MySQL이 3306을 사용 중이면 다음처럼 KoReady MySQL만 3307로 띄웁니다.
@@ -71,6 +71,7 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 
 현재 로그인 없이 사용할 수 있는 구현 API는 다음과 같습니다.
 
+- `GET /api/v1/monthly-recommendations`: 연월·날짜·권역·관광유형별 축제 추천
 - `GET /api/v1/places`: 서비스 권역·관광유형별 장소 목록
 - `GET /api/v1/places/search`: KoReady 장소 검색
 - `GET /api/v1/places/{placeId}`: 장소 상세

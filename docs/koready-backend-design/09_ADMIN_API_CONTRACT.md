@@ -125,7 +125,7 @@ CandidateSetStatus = DRAFT | PUBLISHED | ARCHIVED
     {
       "placeId": 1001,
       "displayOrder": 1,
-      "representativeImageId": 9001,
+      "representativeImageId": null,
       "curatorMessageKo": "한국의 로컬 음식 문화를 가볍게 경험해 보세요.",
       "curatorMessageEn": "A friendly introduction to Korea's local food culture.",
       "displayTags": ["로컬음식", "축제", "체험"]
@@ -142,6 +142,10 @@ CandidateSetStatus = DRAFT | PUBLISHED | ARCHIVED
 - KO 큐레이터 문구는 필수, EN 문구는 누락 시 번역 보강 대상으로 표시한다.
 - 기존 `PUBLISHED` 세트는 수정하지 않고 새 세트만 현재 발행본으로 전환한다.
 - 발행과 보관은 관리자 ID, 이전/이후 상태와 함께 감사 로그에 기록한다.
+
+현재 MVP 저장소에는 별도 장소 이미지 자산 테이블이 없으므로 `representativeImageId`는 `null`로 보내고 `places.first_image_url`을 사용한다. 임의의 이미지 ID가 들어오면 소유권을 증명할 수 없으므로 `CURATION_PLACE_NOT_READY`로 발행을 막는다. 장소별 이미지 자산 관리가 추가되면 같은 필드에서 소유권 검증을 확장한다.
+
+현재 발행본을 보관하면 current 포인터는 비워진다. 과거 발행본을 자동으로 다시 current로 되돌리지 않으며, 운영진이 새 DRAFT를 검수해 발행할 때까지 사용자 current 조회는 `404 CURATION_SET_NOT_FOUND`다.
 
 ---
 

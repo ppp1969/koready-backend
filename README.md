@@ -109,6 +109,13 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 - `GET /api/v1/places/search`: KoReady 장소 검색
 - `GET /api/v1/places/{placeId}`: 장소 상세
 
+인증·역할 검증까지 구현된 API는 다음과 같습니다.
+
+- `GET /api/v1/onboarding/place-candidate-sets/current`: 현재 발행된 온보딩 관광지 후보 10개
+- `/api/v1/admin/onboarding/place-candidate-sets/**`: 관리자 후보 세트 초안·조회·수정·발행·보관
+
+소셜 로그인과 JWT 발급은 후속 범위이므로 현재 실행 환경에서는 위 보호 API를 익명으로 호출하면 `401`입니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
+
 `local`과 `staging` 프로필에서는 `/swagger-ui.html`에서 프론트 연동용 Swagger UI를 제공합니다. UI는 `docs/koready-backend-design/openapi.yaml`을 빌드 시 포함한 단일 계약 파일을 표시합니다.
 
 ## Verification

@@ -41,7 +41,12 @@ class OpenApiContractTests {
 		"GET /admin/onboarding/place-candidate-sets/{candidateSetId}",
 		"PUT /admin/onboarding/place-candidate-sets/{candidateSetId}",
 		"POST /admin/onboarding/place-candidate-sets/{candidateSetId}/publish",
-		"POST /admin/onboarding/place-candidate-sets/{candidateSetId}/archive");
+		"POST /admin/onboarding/place-candidate-sets/{candidateSetId}/archive",
+		"GET /admin/hori-tips",
+		"POST /admin/hori-tips",
+		"GET /admin/hori-tips/{horiTipId}",
+		"PUT /admin/hori-tips/{horiTipId}",
+		"PUT /admin/hori-tips/{horiTipId}/status");
 	private static final Set<String> ANONYMOUS_IMPLEMENTED_OPERATIONS = Set.of(
 		"GET /monthly-recommendations",
 		"GET /places",
@@ -290,6 +295,57 @@ class OpenApiContractTests {
 			asMap(properties.get("occurredAt"), "occurredAt").get("description"));
 		assertTrue(occurredAtDescription.contains("분석"));
 		assertTrue(occurredAtDescription.contains("재노출 제한"));
+	}
+
+	@Test
+	void adminHoriTipsDocumentRolesLifecycleAndAuditSubjects() throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> collection = asMap(
+			paths.get("/admin/hori-tips"), "/admin/hori-tips");
+		Map<String, Object> detail = asMap(
+			paths.get("/admin/hori-tips/{horiTipId}"),
+			"/admin/hori-tips/{horiTipId}");
+		Map<String, Object> statusPath = asMap(
+			paths.get("/admin/hori-tips/{horiTipId}/status"),
+			"/admin/hori-tips/{horiTipId}/status");
+
+		assertEquals(
+			List.of("ADMIN", "OPERATOR", "AUDITOR"),
+			asList(asMap(collection.get("get"), "hori list").get("x-required-roles"),
+				"hori list roles"));
+		assertEquals(
+			List.of("ADMIN", "OPERATOR"),
+			asList(asMap(collection.get("post"), "hori create").get("x-required-roles"),
+				"hori create roles"));
+		assertTrue(asMap(
+			asMap(detail.get("put"), "hori update").get("responses"),
+			"hori update responses").keySet().containsAll(Set.of(
+				"400", "401", "403", "404", "409", "422", "200")));
+		assertTrue(asMap(
+			asMap(statusPath.get("put"), "hori status").get("responses"),
+			"hori status responses").keySet().containsAll(Set.of(
+				"400", "401", "403", "404", "409", "422", "200")));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> response = asMap(
+			schemas.get("AdminHoriTipResponse"), "AdminHoriTipResponse");
+		List<Object> required = asList(response.get("required"), "AdminHoriTipResponse.required");
+		assertTrue(required.containsAll(List.of("createdBySubject", "updatedBySubject")));
+		assertFalse(required.contains("createdByUserId"));
+		Map<String, Object> properties = asMap(
+			response.get("properties"), "AdminHoriTipResponse.properties");
+		assertEquals("string", asMap(
+			properties.get("createdBySubject"), "createdBySubject").get("type"));
+		assertFalse(properties.containsKey("createdByUserId"));
+
+		Map<String, Object> statuses = asMap(schemas.get("HoriTipStatus"), "HoriTipStatus");
+		assertEquals(List.of("DRAFT", "ACTIVE", "INACTIVE", "ARCHIVED"),
+			asList(statuses.get("enum"), "HoriTipStatus.enum"));
+		Map<String, Object> targets = asMap(
+			schemas.get("HoriTipStatusChangeTarget"), "HoriTipStatusChangeTarget");
+		assertEquals(List.of("ACTIVE", "INACTIVE", "ARCHIVED"),
+			asList(targets.get("enum"), "HoriTipStatusChangeTarget.enum"));
 	}
 
 	private static Map<String, Object> loadContract() throws IOException {

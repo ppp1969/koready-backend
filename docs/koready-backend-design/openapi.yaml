@@ -1200,7 +1200,7 @@ paths:
         **호출 시점:** 운영 도구의 Hori Tip 목록 진입과 필터 변경 시 호출합니다.
         상태, code, 목적지 장소로 검색하며 번역과 trigger를 포함한 편집용 데이터를 반환합니다.
         이 API는 관리자 전용이고 사용자 Route 화면은 직접 호출하지 않습니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
         - name: status
@@ -1212,15 +1212,19 @@ paths:
           description: code prefix 또는 부분 일치 검색
           schema:
             type: string
+            maxLength: 80
         - name: destinationPlaceId
           in: query
           description: 지정 장소에 적용되는 DESTINATION_PLACES 팁 검색
           schema:
             type: integer
             format: int64
+            minimum: 1
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Size100'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '200':
@@ -1235,7 +1239,7 @@ paths:
         운영진이 사용자에게 보여줄 본문, 장소 scope, 경로 trigger와 노출 기간을 입력합니다.
         생성 결과는 항상 DRAFT이므로 사용자 Route에는 즉시 노출되지 않습니다.
         title은 요청으로 받지 않고 서버가 Hori Tip으로 고정합니다. TMAP 또는 AI 생성 본문은 허용하지 않습니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR]
       requestBody:
         required: true
@@ -1244,8 +1248,12 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateHoriTipRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '201':
           $ref: '#/components/responses/AdminHoriTipCreated'
         '409':
@@ -1260,17 +1268,21 @@ paths:
       description: |
         편집 화면 진입 시 번역, 목적지 scope, 구조화 trigger, 상태, version과 감사 메타데이터를 조회합니다.
         AUDITOR는 조회만 가능하며 editable=false로 반환됩니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
         - $ref: '#/components/parameters/HoriTipId'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '200':
           $ref: '#/components/responses/AdminHoriTipSuccess'
         '404':
           $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     put:
       tags: [Admin Hori Tip]
       operationId: updateAdminHoriTip
@@ -1279,7 +1291,7 @@ paths:
         현재 version과 편집 필드 전체를 제출합니다. 누락 필드는 유지가 아니라 제거로 처리되는 PUT입니다.
         code는 생성 후 변경할 수 없어 요청에 포함하지 않습니다. ARCHIVED 팁은 수정할 수 없고 version 충돌은 409입니다.
         ACTIVE 팁 수정은 활성화 조건을 다시 검증하며 다음 Route 조회부터 즉시 반영되고 변경 전후 값이 감사 로그에 남습니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR]
       parameters:
         - $ref: '#/components/parameters/HoriTipId'
@@ -1290,14 +1302,20 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateHoriTipRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           $ref: '#/components/responses/AdminHoriTipSuccess'
         '409':
           $ref: '#/components/responses/AdminHoriTipConflict'
         '422':
           $ref: '#/components/responses/AdminHoriTipInvalid'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /admin/hori-tips/{horiTipId}/status:
     put:
       tags: [Admin Hori Tip]
@@ -1307,7 +1325,7 @@ paths:
         ACTIVE 전환 시 KO/EN 본문, 유효 기간, 장소 scope와 placement별 trigger 조건을 검증합니다.
         INACTIVE 전환은 기존 routeId의 다음 조회부터 팁을 제외합니다. ARCHIVED는 되돌릴 수 없으며 물리 삭제하지 않습니다.
         version과 변경 사유를 함께 받아 상태 경쟁을 막고 감사 로그에 actor와 이전·이후 값을 기록합니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR]
       parameters:
         - $ref: '#/components/parameters/HoriTipId'
@@ -1318,14 +1336,20 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateHoriTipStatusRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           $ref: '#/components/responses/AdminHoriTipSuccess'
         '409':
           $ref: '#/components/responses/AdminHoriTipConflict'
         '422':
           $ref: '#/components/responses/AdminHoriTipInvalid'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /admin/open-api/summary:
     get:
       tags: [Admin OpenAPI]
@@ -1852,6 +1876,7 @@ components:
       schema:
         type: integer
         format: int64
+        minimum: 1
     ThreadId:
       name: threadId
       in: path
@@ -2869,6 +2894,7 @@ components:
           items:
             type: integer
             format: int64
+            minimum: 1
           example: [1001]
     HoriTipTrigger:
       type: object
@@ -4782,7 +4808,7 @@ components:
               $ref: '#/components/schemas/AdminHoriTipResponse'
     AdminHoriTipResponse:
       type: object
-      required: [horiTipId, code, source, status, placement, priority, scope, trigger, translations, version, activeNow, editable, createdByUserId, updatedByUserId, createdAt, updatedAt]
+      required: [horiTipId, code, source, status, placement, priority, scope, trigger, translations, version, activeNow, editable, createdBySubject, updatedBySubject, createdAt, updatedAt]
       properties:
         horiTipId:
           type: integer
@@ -4833,12 +4859,12 @@ components:
         editable:
           type: boolean
           description: ARCHIVED가 아니고 현재 actor에게 편집 권한이 있는지 여부
-        createdByUserId:
-          type: integer
-          format: int64
-        updatedByUserId:
-          type: integer
-          format: int64
+        createdBySubject:
+          type: string
+          description: 인증 토큰의 subject. 내부 숫자 사용자 ID가 아직 없는 관리자도 추적할 수 있음
+        updatedBySubject:
+          type: string
+          description: 마지막 변경을 수행한 인증 토큰의 subject
         activatedAt:
           type: string
           format: date-time

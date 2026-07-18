@@ -153,6 +153,8 @@ CandidateSetStatus = DRAFT | PUBLISHED | ARCHIVED
 
 Hori Tip은 운영진이 직접 작성하는 Route 안내다. TMAP과 AI는 팁 본문을 만들지 않고, 저장된 매칭 규칙을 평가하는 경로 정보만 제공한다.
 
+2026-07-19 기준 아래 5개 운영 API와 MySQL 저장·상태 변경·감사 이력은 구현되었다. Buddy Route 응답에 현재 `ACTIVE` 팁을 매칭하는 4.3 단계는 Route 기능 구현 때 연결한다.
+
 ```text
 HoriTipStatus = DRAFT | ACTIVE | INACTIVE | ARCHIVED
 HoriTipScopeType = ALL_ROUTES | DESTINATION_PLACES

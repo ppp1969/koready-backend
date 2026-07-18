@@ -30,6 +30,9 @@ class OpenApiContractTests {
 		"GET /places",
 		"GET /places/search",
 		"GET /places/{placeId}",
+		"GET /users/me/saved-places",
+		"PUT /users/me/saved-places/{placeId}",
+		"DELETE /users/me/saved-places/{placeId}",
 		"GET /onboarding/place-candidate-sets/current",
 		"GET /admin/onboarding/place-candidate-sets",
 		"POST /admin/onboarding/place-candidate-sets",
@@ -183,6 +186,38 @@ class OpenApiContractTests {
 		assertRequiredContains(schemas, "MonthlyRecommendationPreview", "year");
 		assertRequiredContains(schemas, "MonthlyRecommendationListResponse", "year");
 		assertRequiredContains(schemas, "MonthlyRecommendationFilters", "year");
+	}
+
+	@Test
+	void savedPlaceWritesRequireTheUiSource() throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> savedPlacePath = asMap(
+			paths.get("/users/me/saved-places/{placeId}"),
+			"/users/me/saved-places/{placeId}");
+		Map<String, Object> saveOperation = asMap(
+			savedPlacePath.get("put"), "PUT /users/me/saved-places/{placeId}");
+		Map<String, Object> requestBody = asMap(
+			saveOperation.get("requestBody"), "save place requestBody");
+		assertEquals(Boolean.TRUE, requestBody.get("required"));
+		Map<String, Object> content = asMap(requestBody.get("content"), "save place content");
+		Map<String, Object> json = asMap(content.get("application/json"), "save place json");
+		assertEquals(
+			"#/components/schemas/SavePlaceRequest",
+			asMap(json.get("schema"), "save place schema").get("$ref"));
+
+		Map<String, Object> request = asMap(schemas.get("SavePlaceRequest"), "SavePlaceRequest");
+		assertEquals(List.of("source"), asList(request.get("required"), "SavePlaceRequest.required"));
+		Map<String, Object> source = asMap(
+			asMap(request.get("properties"), "SavePlaceRequest.properties").get("source"),
+			"SavePlaceRequest.source");
+		assertEquals("#/components/schemas/SavedPlaceSource", source.get("$ref"));
+		Map<String, Object> sourceEnum = asMap(
+			schemas.get("SavedPlaceSource"), "SavedPlaceSource");
+		assertEquals(
+			List.of("HOME_MONTHLY", "RECOMMENDATION_CARD", "PLACE_DETAIL", "MAP"),
+			asList(sourceEnum.get("enum"), "SavedPlaceSource.enum"));
 	}
 
 	private static Map<String, Object> loadContract() throws IOException {

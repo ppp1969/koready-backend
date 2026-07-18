@@ -437,6 +437,26 @@ sequenceDiagram
 | `DELETE /users/me/saved-places/{placeId}` | 멱등 취소 | 204 뒤 하트 비활성화 |
 | `GET /users/me/saved-places` | 저장 탭 목록 | cursor 무한 스크롤 |
 
+`PUT`에는 현재 화면에 맞는 출처를 반드시 JSON 본문으로 보낸다.
+
+| 저장 버튼 위치 | `source` |
+|---|---|
+| 홈 월별 추천 | `HOME_MONTHLY` |
+| K-Local Pick 추천 카드 | `RECOMMENDATION_CARD` |
+| 장소 상세 | `PLACE_DETAIL` |
+| 권역 지도 | `MAP` |
+
+```json
+{
+  "source": "PLACE_DETAIL"
+}
+```
+
+중복 PUT은 성공하지만 최초 저장 시각과 출처를 바꾸지 않는다. 취소 뒤 다시 저장하면 그때의
+시각과 화면 출처로 갱신된다. 목록의 `nextCursor`는 내부 구조를 해석하지 말고 응답값 그대로
+다음 GET의 `cursor`에 넣는다. 현재 세 API는 구현 완료지만 소셜 로그인·token 발급 전까지
+실행 환경에서는 유효한 인증 principal이 있어야 호출할 수 있다.
+
 빠른 연속 클릭 중에는 같은 장소의 저장 요청을 하나만 실행한다. optimistic UI를 사용한다면 실패 시 원래 상태로 되돌리고 오류 안내를 표시한다.
 
 ## 9. Buddy Route 흐름

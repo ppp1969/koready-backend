@@ -639,11 +639,13 @@ paths:
       description: |
         **호출 시점:** 하단 저장 탭에 들어갈 때 호출합니다.
         cursor 무한 스크롤을 사용하며 저장 취소 성공 시 해당 item을 로컬 목록에서 제거합니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Size50'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '200':
@@ -655,15 +657,32 @@ paths:
       summary: 관광지 저장
       description: |
         **호출 시점:** 카드 또는 상세의 빈 하트를 누를 때 호출합니다.
-        멱등 API이므로 이미 저장된 장소를 다시 저장해도 성공합니다. 성공 뒤 isSaved를 true로 갱신합니다.
-      x-implementation-status: PLANNED
+        source에는 하트를 누른 화면을 전달합니다. 멱등 API이므로 이미 저장된 장소를 다시
+        저장해도 최초 savedAt과 source를 유지하며 성공합니다. 저장 취소 후 다시 저장하면
+        새 savedAt과 source로 복원됩니다. 성공 뒤 saved를 true로 갱신합니다.
+      x-implementation-status: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/PlaceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavePlaceRequest'
+            examples:
+              recommendationCard:
+                summary: K-Local Pick 카드에서 저장
+                value:
+                  source: RECOMMENDATION_CARD
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '200':
           $ref: '#/components/responses/SavePlaceSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
     delete:
       tags: [Place]
       operationId: unsavePlace
@@ -671,10 +690,12 @@ paths:
       description: |
         **호출 시점:** 활성 하트를 누를 때 호출합니다.
         204 body는 없습니다. 성공 뒤 isSaved를 false로 바꾸고 저장 목록 화면에서는 item을 제거합니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/PlaceId'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '204':
@@ -2557,6 +2578,10 @@ components:
       type: string
       description: KO=한국어, EN=English
       enum: [KO, EN]
+    SavedPlaceSource:
+      type: string
+      description: 사용자가 저장 버튼을 누른 화면. 추천 품질과 화면 사용성 분석에 사용
+      enum: [HOME_MONTHLY, RECOMMENDATION_CARD, PLACE_DETAIL, MAP]
     SocialProvider:
       type: string
       description: 소셜 인증 제공자. KAKAO는 위치 provider이며 로그인 enum에 포함하지 않음
@@ -2705,6 +2730,12 @@ components:
       properties:
         language:
           $ref: '#/components/schemas/LanguageCode'
+    SavePlaceRequest:
+      type: object
+      required: [source]
+      properties:
+        source:
+          $ref: '#/components/schemas/SavedPlaceSource'
     OnboardingRequest:
       type: object
       required: [currentLocationId, travelStyles, candidateSetId, candidateSetVersion, selectedPreferencePlaceIds]

@@ -3,6 +3,7 @@ package koready_backend.config;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -33,6 +34,21 @@ class HealthEndpointSecurityTests {
 	@Test
 	void nonHealthEndpointIsDeniedUntilAuthenticationIsImplemented() throws Exception {
 		mockMvc.perform(get("/api/v1"))
+			.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void placeReadsArePublicButPlaceWritesRemainProtected() throws Exception {
+		mockMvc.perform(get("/api/v1/places"))
+			.andExpect(status().isBadRequest());
+
+		mockMvc.perform(get("/api/v1/places/search"))
+			.andExpect(status().isBadRequest());
+
+		mockMvc.perform(get("/api/v1/places/not-a-number"))
+			.andExpect(status().isBadRequest());
+
+		mockMvc.perform(post("/api/v1/places"))
 			.andExpect(status().isUnauthorized());
 	}
 

@@ -22,6 +22,10 @@ class OpenApiContractTests {
 
 	private static final Set<String> HTTP_METHODS = Set.of(
 		"get", "post", "put", "patch", "delete", "options", "head", "trace");
+	private static final Set<String> IMPLEMENTED_OPERATIONS = Set.of(
+		"GET /places",
+		"GET /places/search",
+		"GET /places/{placeId}");
 
 	@Test
 	void frontendContractIsCompleteAndInternallyConsistent() throws IOException {
@@ -47,8 +51,10 @@ class OpenApiContractTests {
 					() -> location + " must define operationId");
 				assertTrue(operationIds.add(operationId),
 					() -> "Duplicate operationId: " + operationId);
-				assertEquals("PLANNED", operation.get("x-implementation-status"),
-					() -> location + " must expose its implementation status");
+				String expectedStatus = IMPLEMENTED_OPERATIONS.contains(location)
+					? "IMPLEMENTED" : "PLANNED";
+				assertEquals(expectedStatus, operation.get("x-implementation-status"),
+					() -> location + " must expose its actual implementation status");
 
 				Map<String, Object> responses = asMap(operation.get("responses"), location + " responses");
 				Object security = operation.containsKey("security")
@@ -72,6 +78,20 @@ class OpenApiContractTests {
 		collectReferences(contract, references);
 		for (String reference : references) {
 			assertLocalReferenceResolves(contract, reference);
+		}
+	}
+
+	@Test
+	void implementedPlaceReadsAreExplicitlyAnonymous() throws IOException {
+		Map<String, Object> paths = asMap(loadContract().get("paths"), "paths");
+
+		for (String location : IMPLEMENTED_OPERATIONS) {
+			String path = location.substring("GET ".length());
+			Map<String, Object> operation = asMap(
+				asMap(paths.get(path), path).get("get"), location);
+			assertEquals(List.of(), asList(operation.get("security"), location + ".security"));
+			assertFalse(asMap(operation.get("responses"), location + ".responses")
+				.containsKey("401"));
 		}
 	}
 

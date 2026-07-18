@@ -22,6 +22,7 @@ import koready_backend.common.controller.ApiEnvelope;
 import koready_backend.common.controller.TraceIdFilter;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.recommendation.application.RecommendationDeckService;
+import koready_backend.recommendation.application.RecommendationEventService;
 
 @Validated
 @RestController
@@ -29,9 +30,14 @@ import koready_backend.recommendation.application.RecommendationDeckService;
 public class RecommendationDeckController {
 
 	private final RecommendationDeckService service;
+	private final RecommendationEventService eventService;
 
-	public RecommendationDeckController(RecommendationDeckService service) {
+	public RecommendationDeckController(
+		RecommendationDeckService service,
+		RecommendationEventService eventService
+	) {
 		this.service = service;
+		this.eventService = eventService;
 	}
 
 	@PostMapping
@@ -51,6 +57,26 @@ public class RecommendationDeckController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiEnvelope.success(
 			"RECOMMENDATION_DECK_CREATED",
 			RecommendationDeckDtos.from(page),
+			TraceIdFilter.current(request)));
+	}
+
+	@PostMapping("/{deckId}/events")
+	public ResponseEntity<ApiEnvelope<RecommendationDeckDtos.RecommendationEventResponse>>
+		recordEvent(
+			@PathVariable @NotBlank @Size(max = 100) String deckId,
+			@RequestBody @Valid RecommendationDeckDtos.RecommendationEventRequest body,
+			Authentication authentication,
+			HttpServletRequest request
+		) {
+		var event = eventService.recordEvent(
+			authentication.getName(),
+			deckId,
+			body.placeId(),
+			body.eventType(),
+			body.occurredAt());
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiEnvelope.success(
+			"RECOMMENDATION_EVENT_CREATED",
+			RecommendationDeckDtos.from(event),
 			TraceIdFilter.current(request)));
 	}
 

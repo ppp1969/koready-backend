@@ -1,13 +1,17 @@
 package koready_backend.recommendation.controller;
 
+import java.time.Instant;
 import java.util.List;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
 import koready_backend.recommendation.application.RecommendationDeckService;
+import koready_backend.recommendation.application.RecommendationEventService;
+import koready_backend.recommendation.domain.RecommendationEventType;
 import koready_backend.recommendation.domain.RecommendationScope;
 
 final class RecommendationDeckDtos {
@@ -34,6 +38,17 @@ final class RecommendationDeckDtos {
 				page.deduplication().suppressionDays()));
 	}
 
+	static RecommendationEventResponse from(
+		RecommendationEventService.RecommendationEvent event
+	) {
+		return new RecommendationEventResponse(
+			event.eventId(),
+			event.deckId(),
+			event.placeId(),
+			event.eventType(),
+			event.recordedAt());
+	}
+
 	private static RecommendationCardResponse from(
 		RecommendationDeckService.RecommendationCard card
 	) {
@@ -58,6 +73,13 @@ final class RecommendationDeckDtos {
 		@NotNull RecommendationScope scope,
 		Long originLocationId,
 		@NotNull @Min(1) @Max(50) Integer size
+	) {
+	}
+
+	record RecommendationEventRequest(
+		@NotNull @Positive Long placeId,
+		@NotNull RecommendationEventType eventType,
+		Instant occurredAt
 	) {
 	}
 
@@ -105,6 +127,15 @@ final class RecommendationDeckDtos {
 	record DeduplicationResponse(
 		boolean guaranteedWithinDeck,
 		int suppressionDays
+	) {
+	}
+
+	record RecommendationEventResponse(
+		String eventId,
+		String deckId,
+		long placeId,
+		RecommendationEventType eventType,
+		Instant recordedAt
 	) {
 	}
 }

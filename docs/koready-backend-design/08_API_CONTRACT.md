@@ -595,6 +595,27 @@ eventType =
 
 `CARD_SERVED`는 서버가 응답에 포함한 시점에만 기록하며 클라이언트 eventType으로 받지 않는다.
 
+성공하면 `201 Created`와 다음 데이터를 반환한다.
+
+```json
+{
+  "eventId": "recevt_01J2ABCDEF",
+  "deckId": "rec_01J2ABCDEF",
+  "placeId": 1001,
+  "eventType": "PLACE_SAVED",
+  "recordedAt": "2026-07-13T06:00:01Z"
+}
+```
+
+- 프론트는 사용자의 실제 동작 한 번에 이벤트를 한 번만 보낸다. 네트워크 실패 시 자동 재시도하지 않는다.
+- 이벤트 기록은 분석 보조 기능이다. 실패해도 카드 이동, 상세 진입, 경로 화면, 저장 결과를 취소하거나 막지 않는다.
+- `PLACE_SAVED`와 `PLACE_UNSAVED`는 각각 저장·저장 취소 API가 성공한 뒤 보낸다.
+- `occurredAt`은 사용자가 동작한 시각이다. 생략하면 서버 수신 시각으로 저장한다.
+- `recordedAt`은 서버가 DB에 기록한 시각이다. 두 시각은 분석에만 쓰며 30일 재노출 제한을 새로 시작하거나 연장하지 않는다.
+- 현재 사용자가 소유한 덱에서 이미 응답으로 노출된 `placeId`만 기록할 수 있다.
+- 없는 덱, 타인 덱, 덱에 없는 장소, 아직 노출되지 않은 카드는 모두 `404 RECOMMENDATION_DECK_NOT_FOUND`다. 프론트는 이 차이를 구분하지 않는다.
+- 요청 누락, 0 이하 `placeId`, 목록에 없는 eventType, 서버 전용 `CARD_SERVED`는 `400 INVALID_REQUEST`다.
+
 ---
 
 ## 7. 장소와 저장

@@ -522,9 +522,15 @@ paths:
       summary: 추천 카드 탐색 행동 기록
       description: |
         카드 펼침, 이전·다음, 상세 진입, 저장, 경로 진입을 기록하는 분석용 API입니다.
-        화면 핵심 동작을 막지 않는 비차단 호출로 처리합니다. PLACE_SAVED/UNSAVED는 실제 저장 API 성공 뒤 전송합니다.
+        프론트는 사용자 동작마다 한 번만 비차단으로 전송하고 실패해도 자동 재시도하지 않습니다.
+        이 API 실패 때문에 카드 이동, 상세 진입, 저장 상태 등 화면 핵심 동작을 되돌리거나 막지 않습니다.
+        PLACE_SAVED/UNSAVED는 실제 저장 API 성공 뒤 전송합니다.
         CARD_SERVED는 서버가 응답할 때 기록하므로 프론트에서 보내지 않습니다.
-      x-implementation-status: PLANNED
+        occurredAt은 분석용 사용자 동작 시각이며, 생략하면 서버 수신 시각을 사용합니다. 이 값은 30일 재노출 제한의
+        시작 시각이나 기간을 바꾸지 않습니다. 응답의 recordedAt은 서버 DB 기록 시각입니다.
+        로그인 사용자가 소유한 덱에서 서버가 이미 노출된 카드만 기록할 수 있습니다. 없는 덱, 다른 사용자 덱,
+        덱에 없거나 아직 노출되지 않은 카드는 존재 여부를 구분하지 않고 모두 404로 응답합니다.
+      x-implementation-status: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/DeckId'
       requestBody:
@@ -534,8 +540,12 @@ paths:
             schema:
               $ref: '#/components/schemas/RecommendationEventRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '201':
           $ref: '#/components/responses/RecommendationEventCreated'
   /places/search:
@@ -3016,12 +3026,15 @@ components:
         placeId:
           type: integer
           format: int64
+          minimum: 1
+          description: 현재 덱 응답에서 실제로 받은 카드의 장소 식별자
         eventType:
           $ref: '#/components/schemas/RecommendationEventType'
         occurredAt:
           type: string
           format: date-time
           nullable: true
+          description: 분석용 사용자 동작 시각. 생략하면 서버 수신 시각을 사용하며 30일 재노출 제한에는 영향을 주지 않음
     PlaceDetailEnvelope:
       type: object
       required: [success, code, message, data, traceId]

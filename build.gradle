@@ -116,6 +116,42 @@ tasks.named('bootJar') {
 	archiveFileName = 'app.jar'
 }
 
+springBoot {
+	mainClass = 'koready_backend.KoreadyBackendApplication'
+}
+
+tasks.register('importKtoFestivals', JavaExec) {
+	description = 'Imports a bounded number of KTO festival pages into local or staging.'
+	group = 'application'
+	dependsOn tasks.named('classes')
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'koready_backend.kto.infrastructure.runner.KtoFestivalImportApplication'
+	minHeapSize = '128m'
+	maxHeapSize = '256m'
+	jvmArgs '-XX:MaxMetaspaceSize=128m'
+	systemProperty 'spring.devtools.restart.enabled', 'false'
+
+	doFirst {
+		def eventStartDate = providers.gradleProperty('eventStartDate').orNull
+		if (eventStartDate == null || !(eventStartDate ==~ /\d{8}/)) {
+			throw new GradleException('Use -PeventStartDate=yyyyMMdd')
+		}
+		def profile = providers.gradleProperty('profile').getOrElse('local')
+		if (!(profile in ['local', 'staging'])) {
+			throw new GradleException('KTO festival import profile must be local or staging')
+		}
+		setArgs([
+			"--spring.profiles.active=${profile}",
+			'--spring.devtools.restart.enabled=false',
+			'--spring.devtools.add-properties=false',
+			'--koready.kto.festival-import.confirm=true',
+			"--koready.kto.festival-import.event-start-date=${eventStartDate}",
+			"--koready.kto.festival-import.start-page=${providers.gradleProperty('startPage').getOrElse('1')}",
+			"--koready.kto.festival-import.max-pages=${providers.gradleProperty('maxPages').getOrElse('1')}"
+		])
+	}
+}
+
 tasks.named('processResources') {
 	from('docs/koready-backend-design/openapi.yaml') {
 		into 'static/openapi'

@@ -33,15 +33,18 @@ Render가 다시 시작하게 한다.
 | DB 반영 단위 | 50건 | 1~page 크기 |
 | 동시 batch | 1개 | 1개 |
 
-현재 `areaBasedSyncList2` 국문 API client는 한 번에 한 page만 요청한다. 응답의
+현재 `areaBasedSyncList2`와 `searchFestival2` 국문 API client는 한 번에 한
+page만 요청한다. 응답의
 `Content-Length`가 4MiB를 넘으면 본문을 읽기 전에 거절하고, 길이를 알 수 없는
 응답도 4MiB까지만 축적한 뒤 다음 1byte가 들어오는 시점에 중단한다. 정상 응답은
 원문 byte 수와 SHA-256, page 정보, 최대 200개의 정규화된 item만 반환한다. 빈
-문자열은 처리용 모델에서 `null`로 바꾸며, 원문 자체는 client 밖에 남기지 않는다.
+문자열은 처리용 모델에서 `null`로 바꾼다. 축제 원문 byte는 gzip snapshot을
+저장하는 동안만 유지하고 page 처리 후 참조를 해제한다.
 
-이 단계에서는 client를 자동 호출하는 scheduler나 관리자 API가 없다. 따라서
-Render가 배포되더라도 KTO 호출량이 자동으로 발생하지 않는다. DB 반영과 원본
-snapshot 보관은 저장소 경계가 확정된 후 별도 작업으로 연결한다.
+자동 scheduler나 관리자 API는 없다. 따라서 Render가 배포되더라도 KTO 호출량이
+자동으로 발생하지 않는다. 축제 수집은 개발자 PC의
+`scripts/import-kto-festivals.ps1`에서 `local` 또는 `staging`을 명시했을 때만
+실행한다. 한 번에 최대 20page까지 허용하지만 기본값은 1page다.
 
 DB 저장 adapter는 private object storage 업로드가 끝난 snapshot 메타데이터만
 입력받는다. 실제 원문 JSON이나 service key는 DB adapter로 전달하지 않는다. 한
@@ -58,9 +61,17 @@ key에 다른 hash가 들어오면 immutable 증빙 충돌로 거절한다. `sho
 `null`로 둔다. item source hash는 아직 알지 못하는 신규 필드까지 포함한 원천 item
 JSON으로 계산한다.
 
-현재 adapter는 object storage에 파일이 실제로 존재하는지 확인하거나 업로드하지
-않는다. 이 검증과 gzip 업로드가 연결되기 전에는 자동 수집 batch를 활성화하지
-않는다.
+축제 adapter는 저장소 밖의 `$HOME/.koready/kto-snapshots`에 원문 gzip을 먼저
+기록하고, 압축 전·후 SHA-256과 크기를 검증한 metadata만 DB adapter에 전달한다.
+같은 파일이 이미 있으면 압축을 풀어 원문 hash를 다시 확인한다. 파일이 바뀌었으면
+immutable snapshot 충돌로 중단한다. AWS 전환 전까지 이 로컬 저장소가 임시 private
+object storage 역할을 하며, Render에서는 수집 명령을 실행하지 않는다.
+
+`searchFestival2` 저장 시 KTO `contentid`를 축제 series key로 사용하고,
+`contentid + 행사 연도`를 개최 회차의 고유 기준으로 사용한다. `visible_from`은
+시작일 6개월 전으로 계산한다. KTO의 2026 법정동 코드 `12`와 시군구가 결합된
+`36110` 같은 값도 7개 서비스 권역으로 변환한다. 수집 직후 장소는
+`active=false`이므로 운영진 검토 없이 사용자 API에 공개되지 않는다.
 
 한 page의 처리 순서는 다음과 같다.
 
@@ -133,3 +144,23 @@ runtime을 제거하고 다시 측정한 최신 기준선은 다음과 같다.
 최신 기준선은 JPA 제거 전보다 cgroup 사용량이 약 130MiB 낮고 512MB 제한에서
 약 264MiB의 여유가 있다. object storage 업로드까지 연결한 200건 end-to-end
 측정에서 400MiB를 지속해서 넘으면 page 크기를 100건으로 낮춘다.
+
+## 축제 수집 검증 기록
+
+2026-07-18 로컬 MySQL과 실제 `searchFestival2` 응답으로 다음을 확인했다.
+
+- 조회 기준일: `eventStartDate=20260701`
+- 제공기관 전체 건수: 203건
+- page 1: 200건, page 2: 3건
+- 저장 결과: 고유 `contentid` 203개, 개최 회차 203개
+- 잘못된 날짜: 0건
+- 서비스 권역 미매핑: 0건
+- 자동 공개된 장소: 0건
+- page 2 재실행: `replayedPages=1`, 중복 행 없음
+- 월별 API 임시 공개 스모크: 종료 축제가 `ENDED` 상태와 2026 개최 기간으로 조회됨
+- JVM 제한: heap 128~256MB, Metaspace 128MB
+- non-web Windows 로컬 수집 프로세스 RSS peak: 약 301.7MiB
+
+Windows RSS와 Render cgroup 사용량은 직접 비교할 수 없지만, 현재 로컬 결과는
+400MiB 재검토 기준 아래다. Aiven 반영 후에도 Render에서는 조회만 수행하고 수집은
+개발자 PC에서 실행한다.

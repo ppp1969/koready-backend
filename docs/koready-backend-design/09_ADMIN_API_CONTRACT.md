@@ -462,6 +462,11 @@ Swagger에서 `PLANNED`이며 호출할 수 없습니다.
 
 ## 7.1 배치 목록과 상세
 
+아래 3개 GET API는 구현되어 있으며 `ADMIN`, `OPERATOR`, `AUDITOR`가 조회할 수
+있습니다. DB 원문 message와 item 오류는 그대로 반환하지 않고 상태 기반 안전 문구로
+바꿉니다. parameters에서도 key·token·password를 마스킹하고 검색어·주소·좌표를
+제거합니다.
+
 | Method | URI | 설명 |
 |---|---|---|
 | GET | `/batch-jobs` | 상태/유형/기간별 배치 목록 |
@@ -473,6 +478,7 @@ Query:
 ```text
 jobType=KTO_DAILY_SYNC
 status=PENDING|RUNNING|COMPLETED|FAILED|PARTIAL_FAILED
+triggerSource=SCHEDULED|ADMIN_MANUAL|RETRY
 from=<ISO-8601>
 to=<ISO-8601>
 cursor=<opaque>
@@ -485,7 +491,20 @@ jobType =
   AI_TRANSLATION | IMAGE_ENRICHMENT
 ```
 
-## 7.2 수동 실행
+item 목록은 DB에 실제 존재하는 아래 필드만 사용합니다.
+
+```text
+status=PENDING|RUNNING|COMPLETED|FAILED
+targetType=API_PAGE|PLACE|IMAGE|TRANSLATION
+itemId, targetType, targetId, status, errorMessage, createdAt, updatedAt
+```
+
+`attemptCount`, `errorCode`, `relatedCallLogId`, item별 `finishedAt`은 현재 DB에 없으므로
+응답에 포함하지 않습니다.
+
+## 7.2 수동 실행 (후속 범위)
+
+아래 POST API는 현재 Swagger에서 `PLANNED`이며 호출할 수 없습니다.
 
 `POST /api/v1/admin/batch-jobs`
 
@@ -505,7 +524,9 @@ jobType =
 - `reason`은 필수이며 감사 로그에 남긴다.
 - API는 `202 Accepted`와 생성된 `jobId`를 반환한다.
 
-## 7.3 실패 item 재시도
+## 7.3 실패 item 재시도 (후속 범위)
+
+아래 POST API도 현재 `PLANNED`입니다.
 
 `POST /api/v1/admin/batch-jobs/{jobId}/retry`
 

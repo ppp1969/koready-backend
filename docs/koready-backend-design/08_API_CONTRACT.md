@@ -249,6 +249,26 @@ nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
 }
 ```
 
+응답은 저장된 언어와 서버가 계산한 다음 화면을 함께 반환한다.
+
+```json
+{
+  "language": "KO",
+  "nextStep": "ONBOARDING",
+  "updatedAt": "2026-07-19T12:00:00+09:00"
+}
+```
+
+| 현재 DB 상태 | 저장 뒤 DB 상태 | `nextStep` | 의미 |
+|---|---|---|---|
+| `NEED_TERMS` | `NEED_TERMS` | `TERMS` | 언어를 저장해도 필수 약관을 건너뛰지 않음 |
+| `NEED_LANGUAGE` | `NEED_ONBOARDING` | `ONBOARDING` | 최초 언어 선택 완료 |
+| `NEED_ONBOARDING` | `NEED_ONBOARDING` | `ONBOARDING` | 온보딩 중 언어만 변경 |
+| `COMPLETED` | `COMPLETED` | `COMPLETED` | 홈 설정에서 언어만 변경 |
+
+프론트는 현재 가입 상태를 직접 조합하지 않고 항상 응답의 `nextStep`을 사용한다. 같은 언어와
+같은 상태를 다시 보내면 성공하되 `updatedAt`은 바뀌지 않는다.
+
 ## 3.2 온보딩 상태
 
 `GET /api/v1/users/me/onboarding`

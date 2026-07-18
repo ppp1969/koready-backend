@@ -24,6 +24,7 @@ class OpenApiContractTests {
 		"get", "post", "put", "patch", "delete", "options", "head", "trace");
 	private static final Set<String> IMPLEMENTED_OPERATIONS = Set.of(
 		"GET /home",
+		"PATCH /users/me/language",
 		"GET /monthly-recommendations",
 		"POST /recommendation-decks",
 		"GET /recommendation-decks/{deckId}",
@@ -218,6 +219,28 @@ class OpenApiContractTests {
 		assertEquals(
 			List.of("HOME_MONTHLY", "RECOMMENDATION_CARD", "PLACE_DETAIL", "MAP"),
 			asList(sourceEnum.get("enum"), "SavedPlaceSource.enum"));
+	}
+
+	@Test
+	void languageUpdateDocumentsTheNonSkippingSignupTransition() throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> operation = asMap(
+			asMap(paths.get("/users/me/language"), "/users/me/language").get("patch"),
+			"PATCH /users/me/language");
+		String description = String.valueOf(operation.get("description"));
+		assertTrue(description.contains("NEED_TERMS"));
+		assertTrue(description.contains("NEED_LANGUAGE"));
+		assertTrue(description.contains("NEED_ONBOARDING"));
+		assertTrue(description.contains("COMPLETED"));
+		assertTrue(description.contains("nextStep=TERMS"));
+		assertTrue(description.contains("nextStep=ONBOARDING"));
+
+		Map<String, Object> responses = asMap(
+			operation.get("responses"), "PATCH /users/me/language.responses");
+		assertTrue(responses.containsKey("400"));
+		assertTrue(responses.containsKey("401"));
+		assertTrue(responses.containsKey("200"));
 	}
 
 	private static Map<String, Object> loadContract() throws IOException {

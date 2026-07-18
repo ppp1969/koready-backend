@@ -159,8 +159,11 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 - `GET /api/v1/onboarding/place-candidate-sets/current`: 현재 발행된 온보딩 관광지 후보 10개
 - `/api/v1/admin/onboarding/place-candidate-sets/**`: 관리자 후보 세트 초안·조회·수정·발행·보관
 - `/api/v1/admin/hori-tips/**`: 운영진 Hori Tip 초안·조회·수정·활성·비활성·보관과 변경 이력 기록
+- `GET /api/v1/admin/open-api/summary`: 외부 API 기간별 성공·실패·snapshot 현황
+- `GET /api/v1/admin/open-api/calls/**`: 마스킹된 호출 로그 목록과 상세
+- `GET /api/v1/admin/open-api/snapshots/**`: 원천 본문을 제외한 immutable snapshot 메타데이터
 
-소셜 로그인과 JWT 발급은 후속 범위이므로 현재 실행 환경에서는 위 보호 API를 익명으로 호출하면 `401`입니다. 추천 덱은 테스트 principal과 MySQL fixture로 사용자별 고정 순서, 30일 재노출 제한, 소유권을 검증합니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
+소셜 로그인과 JWT 발급은 후속 범위이므로 현재 실행 환경에서는 위 보호 API를 익명으로 호출하면 `401`입니다. snapshot 다운로드 URL 발급은 AWS 저장소 연결과 함께 후속 구현하며 현재 메타데이터의 `downloadable`은 항상 `false`입니다. 추천 덱은 테스트 principal과 MySQL fixture로 사용자별 고정 순서, 30일 재노출 제한, 소유권을 검증합니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
 
 `local`과 `staging` 프로필에서는 `/swagger-ui.html`에서 프론트 연동용 Swagger UI를 제공합니다. UI는 `docs/koready-backend-design/openapi.yaml`을 빌드 시 포함한 단일 계약 파일을 표시합니다.
 

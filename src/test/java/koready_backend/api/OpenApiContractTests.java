@@ -46,7 +46,12 @@ class OpenApiContractTests {
 		"POST /admin/hori-tips",
 		"GET /admin/hori-tips/{horiTipId}",
 		"PUT /admin/hori-tips/{horiTipId}",
-		"PUT /admin/hori-tips/{horiTipId}/status");
+		"PUT /admin/hori-tips/{horiTipId}/status",
+		"GET /admin/open-api/summary",
+		"GET /admin/open-api/calls",
+		"GET /admin/open-api/calls/{callLogId}",
+		"GET /admin/open-api/snapshots",
+		"GET /admin/open-api/snapshots/{snapshotId}");
 	private static final Set<String> ANONYMOUS_IMPLEMENTED_OPERATIONS = Set.of(
 		"GET /monthly-recommendations",
 		"GET /places",
@@ -346,6 +351,99 @@ class OpenApiContractTests {
 			schemas.get("HoriTipStatusChangeTarget"), "HoriTipStatusChangeTarget");
 		assertEquals(List.of("ACTIVE", "INACTIVE", "ARCHIVED"),
 			asList(targets.get("enum"), "HoriTipStatusChangeTarget.enum"));
+	}
+
+	@Test
+	void adminExternalApiReadsDocumentFiltersRedactionAndDeferredDownloads()
+		throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		List<String> readPaths = List.of(
+			"/admin/open-api/summary",
+			"/admin/open-api/calls",
+			"/admin/open-api/calls/{callLogId}",
+			"/admin/open-api/snapshots",
+			"/admin/open-api/snapshots/{snapshotId}");
+
+		for (String path : readPaths) {
+			Map<String, Object> operation = asMap(
+				asMap(paths.get(path), path).get("get"), "GET " + path);
+			assertEquals(
+				List.of("ADMIN", "OPERATOR", "AUDITOR"),
+				asList(operation.get("x-required-roles"), path + " roles"));
+			assertEquals("IMPLEMENTED", operation.get("x-implementation-status"));
+			Map<String, Object> responses = asMap(
+				operation.get("responses"), path + " responses");
+			assertTrue(responses.keySet().containsAll(Set.of("400", "401", "403", "200")));
+		}
+
+		Map<String, Object> calls = asMap(
+			asMap(paths.get("/admin/open-api/calls"), "calls path").get("get"),
+			"calls operation");
+		Set<String> callParameterNames = directParameterNames(calls, "call parameters");
+		assertTrue(callParameterNames.containsAll(Set.of(
+			"apiName", "operation", "success", "httpStatus",
+			"relatedJobId", "hasRawSnapshot")));
+
+		Map<String, Object> snapshots = asMap(
+			asMap(paths.get("/admin/open-api/snapshots"), "snapshots path").get("get"),
+			"snapshots operation");
+		assertTrue(directParameterNames(snapshots, "snapshot parameters")
+			.containsAll(Set.of("operation", "retentionClass")));
+
+		Map<String, Object> download = asMap(
+			asMap(
+				paths.get("/admin/open-api/snapshots/{snapshotId}/download-url"),
+				"download path").get("post"),
+			"download operation");
+		assertEquals("PLANNED", download.get("x-implementation-status"));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> callSummary = asMap(
+			schemas.get("OpenApiCallSummary"), "OpenApiCallSummary");
+		assertFalse(asMap(callSummary.get("properties"), "call summary properties")
+			.containsKey("endpoint"));
+		Map<String, Object> callDetail = asMap(
+			schemas.get("OpenApiCallResponse"), "OpenApiCallResponse");
+		String callDetailText = String.valueOf(callDetail);
+		assertFalse(callDetailText.contains("rawBody"));
+		assertFalse(callDetailText.contains("responseBody"));
+
+		Map<String, Object> rawStatus = asMap(
+			schemas.get("RawSnapshotStatus"), "RawSnapshotStatus");
+		assertEquals(
+			List.of("NOT_APPLICABLE", "NOT_CAPTURED", "AVAILABLE", "EXPIRED"),
+			asList(rawStatus.get("enum"), "RawSnapshotStatus.enum"));
+		Map<String, Object> rawSnapshot = asMap(
+			schemas.get("RawSnapshotResponse"), "RawSnapshotResponse");
+		Map<String, Object> rawProperties = asMap(
+			rawSnapshot.get("properties"), "RawSnapshotResponse.properties");
+		assertEquals(
+			List.of("JSON_GZIP", "XML_GZIP"),
+			asList(asMap(rawProperties.get("storageFormat"), "storageFormat")
+				.get("enum"), "storageFormat.enum"));
+		assertEquals(
+			List.of("COMPETITION_EVIDENCE", "DEBUG_TEMPORARY", "PROVIDER_RESTRICTED"),
+			asList(asMap(rawProperties.get("retentionClass"), "retentionClass")
+				.get("enum"), "retentionClass.enum"));
+		assertEquals(
+			List.of(Boolean.FALSE),
+			asList(asMap(rawProperties.get("downloadable"), "downloadable")
+				.get("enum"), "downloadable.enum"));
+	}
+
+	private static Set<String> directParameterNames(
+		Map<String, Object> operation,
+		String location
+	) {
+		Set<String> names = new HashSet<>();
+		for (Object value : asList(operation.get("parameters"), location)) {
+			Map<String, Object> parameter = asMap(value, location + " item");
+			if (parameter.get("name") instanceof String name) {
+				names.add(name);
+			}
+		}
+		return names;
 	}
 
 	private static Map<String, Object> loadContract() throws IOException {

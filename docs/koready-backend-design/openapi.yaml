@@ -501,8 +501,18 @@ paths:
       description: |
         **호출 시점:** 관광지명·지역명 검색 화면에서 호출합니다.
         이 API는 KoReady DB에 적재된 관광지를 검색하며 사용자 주소를 찾는 `/locations/search`와 다릅니다.
-        query가 바뀌면 기존 cursor를 버리고 첫 페이지부터 조회합니다.
-      x-implementation-status: PLANNED
+        로그인 전에도 호출할 수 있으며 이때 모든 카드의 saved는 false입니다.
+
+        **호출 흐름:** 첫 요청에는 query와 size만 보내고, 응답의 hasMore가 true이면 같은 query,
+        size, Accept-Language와 함께 nextCursor를 그대로 cursor에 넣어 다음 페이지를 요청합니다.
+        query 또는 언어가 바뀌면 기존 items와 cursor를 폐기하고 첫 페이지부터 다시 조회합니다.
+        cursor는 서버 정렬 위치와 검색 조건을 묶은 불투명 값이므로 프론트에서 해석하거나 만들지 않습니다.
+
+        **검색 규칙:** 앞뒤 공백과 연속 공백은 서버가 정리합니다. `%`, `_`는 일반 문자로 검색되며
+        SQL wildcard로 동작하지 않습니다. active와 showFlag가 모두 true인 장소만 반환합니다.
+        Accept-Language가 en 계열이면 영문을 우선하고 영문이 없는 장소는 한국어로 대체합니다.
+      security: []
+      x-implementation-status: IMPLEMENTED
       parameters:
         - name: query
           in: query
@@ -514,8 +524,8 @@ paths:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Size50'
       responses:
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '200':
           $ref: '#/components/responses/PlaceListSuccess'
   /places:
@@ -527,7 +537,19 @@ paths:
         **호출 시점:** 프론트 정적 지도에서 7개 권역 중 하나를 선택할 때 호출합니다.
         serviceRegionCode는 필수이고 관광유형, 정렬, cursor, size는 선택입니다.
         GPS, bbox, zoom, 지도 중심 좌표는 사용하지 않으며 단순 확대·축소로 재호출하지 않습니다.
-      x-implementation-status: PLANNED
+        로그인 전에도 호출할 수 있으며 이때 모든 카드의 saved는 false입니다.
+
+        **관광유형:** travelStyles를 여러 개 보내면 그중 하나 이상에 매핑된 장소를 반환합니다.
+        예: `travelStyles=NATURE,LOCAL_FESTIVAL`. 빈 값이면 유형으로 제한하지 않습니다.
+
+        **정렬:** RECOMMENDED는 데이터 품질점수가 높은 순서이고 같은 점수는 최신 내부 ID 순서입니다.
+        DEADLINE은 현재 노출 가능한 진행·예정 축제의 종료일이 가까운 장소를 먼저 배치하고,
+        축제 회차가 없는 장소는 뒤에 배치합니다. 사용자 개인화 점수는 로그인 기능 이후 별도 적용합니다.
+
+        **다음 페이지:** 첫 요청에는 cursor를 보내지 않습니다. hasMore=true이면 같은 권역, 관광유형,
+        sort, size, Accept-Language로 nextCursor를 그대로 전달합니다. 조건이 하나라도 바뀌면 cursor를 버립니다.
+      security: []
+      x-implementation-status: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/ServiceRegionCodeQueryRequired'
         - $ref: '#/components/parameters/TravelStylesQuery'
@@ -535,8 +557,8 @@ paths:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Size50'
       responses:
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '200':
           $ref: '#/components/responses/PlaceListSuccess'
   /places/{placeId}:
@@ -548,12 +570,22 @@ paths:
         **호출 시점:** 월별 추천, 지도, 검색, 추천 덱, 저장 목록의 카드를 눌렀을 때 호출합니다.
         제목, 주소, 이미지, nullable 운영정보, 태그, 설명, 관련 장소, 저장 상태, availableTabs를 반환합니다.
         프론트는 availableTabs에 있는 DESCRIPTION, ROUTE, MATES만 노출하고 null 운영정보 행은 숨깁니다.
-      x-implementation-status: PLANNED
+        로그인 전에도 호출할 수 있고 isSaved는 false입니다.
+
+        **현재 MVP 데이터 범위:** KTO/관리 데이터에 근거가 있는 제목, 권역, 주소, 좌표, 대표 이미지와
+        설명만 반환합니다. 아직 수집하지 않은 운영시간·휴무일·요금·주차 정보는 추측하지 않고 null입니다.
+        대표 이미지가 없으면 images는 빈 배열이며, 설명 원문이 없으면 description은 null이고
+        availableTabs에 DESCRIPTION이 포함되지 않습니다. TMAP과 Buddy 기능이 구현되기 전에는
+        ROUTE와 MATES도 availableTabs에 넣지 않습니다.
+
+        **언어:** Accept-Language가 en 계열이면 영문을 우선하고, 영문이 없으면 한국어로 대체합니다.
+      security: []
+      x-implementation-status: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/PlaceId'
       responses:
-        '401':
-          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '200':
           description: 장소 상세
           content:
@@ -1597,8 +1629,10 @@ components:
     Cursor:
       name: cursor
       in: query
+      description: 서버가 발급한 불투명 페이지 위치. 필터·정렬·언어가 같을 때만 그대로 재사용
       schema:
         type: string
+        maxLength: 512
     Size50:
       name: size
       in: query
@@ -1622,13 +1656,17 @@ components:
       explode: false
       schema:
         type: array
+        maxItems: 7
+        uniqueItems: true
         items:
           $ref: '#/components/schemas/TravelStyle'
     SortQuery:
       name: sort
       in: query
       schema:
-        $ref: '#/components/schemas/SortType'
+        allOf:
+          - $ref: '#/components/schemas/SortType'
+        default: RECOMMENDED
     ServiceRegionCodeQueryRequired:
       name: serviceRegionCode
       in: query
@@ -2865,14 +2903,17 @@ components:
           example: 경상북도 김천시
         address:
           type: string
+          nullable: true
           example: 경상북도 김천시 삼락동 488-1
         latitude:
           type: number
           format: double
+          nullable: true
           example: 36.1398
         longitude:
           type: number
           format: double
+          nullable: true
           example: 128.1136
         operatingHours:
           type: string
@@ -2899,8 +2940,12 @@ components:
             type: string
         isSaved:
           type: boolean
+          description: 익명 조회에서는 항상 false
         description:
-          $ref: '#/components/schemas/PlaceDescription'
+          allOf:
+            - $ref: '#/components/schemas/PlaceDescription'
+          nullable: true
+          description: 검증된 원문 설명이 없으면 null
         relatedPlaces:
           type: array
           items:
@@ -3571,6 +3616,7 @@ components:
           nullable: true
         tags:
           type: array
+          description: 검수된 태그가 없으면 빈 배열
           items:
             type: string
           example: [지역축제, 로컬음식, 시즌추천]
@@ -3580,7 +3626,7 @@ components:
           example: 김밥을 주제로 먹고, 만들고, 즐기는 지역 축제예요.
         saved:
           type: boolean
-          description: 현재 로그인 사용자의 저장 여부
+          description: 현재 로그인 사용자의 저장 여부. 익명 조회에서는 항상 false
     MonthlyRecommendationListEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'

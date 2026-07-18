@@ -1358,13 +1358,15 @@ paths:
       description: |
         관리자 대시보드 첫 진입과 기간/provider 필터 변경 시 호출합니다.
         전체·성공·실패 호출 수, 성공률, snapshot 수와 provider별 상태를 반환하며 사용자 화면에서는 호출하지 않습니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
         - $ref: '#/components/parameters/FromDateTime'
         - $ref: '#/components/parameters/ToDateTime'
         - $ref: '#/components/parameters/ExternalProviderQuery'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '200':
@@ -1379,25 +1381,55 @@ paths:
       description: |
         provider, operation, 성공 여부, 기간으로 마스킹된 호출 로그를 검색합니다.
         secret, Kakao 검색어, 상세 주소, TMAP 좌표는 응답에 포함되지 않으며 cursor로 다음 페이지를 조회합니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
         - $ref: '#/components/parameters/ExternalProviderQuery'
-        - name: operation
+        - name: apiName
           in: query
+          description: 공급자 안에서 사용하는 API 묶음 이름과 정확히 일치하는 값
           schema:
             type: string
+            maxLength: 100
+        - name: operation
+          in: query
+          description: areaBasedList2, searchFestival2 같은 세부 작업 이름
+          schema:
+            type: string
+            maxLength: 100
         - name: success
           in: query
           schema:
             type: boolean
+        - name: httpStatus
+          in: query
+          schema:
+            type: integer
+            minimum: 100
+            maximum: 599
         - $ref: '#/components/parameters/FromDateTime'
         - $ref: '#/components/parameters/ToDateTime'
+        - name: relatedJobId
+          in: query
+          description: 특정 배치 작업에서 발생한 호출만 조회
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: hasRawSnapshot
+          in: query
+          description: 원천 snapshot 연결 여부
+          schema:
+            type: boolean
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Size100'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           $ref: '#/components/responses/OpenApiCallListSuccess'
   /admin/open-api/calls/{callLogId}:
@@ -1407,14 +1439,20 @@ paths:
       summary: 외부 API 호출 로그 상세 조회
       description: |
         호출 목록에서 한 건을 선택했을 때 상태, 지연시간, item 수, 관련 batch와 snapshot 계보를 조회합니다.
-        원천 본문 자체는 이 API가 아니라 snapshot 권한과 단기 download URL을 사용합니다.
-      x-implementation-status: PLANNED
+        원천 본문은 반환하지 않습니다. snapshot 다운로드 URL 발급은 별도 PLANNED API이며 현재 응답의 downloadable은 false입니다.
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
         - $ref: '#/components/parameters/CallLogId'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '200':
           $ref: '#/components/responses/OpenApiCallSuccess'
   /admin/open-api/snapshots:
@@ -1425,7 +1463,7 @@ paths:
       description: |
         KTO 성공 응답을 가공 전에 보존한 immutable snapshot 메타데이터를 검색합니다.
         provider, operation, 기간과 cursor를 사용하며 원천 파일 내용은 목록 응답에 포함하지 않습니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
         - $ref: '#/components/parameters/ExternalProviderQuery'
@@ -1433,13 +1471,24 @@ paths:
           in: query
           schema:
             type: string
+            maxLength: 100
+        - name: retentionClass
+          in: query
+          description: DB에 기록된 보관 정책 등급
+          schema:
+            type: string
+            enum: [COMPETITION_EVIDENCE, DEBUG_TEMPORARY, PROVIDER_RESTRICTED]
         - $ref: '#/components/parameters/FromDateTime'
         - $ref: '#/components/parameters/ToDateTime'
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Size100'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           $ref: '#/components/responses/RawSnapshotListSuccess'
   /admin/open-api/snapshots/{snapshotId}:
@@ -1450,13 +1499,20 @@ paths:
       description: |
         원문 SHA-256, gzip 객체 SHA-256, 크기, storage key, callLogId와 보관 상태를 조회합니다.
         hash를 화면 표시 문자열로만 다루고 프론트에서 원천 파일 무결성을 새 규칙으로 계산하지 않습니다.
-      x-implementation-status: PLANNED
+        AWS 저장소 연결 전까지 메타데이터만 조회할 수 있고 downloadable은 항상 false입니다.
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
         - $ref: '#/components/parameters/SnapshotId'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '200':
           $ref: '#/components/responses/RawSnapshotSuccess'
   /admin/open-api/snapshots/{snapshotId}/download-url:
@@ -1898,6 +1954,7 @@ components:
       schema:
         type: integer
         format: int64
+        minimum: 1
     SnapshotId:
       name: snapshotId
       in: path
@@ -1905,6 +1962,7 @@ components:
       schema:
         type: integer
         format: int64
+        minimum: 1
     JobId:
       name: jobId
       in: path
@@ -5031,7 +5089,7 @@ components:
           nullable: true
     RawSnapshotStatus:
       type: string
-      enum: [NOT_APPLICABLE, NOT_CAPTURED, AVAILABLE, EXPIRED, FAILED]
+      enum: [NOT_APPLICABLE, NOT_CAPTURED, AVAILABLE, EXPIRED]
     OpenApiCallEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'
@@ -5109,7 +5167,7 @@ components:
           $ref: '#/components/schemas/BatchJobType'
     RelatedRawSnapshot:
       type: object
-      required: [snapshotId, status, rawContentSha256, storedObjectSha256, byteSize]
+      required: [snapshotId, status, rawContentSha256, storedObjectSha256, byteSize, downloadable]
       properties:
         snapshotId:
           type: integer
@@ -5126,6 +5184,10 @@ components:
           type: integer
           format: int64
           minimum: 0
+        downloadable:
+          type: boolean
+          enum: [false]
+          description: 다운로드 URL 발급 API가 구현되기 전까지 항상 false
     RawSnapshotListEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'
@@ -5155,7 +5217,7 @@ components:
               $ref: '#/components/schemas/RawSnapshotResponse'
     RawSnapshotResponse:
       type: object
-      required: [snapshotId, callLogId, provider, apiName, operation, storageFormat, contentType, rawContentSha256, storedObjectSha256, byteSize, compressedByteSize, capturedAt, retentionClass, immutable, downloadable]
+      required: [snapshotId, callLogId, provider, apiName, operation, storageKey, storageFormat, contentType, rawContentSha256, storedObjectSha256, byteSize, compressedByteSize, itemCount, capturedAt, retentionClass, immutable, downloadable]
       properties:
         snapshotId:
           type: integer
@@ -5169,12 +5231,15 @@ components:
           type: string
         operation:
           type: string
+        storageKey:
+          type: string
+          description: private 저장소 안의 객체 위치. 원천 파일 내용이나 다운로드 URL은 아님
         storageFormat:
           type: string
-          enum: [JSON_GZIP]
+          enum: [JSON_GZIP, XML_GZIP]
         contentType:
           type: string
-          enum: [application/json]
+          example: application/json
         rawContentSha256:
           type: string
           pattern: '^[a-f0-9]{64}$'
@@ -5194,13 +5259,12 @@ components:
         itemCount:
           type: integer
           minimum: 0
-          nullable: true
         capturedAt:
           type: string
           format: date-time
         retentionClass:
           type: string
-          enum: [COMPETITION_EVIDENCE, TEMPORARY_PROVIDER_DATA, OPERATIONAL]
+          enum: [COMPETITION_EVIDENCE, DEBUG_TEMPORARY, PROVIDER_RESTRICTED]
         retentionUntil:
           type: string
           format: date-time
@@ -5210,6 +5274,8 @@ components:
           enum: [true]
         downloadable:
           type: boolean
+          enum: [false]
+          description: 다운로드 URL 발급 API가 구현되기 전까지 항상 false
     DownloadUrlEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'

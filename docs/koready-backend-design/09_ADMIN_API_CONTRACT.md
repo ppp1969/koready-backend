@@ -254,6 +254,11 @@ HoriTipPlacement = TOP_SUMMARY | AFTER_SEGMENT
 
 ## 5. OpenAPI 현황
 
+현재 5.1~6.2의 조회 API는 구현되어 있습니다. `ADMIN`, `OPERATOR`, `AUDITOR`가
+조회할 수 있고 수정·삭제 기능은 제공하지 않습니다. 기간을 생략한 요약 조회는
+현재 시각 기준 최근 30일을 사용합니다. 목록 cursor는 모든 검색 조건과 묶인 불투명
+문자열이므로 프론트에서 해석하거나 필터를 바꾼 요청에 재사용하지 않습니다.
+
 ## 5.1 요약 대시보드
 
 `GET /api/v1/admin/open-api/summary`
@@ -373,7 +378,8 @@ size=1..100
     "status": "AVAILABLE",
     "rawContentSha256": "9c56...",
     "storedObjectSha256": "42ab...",
-    "byteSize": 281442
+    "byteSize": 281442,
+    "downloadable": false
   }
 }
 ```
@@ -409,6 +415,7 @@ size=1..100
   "provider": "KTO",
   "apiName": "KOR_TOUR",
   "operation": "areaBasedList2",
+  "storageKey": "kto/KOR/searchFestival2/example.json.gz",
   "storageFormat": "JSON_GZIP",
   "contentType": "application/json",
   "rawContentSha256": "9c56...",
@@ -420,11 +427,18 @@ size=1..100
   "retentionClass": "COMPETITION_EVIDENCE",
   "retentionUntil": null,
   "immutable": true,
-  "downloadable": true
+  "downloadable": false
 }
 ```
 
-## 6.3 다운로드 URL
+`storageKey`는 private 저장소 안의 객체 위치이며 공개 URL이 아닙니다. API는 원천
+본문을 반환하지 않고, `storageFormat`은 `JSON_GZIP` 또는 `XML_GZIP`, 보관 등급은
+`COMPETITION_EVIDENCE`, `DEBUG_TEMPORARY`, `PROVIDER_RESTRICTED` 중 하나입니다.
+
+## 6.3 다운로드 URL (후속 범위)
+
+아래 API는 AWS private 저장소와 감사 로그를 함께 연결할 때 구현합니다. 현재는
+Swagger에서 `PLANNED`이며 호출할 수 없습니다.
 
 `POST /api/v1/admin/open-api/snapshots/{snapshotId}/download-url`
 
@@ -437,9 +451,9 @@ size=1..100
 }
 ```
 
-- signed URL은 기본 5분 후 만료한다.
-- 발급 행위는 `admin_audit_logs`에 기록한다.
-- TMAP snapshot이 만료되었으면 `410 RAW_SNAPSHOT_EXPIRED`를 반환한다.
+- 구현 후 signed URL은 기본 5분 후 만료한다.
+- 구현 후 발급 행위는 `admin_audit_logs`에 기록한다.
+- 구현 후 만료된 snapshot은 `410 RAW_SNAPSHOT_EXPIRED`를 반환한다.
 - 일반 API 응답으로 원천 JSON 전체를 직접 반환하지 않는다.
 
 ---

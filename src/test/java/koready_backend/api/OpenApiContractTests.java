@@ -51,7 +51,10 @@ class OpenApiContractTests {
 		"GET /admin/open-api/calls",
 		"GET /admin/open-api/calls/{callLogId}",
 		"GET /admin/open-api/snapshots",
-		"GET /admin/open-api/snapshots/{snapshotId}");
+		"GET /admin/open-api/snapshots/{snapshotId}",
+		"GET /admin/batch-jobs",
+		"GET /admin/batch-jobs/{jobId}",
+		"GET /admin/batch-jobs/{jobId}/items");
 	private static final Set<String> ANONYMOUS_IMPLEMENTED_OPERATIONS = Set.of(
 		"GET /monthly-recommendations",
 		"GET /places",
@@ -430,6 +433,71 @@ class OpenApiContractTests {
 			List.of(Boolean.FALSE),
 			asList(asMap(rawProperties.get("downloadable"), "downloadable")
 				.get("enum"), "downloadable.enum"));
+	}
+
+	@Test
+	void adminBatchReadsMatchTheActualDatabaseSchemaAndKeepWritesPlanned()
+		throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		List<String> reads = List.of(
+			"/admin/batch-jobs",
+			"/admin/batch-jobs/{jobId}",
+			"/admin/batch-jobs/{jobId}/items");
+
+		for (String path : reads) {
+			Map<String, Object> operation = asMap(
+				asMap(paths.get(path), path).get("get"), "GET " + path);
+			assertEquals("IMPLEMENTED", operation.get("x-implementation-status"));
+			assertEquals(
+				List.of("ADMIN", "OPERATOR", "AUDITOR"),
+				asList(operation.get("x-required-roles"), path + " roles"));
+			Map<String, Object> responses = asMap(
+				operation.get("responses"), path + " responses");
+			assertTrue(responses.keySet().containsAll(Set.of("400", "401", "403", "200")));
+		}
+
+		Map<String, Object> collection = asMap(
+			paths.get("/admin/batch-jobs"), "batch collection");
+		assertEquals(
+			"PLANNED",
+			asMap(collection.get("post"), "batch create").get("x-implementation-status"));
+		assertTrue(directParameterNames(
+			asMap(collection.get("get"), "batch list"), "batch list parameters")
+			.containsAll(Set.of("jobType", "status", "triggerSource")));
+
+		Map<String, Object> itemOperation = asMap(
+			asMap(paths.get("/admin/batch-jobs/{jobId}/items"), "batch items").get("get"),
+			"batch item list");
+		assertTrue(directParameterNames(itemOperation, "batch item parameters")
+			.containsAll(Set.of("status", "targetType")));
+		Map<String, Object> retry = asMap(
+			asMap(paths.get("/admin/batch-jobs/{jobId}/retry"), "batch retry").get("post"),
+			"batch retry operation");
+		assertEquals("PLANNED", retry.get("x-implementation-status"));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> job = asMap(schemas.get("BatchJobResponse"), "BatchJobResponse");
+		List<Object> jobRequired = asList(job.get("required"), "BatchJobResponse.required");
+		assertTrue(jobRequired.containsAll(List.of(
+			"triggerSource", "message", "parameters", "updatedAt")));
+		Map<String, Object> jobProperties = asMap(
+			job.get("properties"), "BatchJobResponse.properties");
+		assertFalse(jobProperties.containsKey("failureReason"));
+
+		Map<String, Object> item = asMap(
+			schemas.get("BatchJobItemResponse"), "BatchJobItemResponse");
+		Map<String, Object> itemProperties = asMap(
+			item.get("properties"), "BatchJobItemResponse.properties");
+		assertTrue(itemProperties.keySet().containsAll(Set.of(
+			"itemId", "targetType", "targetId", "status", "errorMessage",
+			"createdAt", "updatedAt")));
+		assertFalse(itemProperties.keySet().stream().anyMatch(Set.of(
+			"operation", "attemptCount", "errorCode", "relatedCallLogId", "finishedAt")::contains));
+		assertEquals(
+			List.of("PENDING", "RUNNING", "COMPLETED", "FAILED"),
+			asList(asMap(schemas.get("BatchItemStatus"), "BatchItemStatus")
+				.get("enum"), "BatchItemStatus.enum"));
 	}
 
 	private static Set<String> directParameterNames(

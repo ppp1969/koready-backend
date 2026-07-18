@@ -570,7 +570,8 @@ flowchart LR
 - 현황: `GET /admin/open-api/summary`
 - 호출 로그: `GET /admin/open-api/calls`, `GET /admin/open-api/calls/{callLogId}`
 - KTO snapshot: `GET /admin/open-api/snapshots`, `GET /admin/open-api/snapshots/{snapshotId}`, `POST /download-url`
-- 배치: `GET/POST /admin/batch-jobs`, `GET /{jobId}`, `GET /{jobId}/items`, `POST /{jobId}/retry`
+- 배치 조회(구현): `GET /admin/batch-jobs`, `GET /{jobId}`, `GET /{jobId}/items`
+- 배치 실행·재시도(후속): `POST /admin/batch-jobs`, `POST /{jobId}/retry`
 - cursor: `GET /admin/open-api/sync-cursors`, `PUT /{cursorId}/enabled`, `POST /{cursorId}/reset`
 - 증빙 번들: `GET/POST /admin/evidence-bundles`, `GET /{bundleId}`, `POST /{bundleId}/download-url`
 - 품질·감사: `GET /admin/data-quality/summary`, `GET /admin/audit-logs`

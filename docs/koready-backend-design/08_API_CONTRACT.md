@@ -273,6 +273,10 @@ nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
 
 `GET /api/v1/users/me/onboarding`
 
+구현 상태는 `IMPLEMENTED`다. 보호 API이므로 인증 사용자의 `public_id`를 기준으로 자기 데이터만
+조회한다. 소셜 로그인과 실제 token 발급이 연결되기 전에는 백엔드 테스트 principal과 DB
+fixture로 검증한다.
+
 ```json
 {
   "completed": false,
@@ -290,6 +294,22 @@ nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
 3. 선호 여행지 1~3개
 
 방문 목적, 출신 국가, 이동 범위는 온보딩 API와 DB에 포함하지 않는다. `currentStep`은 `LOCATION | TRAVEL_STYLES | PREFERENCE_PLACES | COMPLETED` 중 하나다.
+
+| `currentStep` | 서버가 확인한 저장 상태 | 프론트 동작 |
+|---|---|---|
+| `LOCATION` | 활성 상태인 내 위치가 없음 | 위치 입력 화면 표시 |
+| `TRAVEL_STYLES` | 위치는 있고 관광 유형이 없음 | 관광 유형 화면 표시 |
+| `PREFERENCE_PLACES` | 위치와 관광 유형이 있음 | 후보 10개 조회 뒤 관심 관광지 화면 표시 |
+| `COMPLETED` | 가입 상태와 완료 시각이 저장됨 | 온보딩을 다시 열지 않고 홈으로 이동 |
+
+완료된 사용자는 저장 당시의 `candidateSetId`, `candidateSetVersion`,
+`selectedPreferencePlaceIds`도 받는다. 이 값은 어떤 후보 버전에서 취향을 선택했는지 추적하기
+위한 것으로, 프론트가 최신 후보 세트로 바꾸어 계산하지 않는다.
+
+현재 완료 API는 마지막 버튼에서 전체 값을 한 번에 저장한다. 따라서 서버에 아직 보내지 않은
+현재 화면의 임시 선택은 프론트 상태에 남고, GET은 **이미 서버에 저장된 값만** 복구한다.
+위치 저장 API가 구현되면 저장된 위치 단계가 이어지고, 관광 유형의 단계별 자동 저장은 별도
+계약을 추가하기 전까지 완료 요청 시점에 확정한다.
 
 ## 3.3 현재 취향 후보 세트 조회
 
@@ -328,6 +348,9 @@ nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
 
 `PUT /api/v1/users/me/onboarding`
 
+구현 상태는 `IMPLEMENTED`다. 프론트는 후보 화면을 열 때 받은 세트 ID와 버전을 임의로
+고치지 않고 선택 장소와 함께 보낸다.
+
 ```json
 {
   "currentLocationId": 100,
@@ -343,7 +366,50 @@ nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
 - 현재 위치는 인증 사용자의 활성 위치여야 한다.
 - 여행 스타일은 1~4개이며 중복될 수 없다.
 - 선호 여행지는 제출한 `candidateSetId/version`의 10개 후보에 포함된 1~3개여야 한다.
-- 완료 요청은 멱등하게 처리한다.
+- 현재 세트가 바뀌었더라도 해당 세트가 과거에 발행된 이력이 있으면 제출할 수 있다.
+- 보관된 과거 발행 세트는 허용하지만 발행된 적 없는 초안은 허용하지 않는다.
+- 약관·언어 단계가 끝나 `NEED_ONBOARDING` 상태인 사용자만 최초 완료할 수 있다.
+- 위치, 관광 유형, 후보 선택, 가입 완료 상태는 하나의 DB transaction으로 저장한다.
+- 완료 요청은 멱등하게 처리한다. 같은 본문을 다시 보내면 최초 `completedAt`을 반환한다.
+- 완료된 프로필을 다른 본문으로 덮어쓰려는 요청은 `409`로 거절한다.
+
+성공 응답 예시:
+
+```json
+{
+  "completed": true,
+  "completedAt": "2026-07-19T14:00:00+09:00",
+  "nextStep": "COMPLETED",
+  "profile": {
+    "currentLocation": {
+      "locationId": 100,
+      "displayName": "성신여자대학교",
+      "serviceRegionCode": "SEOUL"
+    },
+    "travelStyles": ["LOCAL_FOOD", "LOCAL_FESTIVAL"],
+    "selectedPreferencePlaceIds": [1001, 2001],
+    "preferenceTags": []
+  }
+}
+```
+
+`preferenceTags`는 프론트가 만들어 보내는 값이 아니다. 태그 마스터와 점수·가중치 정책이
+승인되기 전인 현재 MVP 구현은 빈 배열을 반환한다. 장소 선택 원본은 별도 테이블에 보존하므로
+정책이 확정된 뒤 다시 계산할 수 있다.
+
+| HTTP | `code` | 의미와 프론트 처리 |
+|---|---|---|
+| 400 | `INVALID_REQUEST` | 필수 필드, enum, 숫자·배열 형식을 확인한다. 같은 잘못된 본문을 자동 재시도하지 않는다. |
+| 401 | `UNAUTHORIZED` | 로그인 연결 뒤에는 token 재발급 또는 로그인 화면으로 이동한다. |
+| 409 | `ONBOARDING_ALREADY_COMPLETED` | 이미 다른 선택으로 완료됐다. GET으로 서버 상태를 다시 읽는다. |
+| 422 | `ONBOARDING_LOCATION_INVALID` | 위치가 내 활성 위치인지 확인하고 위치 단계로 이동한다. |
+| 422 | `ONBOARDING_TRAVEL_STYLES_INVALID` | 1~4개, 중복 없음 규칙을 확인한다. |
+| 422 | `ONBOARDING_CANDIDATE_SET_INVALID` | 현재 후보 세트를 다시 조회하고 새 선택을 받는다. |
+| 422 | `ONBOARDING_SELECTION_INVALID` | 1~3개인지, 모두 같은 후보 세트에 포함됐는지 확인한다. |
+| 422 | `ONBOARDING_PREREQUISITE_INCOMPLETE` | 응답의 가입 단계에 맞춰 약관 또는 언어 화면으로 이동한다. |
+
+네트워크가 끊겨 성공 응답을 못 받은 경우에는 사용자가 선택한 **같은 본문**으로 재시도한다.
+서버는 완료 시각과 저장값을 바꾸지 않고 같은 완료 결과를 돌려준다.
 
 ---
 

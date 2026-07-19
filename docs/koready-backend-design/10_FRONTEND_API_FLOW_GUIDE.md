@@ -266,13 +266,27 @@ principal이 있어야 호출할 수 있다.
 
 ### 5.2 온보딩 재진입
 
-`GET /users/me/onboarding`은 `completed`, `currentStep`, `currentLocationId`, `travelStyles`, `selectedPreferencePlaceIds`를 반환한다. 앱이 중간에 종료돼도 응답의 `currentStep`으로 복구한다.
+백엔드 구현 상태는 `IMPLEMENTED`다. `GET /users/me/onboarding`은 `completed`,
+`currentStep`, `currentLocationId`, `travelStyles`, `candidateSetId`, `candidateSetVersion`,
+`selectedPreferencePlaceIds`를 반환한다. 화면을 열 때 로컬 상태보다 서버 응답을 먼저 기준으로 삼는다.
 
 ```text
 currentStep = LOCATION | TRAVEL_STYLES | PREFERENCE_PLACES | COMPLETED
 ```
 
 온보딩은 위치 입력, 여행 스타일 1~4개, 관심 관광지 1~3개 순서다. 방문 목적 화면과 관련 요청 필드는 만들지 않는다.
+
+```text
+LOCATION          -> 위치 입력 화면
+TRAVEL_STYLES     -> 관광 유형 선택 화면
+PREFERENCE_PLACES -> 후보 10개 조회 후 관심 관광지 화면
+COMPLETED         -> 홈
+```
+
+현재 PUT은 마지막 완료 버튼에서 전체 값을 한 번에 저장한다. 프론트가 아직 서버로 보내지 않은
+관광 유형과 장소 선택은 화면 상태 또는 안전한 로컬 상태에 보관한다. GET이 복구하는 범위는
+서버에 실제 저장된 값까지다. 단계별 자동 저장 API는 아직 없으므로 PUT을 부분 저장 용도로
+호출하지 않는다.
 
 ### 5.3 위치 검색과 저장
 
@@ -315,7 +329,9 @@ sequenceDiagram
 
 ### 5.5 관리자 큐레이션 후보 10개
 
-백엔드 구현 상태: 현재 후보 조회와 관리자 초안·발행·보관 API는 구현 완료다. 다만 로그인·JWT 발급은 후속 작업이므로 실제 앱 호출은 인증 기능이 연결된 뒤 가능하다.
+백엔드 구현 상태: 현재 후보 조회, 관리자 초안·발행·보관, 온보딩 상태 조회·완료 API는 구현
+완료다. 다만 로그인·JWT 발급과 사용자 위치 생성은 후속 작업이므로 실제 앱의 전체 흐름은
+두 기능이 연결된 뒤 가능하다. 그 전에는 프론트 mock과 백엔드 테스트 principal을 사용한다.
 
 ```text
 1. PREFERENCE_PLACES 화면 진입 시 GET /onboarding/place-candidate-sets/current
@@ -340,9 +356,19 @@ sequenceDiagram
 ```
 
 - 화면을 보는 중 새 버전이 발행돼도 프론트가 임의로 최신 세트를 다시 받아 선택을 바꾸지 않는다.
-- `CURATION_SET_NOT_FOUND`면 현재 세트를 다시 조회한다.
-- `PREFERENCE_PLACE_NOT_IN_SET`이면 제출을 중단하고 현재 화면 데이터와 요청 ID를 개발 로그에서 확인한다.
-- 성공 응답의 `completed=true`를 확인한 뒤 홈으로 이동한다.
+- 과거에 발행된 세트는 현재 보관 상태여도 제출할 수 있다. 발행된 적 없는 초안은 제출할 수 없다.
+- `ONBOARDING_CANDIDATE_SET_INVALID`면 현재 세트를 다시 조회하고 사용자가 1~3개를 다시 선택하게 한다.
+- `ONBOARDING_SELECTION_INVALID`이면 제출을 중단하고 선택 개수와 모든 `placeId`가 같은 세트에서 왔는지 확인한다.
+- `ONBOARDING_LOCATION_INVALID`이면 위치 단계로 돌아간다.
+- `ONBOARDING_TRAVEL_STYLES_INVALID`이면 1~4개와 중복 여부를 확인한다.
+- 성공 응답의 `completed=true`, `nextStep=COMPLETED`를 확인한 뒤 홈으로 이동한다.
+
+네트워크 오류로 성공 여부가 불분명할 때만 같은 본문을 재전송한다. 서버는 같은 선택이면
+처음 저장한 `completedAt`을 그대로 반환한다. 완료 후 다른 선택을 보내 `409
+ONBOARDING_ALREADY_COMPLETED`가 오면 덮어쓰지 말고 GET으로 저장 상태를 다시 읽는다.
+
+성공 응답의 `profile.preferenceTags`는 현재 항상 `[]`다. 프론트 오류가 아니며, 태그 점수 정책이
+승인되기 전까지 숨겨진 추천값을 임의 생성하지 않는다.
 
 ## 6. 홈·월별 추천·지도
 

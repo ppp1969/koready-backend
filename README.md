@@ -200,6 +200,7 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 - `GET /api/v1/message-threads/{threadId}`: 과거 방향 cursor와 화면 표시 순서로 스레드 조회
 - `POST /api/v1/message-threads/{threadId}/messages`: 참여자 답장 전송과 멱등 재시도
 - `PUT /api/v1/message-threads/{threadId}/read`: 수신 메시지의 명시적·멱등 읽음 처리
+- `POST /api/v1/reports`: 프로필·수신 메시지의 멱등 신고 접수와 운영 증빙 보존
 - `GET /api/v1/users/me/onboarding`: 저장된 온보딩 진행 단계와 선택값 복구
 - `PUT /api/v1/users/me/onboarding`: 위치 소유권·후보 버전·선택값 검증 후 멱등 완료
 - `GET /api/v1/locations/search`: Kakao 주소·장소 정규화 검색과 10분 유효 서명 token 발급

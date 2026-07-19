@@ -50,6 +50,7 @@ class OpenApiContractTests {
 		"GET /message-threads/{threadId}",
 		"POST /message-threads/{threadId}/messages",
 		"PUT /message-threads/{threadId}/read",
+		"POST /reports",
 		"PUT /users/me/blocked-profiles/{profileId}",
 		"DELETE /users/me/blocked-profiles/{profileId}",
 		"GET /onboarding/place-candidate-sets/current",
@@ -874,6 +875,34 @@ class OpenApiContractTests {
 			summary.get("properties"), "MessageThreadSummary.properties")
 			.get("preview"), "MessageThreadSummary.preview");
 		assertEquals(100, preview.get("maxLength"));
+	}
+
+	@Test
+	void buddyReportContractDocumentsIdempotencyOwnershipAndSeparateBlocking()
+		throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> report = asMap(asMap(
+			paths.get("/reports"), "report path").get("post"), "report operation");
+
+		assertEquals("IMPLEMENTED", report.get("x-implementation-status"));
+		assertTrue(parameterReferences(report, "report parameters")
+			.contains("#/components/parameters/IdempotencyKey"));
+		assertTrue(asMap(report.get("responses"), "report responses")
+			.keySet().containsAll(Set.of("400", "401", "404", "409", "422", "201")));
+		String description = String.valueOf(report.get("description"));
+		assertTrue(description.contains("수신한 메시지"));
+		assertTrue(description.contains("Idempotency-Key"));
+		assertTrue(description.contains("차단을 자동"));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> request = asMap(schemas.get("ReportRequest"), "ReportRequest");
+		Map<String, Object> properties = asMap(
+			request.get("properties"), "ReportRequest.properties");
+		assertEquals(500, asMap(properties.get("reason"), "ReportRequest.reason")
+			.get("maxLength"));
+		assertEquals("^[1-9][0-9]*$",
+			asMap(properties.get("targetId"), "ReportRequest.targetId").get("pattern"));
 	}
 
 	@Test

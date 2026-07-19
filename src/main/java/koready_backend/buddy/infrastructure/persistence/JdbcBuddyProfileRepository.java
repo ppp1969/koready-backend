@@ -49,6 +49,27 @@ public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
 			""",
 			this::mapProfile,
 			userId);
+		return record(rows);
+	}
+
+	@Override
+	public Optional<BuddyProfileRecord> findActiveById(long profileId) {
+		List<ProfileRow> rows = jdbcTemplate.query(
+			"""
+			SELECT profile.id, profile.user_id, profile.profile_image_url,
+			       profile.nickname, profile.nationality, profile.korean_level,
+			       profile.bio, profile.profile_public, profile.sns_public,
+			       profile.allows_messages, profile.created_at, profile.updated_at
+			FROM buddy_profiles profile
+			JOIN users owner ON owner.id = profile.user_id
+			WHERE profile.id = ? AND owner.deleted_at IS NULL
+			""",
+			this::mapProfile,
+			profileId);
+		return record(rows);
+	}
+
+	private Optional<BuddyProfileRecord> record(List<ProfileRow> rows) {
 		if (rows.isEmpty()) {
 			return Optional.empty();
 		}

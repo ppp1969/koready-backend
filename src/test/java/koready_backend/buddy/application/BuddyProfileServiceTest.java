@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import koready_backend.buddy.application.exception.BuddyUserUnavailableException;
+import koready_backend.buddy.application.model.BuddyProfileView;
 import koready_backend.buddy.application.port.BuddyProfileRepository;
 import koready_backend.buddy.application.port.BuddyProfileRepository.BuddyProfileRecord;
 import koready_backend.buddy.domain.BuddyProfileDraft;
@@ -86,7 +87,7 @@ class BuddyProfileServiceTest {
 			.thenAnswer(invocation -> new BuddyProfileRecord(
 				51L, 7L, invocation.getArgument(1), CREATED_AT, NOW));
 
-		BuddyProfileService.BuddyProfileView result = service.upsertMyProfile(
+		BuddyProfileView result = service.upsertMyProfile(
 			"usr_emma",
 			new BuddyProfileService.UpsertCommand(
 				null,

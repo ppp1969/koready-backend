@@ -39,6 +39,7 @@ class OpenApiContractTests {
 		"DELETE /users/me/saved-places/{placeId}",
 		"GET /users/me/buddy-profile",
 		"PUT /users/me/buddy-profile",
+		"GET /buddy-profiles/{profileId}",
 		"PUT /users/me/blocked-profiles/{profileId}",
 		"DELETE /users/me/blocked-profiles/{profileId}",
 		"GET /onboarding/place-candidate-sets/current",
@@ -794,6 +795,24 @@ class OpenApiContractTests {
 		assertTrue(asMap(block.get("responses"), "block responses").containsKey("200"));
 		assertTrue(asMap(unblock.get("responses"), "unblock responses")
 			.containsKey("204"));
+	}
+
+	@Test
+	void publicBuddyProfileDocumentsPrivacyAndCalculatedFields() throws IOException {
+		Map<String, Object> paths = asMap(loadContract().get("paths"), "paths");
+		Map<String, Object> operation = asMap(
+			asMap(paths.get("/buddy-profiles/{profileId}"), "public buddy profile path")
+				.get("get"),
+			"public buddy profile operation");
+		String description = String.valueOf(operation.get("description"));
+
+		assertEquals("IMPLEMENTED", operation.get("x-implementation-status"));
+		assertTrue(asMap(operation.get("responses"), "public buddy profile responses")
+			.keySet().containsAll(Set.of("400", "401", "404", "200")));
+		assertTrue(description.contains("profilePublic"));
+		assertTrue(description.contains("snsPublic"));
+		assertTrue(description.contains("blockedByMe"));
+		assertTrue(description.contains("canMessage"));
 	}
 
 	private static Set<String> directParameterNames(

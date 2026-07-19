@@ -21,6 +21,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
 import koready_backend.buddy.application.port.BuddyBlockRepository;
+import koready_backend.buddy.application.port.BuddyBlockRepository.BlockRelationship;
 
 @Tag("integration")
 @SpringBootTest
@@ -55,6 +56,10 @@ class JdbcBuddyBlockRepositoryIntegrationTest {
 		assertEquals(FIRST, first);
 		assertEquals(FIRST, repeated);
 		assertEquals(1, blockCount(blocker, blocked));
+		assertEquals(new BlockRelationship(true, false),
+			repository.relationship(blocker, blocked));
+		assertEquals(new BlockRelationship(false, true),
+			repository.relationship(blocked, blocker));
 		assertEquals(blocked,
 			repository.findActiveProfileOwnerId(profileId).orElseThrow());
 		assertTrue(repository.findActiveProfileOwnerId(999_999L).isEmpty());

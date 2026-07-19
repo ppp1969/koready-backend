@@ -55,7 +55,8 @@ class OpenApiContractTests {
 		"GET /admin/open-api/sync-cursors",
 		"GET /admin/batch-jobs",
 		"GET /admin/batch-jobs/{jobId}",
-		"GET /admin/batch-jobs/{jobId}/items");
+		"GET /admin/batch-jobs/{jobId}/items",
+		"GET /admin/data-quality/summary");
 	private static final Set<String> ANONYMOUS_IMPLEMENTED_OPERATIONS = Set.of(
 		"GET /monthly-recommendations",
 		"GET /places",
@@ -551,6 +552,60 @@ class OpenApiContractTests {
 			List.of("PENDING", "RUNNING", "COMPLETED", "FAILED"),
 			asList(asMap(schemas.get("BatchItemStatus"), "BatchItemStatus")
 				.get("enum"), "BatchItemStatus.enum"));
+	}
+
+	@Test
+	void adminDataQualitySummaryDocumentsExactAggregationRules() throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> operation = asMap(
+			asMap(paths.get("/admin/data-quality/summary"), "data quality path").get("get"),
+			"data quality summary");
+
+		assertEquals("IMPLEMENTED", operation.get("x-implementation-status"));
+		assertEquals(
+			List.of("ADMIN", "OPERATOR", "AUDITOR"),
+			asList(operation.get("x-required-roles"), "data quality roles"));
+		assertTrue(asMap(operation.get("responses"), "data quality responses")
+			.keySet().containsAll(Set.of("401", "403", "200")));
+
+		String description = String.valueOf(operation.get("description"));
+		assertTrue(description.contains("active=true AND showFlag=true"));
+		assertTrue(description.contains("KO 제목"));
+		assertTrue(description.contains("외부 API를 호출하지"));
+		assertFalse(description.contains("관광유형 매핑"));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> response = asMap(
+			schemas.get("DataQualityResponse"), "DataQualityResponse");
+		assertEquals(
+			List.of("generatedAt", "places", "localization"),
+			asList(response.get("required"), "DataQualityResponse.required"));
+
+		Map<String, Object> places = asMap(
+			schemas.get("PlaceQualitySummary"), "PlaceQualitySummary");
+		Map<String, Object> placeProperties = asMap(
+			places.get("properties"), "PlaceQualitySummary.properties");
+		assertEquals(Set.of(
+			"total", "active", "missingImage", "missingEnglish",
+			"missingCoordinates", "missingAddress", "curationReady"),
+			placeProperties.keySet());
+		for (Object property : placeProperties.values()) {
+			Map<String, Object> count = asMap(property, "place quality count");
+			assertEquals("integer", count.get("type"));
+			assertEquals("int64", count.get("format"));
+			assertEquals(0, count.get("minimum"));
+		}
+
+		Map<String, Object> localization = asMap(
+			schemas.get("LocalizationQualitySummary"), "LocalizationQualitySummary");
+		Map<String, Object> localizationProperties = asMap(
+			localization.get("properties"), "LocalizationQualitySummary.properties");
+		assertEquals(Set.of("ktoEnglish", "aiTranslated", "manualEdited"),
+			localizationProperties.keySet());
+		for (Object property : localizationProperties.values()) {
+			assertEquals("int64", asMap(property, "localization quality count").get("format"));
+		}
 	}
 
 	private static Set<String> directParameterNames(

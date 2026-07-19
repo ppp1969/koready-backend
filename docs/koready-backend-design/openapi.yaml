@@ -1818,13 +1818,25 @@ paths:
       operationId: getDataQualitySummary
       summary: 관광지 데이터 품질 요약 조회
       description: |
-        활성 장소의 이미지, 좌표, 주소, KO/EN 연결, 관광유형 매핑, 큐레이션 준비 상태를 집계합니다.
-        큐레이션 편집 화면에서 사용 불가 장소의 원인을 설명하는 기준 데이터로 활용합니다.
-      x-implementation-status: PLANNED
+        관리자 품질 화면 진입 또는 사용자의 새로고침 동작에서 한 번 호출합니다. 자동 polling은 필요하지 않습니다.
+
+        `total`은 저장된 전체 관광지 수이고, `active`는 `active=true AND showFlag=true`인 서비스 표출 관광지 수입니다.
+        이미지·영어·좌표·주소 누락 수는 서비스 표출 관광지만 대상으로 계산하므로 비활성 관광지는 누락 수에 포함하지 않습니다.
+        영어 누락은 EN 현지화 행이 없는 경우이며, 주소는 도로명 주소, 기본 주소, KO 현지화 주소 순서로 확인합니다.
+
+        `curationReady`는 서비스 표출 상태이면서 KO 제목, 주소, 위도·경도, 대표 이미지, 서비스 권역이 모두 있는 관광지 수입니다.
+        여러 누락 조건은 한 관광지에서 동시에 발생할 수 있으므로 누락 수를 서로 더하거나 `active`에서 빼서 준비 완료 수를 계산하지 않습니다.
+
+        현지화 출처 수는 전체 현지화 행의 `KTO_EN`, `AI_TRANSLATED`, `MANUAL_EDITED` 값을 각각 집계합니다.
+        `lastSuccessfulSyncAt`은 저장된 동기화 cursor 중 가장 최근 성공 시각이며 성공 이력이 없으면 null입니다.
+        이 API는 현재 DB의 집계값만 읽고 외부 API를 호출하지 않으며, 개별 주소·좌표·사용자 정보는 반환하지 않습니다.
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       responses:
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           $ref: '#/components/responses/DataQualitySuccess'
   /admin/audit-logs:
@@ -5685,11 +5697,13 @@ components:
               $ref: '#/components/schemas/DataQualityResponse'
     DataQualityResponse:
       type: object
+      description: 저장된 관광지와 현지화 데이터의 조회 시점 집계
       required: [generatedAt, places, localization]
       properties:
         generatedAt:
           type: string
           format: date-time
+          description: 서버가 집계를 생성한 UTC 기준 시각
         places:
           $ref: '#/components/schemas/PlaceQualitySummary'
         localization:
@@ -5698,44 +5712,67 @@ components:
           type: string
           format: date-time
           nullable: true
+          description: 모든 동기화 cursor 중 가장 최근 성공 시각. 성공 이력이 없으면 null
     PlaceQualitySummary:
       type: object
+      description: 관광지 행 기준 품질 집계. 누락 항목은 서로 중복될 수 있음
       required: [total, active, missingImage, missingEnglish, missingCoordinates, missingAddress, curationReady]
       properties:
         total:
           type: integer
+          format: int64
           minimum: 0
+          description: 활성 여부와 관계없이 저장된 전체 관광지 수
         active:
           type: integer
+          format: int64
           minimum: 0
+          description: active와 showFlag가 모두 true인 서비스 표출 관광지 수
         missingImage:
           type: integer
+          format: int64
           minimum: 0
+          description: 서비스 표출 관광지 중 대표 이미지 URL이 없거나 빈 값인 수
         missingEnglish:
           type: integer
+          format: int64
           minimum: 0
+          description: 서비스 표출 관광지 중 EN 현지화 행이 없는 수
         missingCoordinates:
           type: integer
+          format: int64
           minimum: 0
+          description: 서비스 표출 관광지 중 위도 또는 경도 하나 이상이 없는 수
         missingAddress:
           type: integer
+          format: int64
           minimum: 0
+          description: 서비스 표출 관광지 중 도로명·기본·KO 현지화 주소가 모두 없는 수
         curationReady:
           type: integer
+          format: int64
           minimum: 0
+          description: 서비스 표출, KO 제목, 주소, 좌표, 대표 이미지, 서비스 권역 조건을 모두 만족한 수
     LocalizationQualitySummary:
       type: object
+      description: 전체 현지화 행을 translationSource 값별로 집계한 수
       required: [ktoEnglish, aiTranslated, manualEdited]
       properties:
         ktoEnglish:
           type: integer
+          format: int64
           minimum: 0
+          description: translationSource가 KTO_EN인 현지화 행 수
         aiTranslated:
           type: integer
+          format: int64
           minimum: 0
+          description: translationSource가 AI_TRANSLATED인 현지화 행 수
         manualEdited:
           type: integer
+          format: int64
           minimum: 0
+          description: translationSource가 MANUAL_EDITED인 현지화 행 수
     AuditLogListEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'

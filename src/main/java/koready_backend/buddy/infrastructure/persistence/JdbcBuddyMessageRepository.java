@@ -4,6 +4,8 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -279,6 +281,294 @@ public class JdbcBuddyMessageRepository implements BuddyMessageRepository {
 				resultSet.getTimestamp("sent_at").toInstant(),
 				optionalInstant(resultSet.getTimestamp("read_at"))),
 			messageId).stream().findFirst();
+	}
+
+	@Override
+	public List<ThreadSummaryRow> findThreads(ThreadListCriteria criteria) {
+		String cursorCondition = criteria.cursor() == null
+			? ""
+			: """
+			  AND (thread.updated_at < ?
+			       OR (thread.updated_at = ? AND thread.id < ?))
+			""";
+		String sql = """
+			SELECT thread.id AS thread_database_id,
+			       thread.public_id AS thread_public_id,
+			       thread.updated_at,
+			       place.id AS place_id,
+			       COALESCE(requested.title, fallback.title,
+			                CONCAT('Place ', place.id)) AS place_title,
+			       place.first_image_url,
+			       other_profile.id AS other_profile_id,
+			       other_profile.user_id AS other_user_id,
+			       other_profile.nickname AS other_nickname,
+			       other_profile.profile_image_url AS other_profile_image_url,
+			       other_profile.profile_public AS other_profile_public,
+			       other_profile.allows_messages AS other_allows_messages,
+			       latest_message.content AS latest_content,
+			       latest_message.sent_at AS last_sent_at,
+			       (
+			           SELECT COUNT(*)
+			           FROM buddy_messages unread
+			           WHERE unread.thread_id = thread.id
+			             AND unread.receiver_profile_id = requester_profile.id
+			             AND unread.read_at IS NULL
+			             AND unread.deleted_by_receiver_at IS NULL
+			       ) AS unread_count,
+			       (
+			           EXISTS (
+			               SELECT 1
+			               FROM buddy_blocks buddy_block
+			               WHERE buddy_block.blocker_user_id = requester_profile.user_id
+			                 AND buddy_block.blocked_user_id = other_profile.user_id
+			           )
+			           OR EXISTS (
+			               SELECT 1
+			               FROM buddy_blocks buddy_block
+			               WHERE buddy_block.blocker_user_id = other_profile.user_id
+			                 AND buddy_block.blocked_user_id = requester_profile.user_id
+			           )
+			       ) AS blocked
+			FROM buddy_message_threads thread
+			JOIN buddy_profiles requester_profile
+			  ON requester_profile.id = ?
+			JOIN buddy_profiles other_profile
+			  ON other_profile.id = CASE
+			       WHEN thread.profile_low_id = requester_profile.id
+			       THEN thread.profile_high_id
+			       ELSE thread.profile_low_id
+			     END
+			JOIN users other_owner
+			  ON other_owner.id = other_profile.user_id
+			 AND other_owner.deleted_at IS NULL
+			JOIN places place ON place.id = thread.place_id
+			LEFT JOIN place_localizations requested
+			  ON requested.place_id = place.id AND requested.language = ?
+			LEFT JOIN place_localizations fallback
+			  ON fallback.place_id = place.id AND fallback.language = 'KO'
+			JOIN buddy_messages latest_message
+			  ON latest_message.id = (
+			       SELECT visible.id
+			       FROM buddy_messages visible
+			       WHERE visible.thread_id = thread.id
+			         AND (
+			           (visible.sender_profile_id = requester_profile.id
+			             AND visible.deleted_by_sender_at IS NULL)
+			           OR
+			           (visible.receiver_profile_id = requester_profile.id
+			             AND visible.deleted_by_receiver_at IS NULL)
+			         )
+			       ORDER BY visible.id DESC
+			       LIMIT 1
+			     )
+			WHERE (thread.profile_low_id = ? OR thread.profile_high_id = ?)
+			""" + cursorCondition + """
+			ORDER BY thread.updated_at DESC, thread.id DESC
+			LIMIT ?
+			""";
+		List<Object> parameters = new ArrayList<>();
+		parameters.add(criteria.requesterProfileId());
+		parameters.add(criteria.language());
+		parameters.add(criteria.requesterProfileId());
+		parameters.add(criteria.requesterProfileId());
+		if (criteria.cursor() != null) {
+			parameters.add(Timestamp.from(criteria.cursor().updatedAt()));
+			parameters.add(Timestamp.from(criteria.cursor().updatedAt()));
+			parameters.add(criteria.cursor().threadDatabaseId());
+		}
+		parameters.add(criteria.limit());
+
+		return jdbcTemplate.query(
+			sql,
+			(resultSet, rowNumber) -> new ThreadSummaryRow(
+				resultSet.getLong("thread_database_id"),
+				resultSet.getString("thread_public_id"),
+				resultSet.getTimestamp("updated_at").toInstant(),
+				new PlaceSnapshot(
+					resultSet.getLong("place_id"),
+					resultSet.getString("place_title"),
+					resultSet.getString("first_image_url")),
+				new MessageProfile(
+					resultSet.getLong("other_profile_id"),
+					resultSet.getLong("other_user_id"),
+					resultSet.getString("other_nickname"),
+					resultSet.getString("other_profile_image_url"),
+					resultSet.getBoolean("other_profile_public"),
+					resultSet.getBoolean("other_allows_messages")),
+				resultSet.getString("latest_content"),
+				resultSet.getTimestamp("last_sent_at").toInstant(),
+				resultSet.getLong("unread_count"),
+				resultSet.getBoolean("blocked")),
+			parameters.toArray());
+	}
+
+	@Override
+	public long countUnreadMessages(long receiverProfileId) {
+		Long count = jdbcTemplate.queryForObject(
+			"""
+			SELECT COUNT(*)
+			FROM buddy_messages message
+			JOIN buddy_profiles sender_profile
+			  ON sender_profile.id = message.sender_profile_id
+			JOIN users sender_owner
+			  ON sender_owner.id = sender_profile.user_id
+			 AND sender_owner.deleted_at IS NULL
+			WHERE message.receiver_profile_id = ?
+			  AND message.read_at IS NULL
+			  AND message.deleted_by_receiver_at IS NULL
+			""",
+			Long.class,
+			receiverProfileId);
+		return count == null ? 0 : count;
+	}
+
+	@Override
+	public Optional<ThreadContext> findThreadContext(
+		String threadPublicId,
+		long requesterProfileId,
+		String language
+	) {
+		return jdbcTemplate.query(
+			"""
+			SELECT thread.id, thread.public_id, thread.place_id,
+			       thread.profile_low_id, thread.profile_high_id,
+			       COALESCE(requested.title, fallback.title,
+			                CONCAT('Place ', place.id)) AS place_title,
+			       place.first_image_url,
+			       other_profile.id AS other_profile_id,
+			       other_profile.user_id AS other_user_id,
+			       other_profile.nickname AS other_nickname,
+			       other_profile.profile_image_url AS other_profile_image_url,
+			       other_profile.profile_public AS other_profile_public,
+			       other_profile.allows_messages AS other_allows_messages,
+			       EXISTS (
+			           SELECT 1
+			           FROM buddy_blocks buddy_block
+			           WHERE buddy_block.blocker_user_id = requester_profile.user_id
+			             AND buddy_block.blocked_user_id = other_profile.user_id
+			       ) AS blocked_by_requester,
+			       EXISTS (
+			           SELECT 1
+			           FROM buddy_blocks buddy_block
+			           WHERE buddy_block.blocker_user_id = other_profile.user_id
+			             AND buddy_block.blocked_user_id = requester_profile.user_id
+			       ) AS blocked_by_target
+			FROM buddy_message_threads thread
+			JOIN buddy_profiles requester_profile
+			  ON requester_profile.id = ?
+			JOIN buddy_profiles other_profile
+			  ON other_profile.id = CASE
+			       WHEN thread.profile_low_id = requester_profile.id
+			       THEN thread.profile_high_id
+			       ELSE thread.profile_low_id
+			     END
+			JOIN users other_owner
+			  ON other_owner.id = other_profile.user_id
+			 AND other_owner.deleted_at IS NULL
+			JOIN places place ON place.id = thread.place_id
+			LEFT JOIN place_localizations requested
+			  ON requested.place_id = place.id AND requested.language = ?
+			LEFT JOIN place_localizations fallback
+			  ON fallback.place_id = place.id AND fallback.language = 'KO'
+			WHERE thread.public_id = ?
+			  AND (thread.profile_low_id = ? OR thread.profile_high_id = ?)
+			""",
+			(resultSet, rowNumber) -> new ThreadContext(
+				thread(resultSet),
+				new PlaceSnapshot(
+					resultSet.getLong("place_id"),
+					resultSet.getString("place_title"),
+					resultSet.getString("first_image_url")),
+				new MessageProfile(
+					resultSet.getLong("other_profile_id"),
+					resultSet.getLong("other_user_id"),
+					resultSet.getString("other_nickname"),
+					resultSet.getString("other_profile_image_url"),
+					resultSet.getBoolean("other_profile_public"),
+					resultSet.getBoolean("other_allows_messages")),
+				resultSet.getBoolean("blocked_by_requester"),
+				resultSet.getBoolean("blocked_by_target")),
+			requesterProfileId,
+			language,
+			threadPublicId,
+			requesterProfileId,
+			requesterProfileId).stream().findFirst();
+	}
+
+	@Override
+	public List<StoredMessage> findMessages(MessagePageCriteria criteria) {
+		String cursorCondition = criteria.beforeMessageId() == null
+			? ""
+			: " AND message.id < ?\n";
+		String sql = """
+			SELECT message.id, message.sender_profile_id,
+			       message.receiver_profile_id, thread.place_id,
+			       message.content, message.sent_at, message.read_at
+			FROM buddy_messages message
+			JOIN buddy_message_threads thread ON thread.id = message.thread_id
+			WHERE message.thread_id = ?
+			  AND (
+			    (message.sender_profile_id = ?
+			      AND message.deleted_by_sender_at IS NULL)
+			    OR
+			    (message.receiver_profile_id = ?
+			      AND message.deleted_by_receiver_at IS NULL)
+			  )
+			""" + cursorCondition + """
+			ORDER BY message.id DESC
+			LIMIT ?
+			""";
+		List<Object> parameters = new ArrayList<>();
+		parameters.add(criteria.threadDatabaseId());
+		parameters.add(criteria.viewerProfileId());
+		parameters.add(criteria.viewerProfileId());
+		if (criteria.beforeMessageId() != null) {
+			parameters.add(criteria.beforeMessageId());
+		}
+		parameters.add(criteria.limit());
+
+		return jdbcTemplate.query(
+			sql,
+			(resultSet, rowNumber) -> new StoredMessage(
+				resultSet.getLong("id"),
+				criteria.threadPublicId(),
+				resultSet.getLong("sender_profile_id"),
+				resultSet.getLong("receiver_profile_id"),
+				resultSet.getLong("place_id"),
+				resultSet.getString("content"),
+				resultSet.getTimestamp("sent_at").toInstant(),
+				optionalInstant(resultSet.getTimestamp("read_at"))),
+			parameters.toArray());
+	}
+
+	@Override
+	public Instant markRead(
+		MessageThread thread,
+		long receiverProfileId,
+		Instant readAt
+	) {
+		jdbcTemplate.update(
+			"""
+			UPDATE buddy_messages
+			SET read_at = ?
+			WHERE thread_id = ?
+			  AND receiver_profile_id = ?
+			  AND read_at IS NULL
+			  AND deleted_by_receiver_at IS NULL
+			""",
+			Timestamp.from(readAt),
+			thread.databaseId(),
+			receiverProfileId);
+		Timestamp latestReadAt = jdbcTemplate.queryForObject(
+			"""
+			SELECT MAX(read_at)
+			FROM buddy_messages
+			WHERE thread_id = ? AND receiver_profile_id = ?
+			""",
+			Timestamp.class,
+			thread.databaseId(),
+			receiverProfileId);
+		return latestReadAt == null ? readAt : latestReadAt.toInstant();
 	}
 
 	private static MessageProfile profile(java.sql.ResultSet resultSet)

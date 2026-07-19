@@ -195,8 +195,11 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 - `GET /api/v1/buddy-profiles/{profileId}`: 공개·SNS·차단 정책을 적용한 Buddy 프로필 상세
 - `PUT /api/v1/users/me/blocked-profiles/{profileId}`: Buddy 프로필 멱등 차단과 최초 차단 시각 반환
 - `DELETE /api/v1/users/me/blocked-profiles/{profileId}`: Buddy 프로필 멱등 차단 해제
+- `GET /api/v1/message-threads`: 최신순 쪽지함, 미읽음 수, 차단·답장 가능 상태 조회
 - `POST /api/v1/message-threads`: 장소별 첫 쪽지와 1:1 스레드의 멱등 생성
+- `GET /api/v1/message-threads/{threadId}`: 과거 방향 cursor와 화면 표시 순서로 스레드 조회
 - `POST /api/v1/message-threads/{threadId}/messages`: 참여자 답장 전송과 멱등 재시도
+- `PUT /api/v1/message-threads/{threadId}/read`: 수신 메시지의 명시적·멱등 읽음 처리
 - `GET /api/v1/users/me/onboarding`: 저장된 온보딩 진행 단계와 선택값 복구
 - `PUT /api/v1/users/me/onboarding`: 위치 소유권·후보 버전·선택값 검증 후 멱등 완료
 - `GET /api/v1/locations/search`: Kakao 주소·장소 정규화 검색과 10분 유효 서명 token 발급

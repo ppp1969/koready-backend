@@ -1,10 +1,12 @@
 package koready_backend.buddy.infrastructure.persistence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -23,7 +25,11 @@ import org.testcontainers.mysql.MySQLContainer;
 import koready_backend.buddy.application.port.BuddyMessageRepository;
 import koready_backend.buddy.application.port.BuddyMessageRepository.IdempotencyStatus;
 import koready_backend.buddy.application.port.BuddyMessageRepository.MessageThread;
+import koready_backend.buddy.application.port.BuddyMessageRepository.MessagePageCriteria;
 import koready_backend.buddy.application.port.BuddyMessageRepository.StoredMessage;
+import koready_backend.buddy.application.port.BuddyMessageRepository.ThreadListCriteria;
+import koready_backend.buddy.application.port.BuddyMessageRepository.ThreadListCursor;
+import koready_backend.buddy.application.port.BuddyMessageRepository.ThreadSummaryRow;
 
 @Tag("integration")
 @SpringBootTest
@@ -168,6 +174,116 @@ class BuddyMessageSchemaIntegrationTest {
 			thread.databaseId(),
 			senderProfileId,
 			receiverProfileId));
+	}
+
+	@Test
+	void queriesInboxWithStableCursorsBlockingAndExplicitRead() {
+		long viewerUserId = user("usr_inbox_viewer", "EN");
+		long blockedUserId = user("usr_inbox_blocked", "KO");
+		long activeUserId = user("usr_inbox_active", "KO");
+		long deletedUserId = user("usr_inbox_deleted", "KO");
+		long viewerProfileId = profile(viewerUserId, "Viewer", true, true);
+		long blockedProfileId = profile(blockedUserId, "Blocked", false, false);
+		long activeProfileId = profile(activeUserId, "Active", true, true);
+		long deletedProfileId = profile(deletedUserId, "Deleted", true, true);
+		long placeId = place("Inbox Festival");
+
+		MessageThread newestThread = repository.findOrCreateThread(
+			placeId, viewerProfileId, blockedProfileId, "thread_inbox_newest", NOW);
+		StoredMessage incoming = repository.appendMessage(
+			newestThread,
+			blockedProfileId,
+			viewerProfileId,
+			"  Hello\nfrom the blocked profile  ",
+			NOW.plusSeconds(10));
+		repository.appendMessage(
+			newestThread,
+			viewerProfileId,
+			blockedProfileId,
+			"Reply",
+			NOW.plusSeconds(20));
+
+		MessageThread olderThread = repository.findOrCreateThread(
+			placeId, viewerProfileId, activeProfileId, "thread_inbox_older", NOW);
+		repository.appendMessage(
+			olderThread,
+			activeProfileId,
+			viewerProfileId,
+			"Older incoming message",
+			NOW.plusSeconds(5));
+
+		MessageThread deletedThread = repository.findOrCreateThread(
+			placeId, viewerProfileId, deletedProfileId, "thread_inbox_deleted", NOW);
+		repository.appendMessage(
+			deletedThread,
+			deletedProfileId,
+			viewerProfileId,
+			"This thread must disappear",
+			NOW.plusSeconds(30));
+		jdbcTemplate.update(
+			"UPDATE users SET deleted_at = NOW(6) WHERE id = ?", deletedUserId);
+		jdbcTemplate.update(
+			"""
+			INSERT INTO buddy_blocks (blocker_user_id, blocked_user_id, created_at)
+			VALUES (?, ?, NOW(6))
+			""",
+			blockedUserId,
+			viewerUserId);
+
+		List<ThreadSummaryRow> firstPage = repository.findThreads(
+			new ThreadListCriteria(viewerProfileId, "EN", null, 1));
+		assertEquals(1, firstPage.size());
+		assertEquals("thread_inbox_newest", firstPage.getFirst().threadPublicId());
+		assertEquals("Inbox Festival", firstPage.getFirst().place().title());
+		assertEquals(1, firstPage.getFirst().unreadCount());
+		assertTrue(firstPage.getFirst().blocked());
+		assertFalse(firstPage.getFirst().otherProfile().profilePublic());
+
+		ThreadSummaryRow boundary = firstPage.getFirst();
+		List<ThreadSummaryRow> secondPage = repository.findThreads(
+			new ThreadListCriteria(
+				viewerProfileId,
+				"EN",
+				new ThreadListCursor(
+					boundary.updatedAt(), boundary.threadDatabaseId()),
+				10));
+		assertEquals(1, secondPage.size());
+		assertEquals("thread_inbox_older", secondPage.getFirst().threadPublicId());
+		assertEquals(2, repository.countUnreadMessages(viewerProfileId));
+
+		assertTrue(repository.findThreadContext(
+			"thread_inbox_newest", viewerProfileId, "EN").orElseThrow().blocked());
+		assertTrue(repository.findThreadContext(
+			"thread_inbox_deleted", viewerProfileId, "EN").isEmpty());
+
+		List<StoredMessage> messages = repository.findMessages(
+			new MessagePageCriteria(
+				newestThread.databaseId(),
+				newestThread.publicId(),
+				viewerProfileId,
+				null,
+				10));
+		assertEquals(2, messages.size());
+		assertTrue(messages.getFirst().messageId() > messages.getLast().messageId());
+		List<StoredMessage> olderMessages = repository.findMessages(
+			new MessagePageCriteria(
+				newestThread.databaseId(),
+				newestThread.publicId(),
+				viewerProfileId,
+				messages.getFirst().messageId(),
+				10));
+		assertEquals(1, olderMessages.size());
+		assertEquals(incoming.messageId(), olderMessages.getFirst().messageId());
+		assertEquals(2, repository.countUnreadMessages(viewerProfileId));
+
+		Instant readAt = NOW.plusSeconds(40);
+		assertEquals(readAt, repository.markRead(newestThread, viewerProfileId, readAt));
+		assertEquals(readAt,
+			repository.findMessage(incoming.messageId()).orElseThrow().readAt());
+		assertEquals(1, repository.countUnreadMessages(viewerProfileId));
+		assertEquals(readAt,
+			repository.markRead(
+				newestThread, viewerProfileId, NOW.plusSeconds(50)));
 	}
 
 	private long user(String publicId, String language) {

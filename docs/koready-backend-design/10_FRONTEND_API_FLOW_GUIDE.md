@@ -558,12 +558,17 @@ GET /routes/{routeId}
 - 본문은 앞뒤 공백 제거 후 실제 문자 수 1~1,000자다. 화면 counter도 1,000자를 기준으로 한다.
 - `422 BUDDY_PROFILE_REQUIRED`면 내 Buddy 프로필 설정 화면으로 이동하고, `422 MESSAGE_NOT_ALLOWED`면 상대의 비공개·수신 거부·차단 상태로 현재 전송할 수 없음을 안내한다.
 - `404 MESSAGE_THREAD_NOT_FOUND`면 이미 닫았거나 접근할 수 없는 스레드이므로 입력 화면을 종료하고 쪽지함을 새로고침한다.
+- 쪽지함은 `updatedAt DESC` 순서다. `hasMore=true`일 때만 `nextCursor`를 다음 목록 요청에 그대로 사용한다.
+- 스레드 조회의 `messages`는 `messageId ASC`이므로 배열 순서대로 표시한다. 더 오래된 페이지는 기존 배열 앞에 붙인다.
+- 스레드 `GET`은 읽음 상태를 바꾸지 않는다. 화면 표시가 끝난 뒤 `PUT /message-threads/{threadId}/read`를 호출하고, 응답의 `threadUnreadCount`와 `unreadTotal`로 badge를 갱신한다.
+- 목록의 `blocked=true` 또는 `canReply=false`, 상세의 `canReply=false`이면 과거 대화는 표시하되 입력창과 전송 버튼을 비활성화한다.
+- 깨지거나 다른 조회에서 받은 cursor로 `400 INVALID_CURSOR`가 오면 저장한 cursor를 버리고 첫 페이지부터 다시 조회한다.
 - 실시간 채팅이 아니므로 websocket 연결을 만들지 않는다.
 
 ### 10.3 차단과 신고
 
-- `PUT /users/me/blocked-profiles/{profileId}`: 차단 성공 뒤 상대 프로필·목록·스레드에서 즉시 제거한다.
-- `DELETE /users/me/blocked-profiles/{profileId}`: 차단 해제. 과거 쪽지를 자동 복원한다는 의미는 아니다.
+- `PUT /users/me/blocked-profiles/{profileId}`: 차단 성공 뒤 공개 메이트 목록에서는 숨긴다. 이미 생긴 쪽지 스레드는 신고 증빙과 과거 대화 확인을 위해 남기고 `blocked=true`, `canReply=false`로 표시한다.
+- `DELETE /users/me/blocked-profiles/{profileId}`: 차단을 해제해도 상대의 공개·수신 허용 상태가 모두 충족되어야 다시 답장할 수 있다.
 - `POST /reports`: `targetType=PROFILE|MESSAGE`, 대상 ID, 사유를 전송한다. 신고와 차단은 서로 다른 동작이다.
 
 ## 11. 관리자 호출 흐름

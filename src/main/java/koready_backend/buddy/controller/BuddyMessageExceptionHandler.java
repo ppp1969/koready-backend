@@ -3,16 +3,21 @@ package koready_backend.buddy.controller;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 import koready_backend.buddy.application.exception.BuddyProfileNotFoundException;
 import koready_backend.buddy.application.exception.BuddyProfileRequiredException;
 import koready_backend.buddy.application.exception.BuddyUserUnavailableException;
 import koready_backend.buddy.application.exception.MessageIdempotencyConflictException;
+import koready_backend.buddy.application.exception.InvalidMessageCursorException;
 import koready_backend.buddy.application.exception.MessageNotAllowedException;
 import koready_backend.buddy.application.exception.MessagePlaceNotFoundException;
 import koready_backend.buddy.application.exception.MessageThreadNotFoundException;
@@ -99,8 +104,24 @@ public class BuddyMessageExceptionHandler {
 			request);
 	}
 
+	@ExceptionHandler(InvalidMessageCursorException.class)
+	ResponseEntity<ApiErrorResponse> handleInvalidCursor(
+		InvalidMessageCursorException exception,
+		HttpServletRequest request
+	) {
+		return error(
+			HttpStatus.BAD_REQUEST,
+			"INVALID_CURSOR",
+			exception.getMessage(),
+			request);
+	}
+
 	@ExceptionHandler({
+		MissingServletRequestParameterException.class,
+		MethodArgumentTypeMismatchException.class,
 		MethodArgumentNotValidException.class,
+		HandlerMethodValidationException.class,
+		ConstraintViolationException.class,
 		HttpMessageNotReadableException.class,
 		MissingRequestHeaderException.class,
 		IllegalArgumentException.class

@@ -379,7 +379,7 @@ size=1..100
     "rawContentSha256": "9c56...",
     "storedObjectSha256": "42ab...",
     "byteSize": 281442,
-    "downloadable": false
+    "downloadable": true
   }
 }
 ```
@@ -427,7 +427,7 @@ size=1..100
   "retentionClass": "COMPETITION_EVIDENCE",
   "retentionUntil": null,
   "immutable": true,
-  "downloadable": false
+  "downloadable": true
 }
 ```
 
@@ -435,10 +435,11 @@ size=1..100
 본문을 반환하지 않고, `storageFormat`은 `JSON_GZIP` 또는 `XML_GZIP`, 보관 등급은
 `COMPETITION_EVIDENCE`, `DEBUG_TEMPORARY`, `PROVIDER_RESTRICTED` 중 하나입니다.
 
-## 6.3 다운로드 URL (후속 범위)
+## 6.3 다운로드 URL
 
-아래 API는 AWS private 저장소와 감사 로그를 함께 연결할 때 구현합니다. 현재는
-Swagger에서 `PLANNED`이며 호출할 수 없습니다.
+아래 API는 구현되어 있습니다. `KTO_SNAPSHOT_STORAGE=s3`이고 snapshot이 만료되지
+않았으며 provider 보관 정책이 허용할 때 목록·상세의 `downloadable`이 `true`입니다.
+local/test 기본값에서는 `false`이므로 프론트는 다운로드 버튼을 비활성화합니다.
 
 `POST /api/v1/admin/open-api/snapshots/{snapshotId}/download-url`
 
@@ -446,14 +447,20 @@ Swagger에서 `PLANNED`이며 호출할 수 없습니다.
 {
   "downloadUrl": "https://private-storage/...signed...",
   "expiresAt": "2026-07-13T15:05:00+09:00",
+  "fileName": "koready-kto-snapshot-11.json.gz",
   "rawContentSha256": "9c56...",
   "storedObjectSha256": "42ab..."
 }
 ```
 
-- 구현 후 signed URL은 기본 5분 후 만료한다.
-- 구현 후 발급 행위는 `admin_audit_logs`에 기록한다.
-- 구현 후 만료된 snapshot은 `410 RAW_SNAPSHOT_EXPIRED`를 반환한다.
+- signed URL은 기본 5분 후 만료하고 설정 범위도 1~15분으로 제한한다.
+- 프론트는 URL을 받으면 즉시 GET하고 앱 DB, 분석 이벤트, 오류 로그에 저장하지 않는다.
+- 발급 행위는 `admin_audit_logs`에 기록하되 URL·서명·AWS 자격증명은 기록하지 않는다.
+- 감사 로그에는 실행자, snapshot ID, provider, operation, expiresAt과 두 SHA-256만 남긴다.
+- URL만 만료된 경우 같은 API를 다시 호출한다.
+- snapshot 보관기간이 끝났으면 `410 RAW_SNAPSHOT_EXPIRED`로 재발급을 거절한다.
+- provider 보관 제한은 `422 PROVIDER_RETENTION_RESTRICTED`, S3 비활성 또는 서명 실패는
+  `503 RAW_SNAPSHOT_DOWNLOAD_UNAVAILABLE`이다.
 - 일반 API 응답으로 원천 JSON 전체를 직접 반환하지 않는다.
 
 ---
@@ -806,6 +813,7 @@ size=1..100
 | `RAW_SNAPSHOT_NOT_FOUND` | snapshot 없음 |
 | `RAW_SNAPSHOT_EXPIRED` | provider 보관기간 만료 |
 | `PROVIDER_RETENTION_RESTRICTED` | provider 정책상 다운로드/증빙 불가 |
+| `RAW_SNAPSHOT_DOWNLOAD_UNAVAILABLE` | S3 다운로드 비활성 또는 일시적인 URL 서명 실패 |
 | `EVIDENCE_BUNDLE_NOT_READY` | 번들 생성 중 |
 | `EVIDENCE_BUNDLE_FAILED` | 번들 생성 실패 |
 | `BATCH_ALREADY_RUNNING` | 동일 배타 batch 실행 중 |

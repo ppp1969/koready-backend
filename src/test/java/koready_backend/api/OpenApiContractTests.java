@@ -71,6 +71,7 @@ class OpenApiContractTests {
 		"GET /admin/open-api/calls/{callLogId}",
 		"GET /admin/open-api/snapshots",
 		"GET /admin/open-api/snapshots/{snapshotId}",
+		"POST /admin/open-api/snapshots/{snapshotId}/download-url",
 		"GET /admin/open-api/sync-cursors",
 		"PUT /admin/open-api/sync-cursors/{cursorId}/enabled",
 		"POST /admin/open-api/sync-cursors/{cursorId}/reset",
@@ -526,7 +527,12 @@ class OpenApiContractTests {
 				paths.get("/admin/open-api/snapshots/{snapshotId}/download-url"),
 				"download path").get("post"),
 			"download operation");
-		assertEquals("PLANNED", download.get("x-implementation-status"));
+		assertEquals("IMPLEMENTED", download.get("x-implementation-status"));
+		assertEquals(
+			List.of("ADMIN", "OPERATOR", "AUDITOR"),
+			asList(download.get("x-required-roles"), "snapshot download roles"));
+		assertTrue(asMap(download.get("responses"), "snapshot download responses")
+			.keySet().containsAll(Set.of("401", "403", "404", "410", "422", "503", "200")));
 
 		Map<String, Object> schemas = componentSchemas(contract);
 		Map<String, Object> callSummary = asMap(
@@ -556,10 +562,20 @@ class OpenApiContractTests {
 			List.of("COMPETITION_EVIDENCE", "DEBUG_TEMPORARY", "PROVIDER_RESTRICTED"),
 			asList(asMap(rawProperties.get("retentionClass"), "retentionClass")
 				.get("enum"), "retentionClass.enum"));
-		assertEquals(
-			List.of(Boolean.FALSE),
-			asList(asMap(rawProperties.get("downloadable"), "downloadable")
-				.get("enum"), "downloadable.enum"));
+		Map<String, Object> downloadable = asMap(
+			rawProperties.get("downloadable"), "downloadable");
+		assertEquals("boolean", downloadable.get("type"));
+		assertFalse(downloadable.containsKey("enum"));
+
+		Map<String, Object> downloadResponse = asMap(
+			schemas.get("SnapshotDownloadUrlResponse"), "SnapshotDownloadUrlResponse");
+		assertTrue(asList(downloadResponse.get("required"), "download response required")
+			.containsAll(List.of(
+				"downloadUrl",
+				"expiresAt",
+				"fileName",
+				"rawContentSha256",
+				"storedObjectSha256")));
 	}
 
 	@Test

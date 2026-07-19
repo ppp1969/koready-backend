@@ -103,6 +103,17 @@ final class ExternalApiDtos {
 			snapshot.downloadable());
 	}
 
+	static DownloadUrlResponse from(
+		ExternalApiAdminService.SnapshotDownloadView download
+	) {
+		return new DownloadUrlResponse(
+			download.downloadUrl(),
+			download.expiresAt(),
+			download.fileName(),
+			download.rawContentSha256(),
+			download.storedObjectSha256());
+	}
+
 	static SyncCursorListResponse syncCursors(
 		List<ExternalApiAdminService.SyncCursorView> cursors
 	) {
@@ -278,6 +289,15 @@ final class ExternalApiDtos {
 		Instant retentionUntil,
 		boolean immutable,
 		boolean downloadable
+	) {
+	}
+
+	record DownloadUrlResponse(
+		String downloadUrl,
+		Instant expiresAt,
+		String fileName,
+		String rawContentSha256,
+		String storedObjectSha256
 	) {
 	}
 

@@ -19,6 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import koready_backend.externalapi.application.exception.ExternalApiCallNotFoundException;
 import koready_backend.externalapi.application.exception.InvalidExternalApiCursorException;
 import koready_backend.externalapi.application.exception.InvalidExternalApiPeriodException;
+import koready_backend.externalapi.application.exception.ProviderRetentionRestrictedException;
+import koready_backend.externalapi.application.exception.RawSnapshotDownloadUnavailableException;
+import koready_backend.externalapi.application.exception.RawSnapshotExpiredException;
 import koready_backend.externalapi.application.exception.RawSnapshotNotFoundException;
 import koready_backend.externalapi.application.exception.SyncCursorNotFoundException;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository;
@@ -26,6 +29,7 @@ import koready_backend.externalapi.application.port.ExternalApiAdminRepository.C
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.CallRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotCriteria;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotRecord;
+import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotDownloadAuditRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorAuditRecord;
 import koready_backend.externalapi.domain.ExternalApiExposurePolicy;
@@ -34,6 +38,8 @@ import koready_backend.externalapi.domain.RawSnapshotStatus;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
 import koready_backend.externalapi.domain.SnapshotStorageFormat;
 import koready_backend.externalapi.domain.SyncCursorType;
+import koready_backend.kto.application.port.KtoRawSnapshotDownloadUrlProvider;
+import koready_backend.kto.application.exception.KtoSnapshotDownloadException;
 
 @Service
 public class ExternalApiAdminService {
@@ -46,15 +52,24 @@ public class ExternalApiAdminService {
 	private static final int MAX_ACTOR_SUBJECT_LENGTH = 191;
 
 	private final ExternalApiAdminRepository repository;
+	private final KtoRawSnapshotDownloadUrlProvider downloadUrlProvider;
 	private final Clock clock;
 
 	@Autowired
-	public ExternalApiAdminService(ExternalApiAdminRepository repository) {
-		this(repository, Clock.systemUTC());
+	public ExternalApiAdminService(
+		ExternalApiAdminRepository repository,
+		KtoRawSnapshotDownloadUrlProvider downloadUrlProvider
+	) {
+		this(repository, downloadUrlProvider, Clock.systemUTC());
 	}
 
-	ExternalApiAdminService(ExternalApiAdminRepository repository, Clock clock) {
+	ExternalApiAdminService(
+		ExternalApiAdminRepository repository,
+		KtoRawSnapshotDownloadUrlProvider downloadUrlProvider,
+		Clock clock
+	) {
 		this.repository = repository;
+		this.downloadUrlProvider = downloadUrlProvider;
 		this.clock = clock;
 	}
 
@@ -148,7 +163,7 @@ public class ExternalApiAdminService {
 				"SNAPSHOT", snapshotFingerprint(normalized), visible.getLast().id())
 			: null;
 		return new SnapshotPage(
-			visible.stream().map(ExternalApiAdminService::snapshotView).toList(),
+			visible.stream().map(this::snapshotView).toList(),
 			nextCursor,
 			hasMore);
 	}
@@ -159,8 +174,56 @@ public class ExternalApiAdminService {
 			throw new IllegalArgumentException("Snapshot ID must be positive");
 		}
 		return repository.findSnapshotById(snapshotId)
-			.map(ExternalApiAdminService::snapshotView)
+			.map(this::snapshotView)
 			.orElseThrow(() -> new RawSnapshotNotFoundException(snapshotId));
+	}
+
+	@Transactional
+	public SnapshotDownloadView createSnapshotDownloadUrl(
+		long snapshotId,
+		String actorSubject
+	) {
+		if (snapshotId <= 0) {
+			throw new IllegalArgumentException("Snapshot ID must be positive");
+		}
+		String normalizedActor = requireText(
+			actorSubject, MAX_ACTOR_SUBJECT_LENGTH, "Actor subject");
+		SnapshotRecord snapshot = repository.findSnapshotById(snapshotId)
+			.orElseThrow(() -> new RawSnapshotNotFoundException(snapshotId));
+		Instant now = clock.instant();
+		if (snapshot.provider() != ExternalApiProvider.KTO
+			|| snapshot.retentionClass() == SnapshotRetentionClass.PROVIDER_RESTRICTED) {
+			throw new ProviderRetentionRestrictedException(snapshotId);
+		}
+		if (isExpired(snapshot, now)) {
+			throw new RawSnapshotExpiredException(snapshotId);
+		}
+		if (!downloadUrlProvider.available()) {
+			throw new RawSnapshotDownloadUnavailableException();
+		}
+
+		String fileName = "koready-kto-snapshot-" + snapshotId + extension(snapshot);
+		KtoRawSnapshotDownloadUrlProvider.DownloadLink link;
+		try {
+			link = downloadUrlProvider.issue(snapshot.storageKey(), fileName);
+		} catch (KtoSnapshotDownloadException exception) {
+			throw new RawSnapshotDownloadUnavailableException();
+		}
+		repository.recordSnapshotDownloadAudit(new SnapshotDownloadAuditRecord(
+			normalizedActor,
+			snapshotId,
+			snapshot.provider(),
+			snapshot.operation(),
+			link.expiresAt(),
+			snapshot.rawContentSha256(),
+			snapshot.storedObjectSha256(),
+			now));
+		return new SnapshotDownloadView(
+			link.url(),
+			link.expiresAt(),
+			fileName,
+			snapshot.rawContentSha256(),
+			snapshot.storedObjectSha256());
 	}
 
 	@Transactional(readOnly = true)
@@ -257,7 +320,7 @@ public class ExternalApiAdminService {
 			snapshot.rawContentSha256(),
 			snapshot.storedObjectSha256(),
 			snapshot.byteSize(),
-			false);
+			isDownloadable(snapshot));
 		return new CallView(
 			row.id(),
 			row.provider(),
@@ -306,7 +369,7 @@ public class ExternalApiAdminService {
 			integerValue(values.get("itemCount")));
 	}
 
-	private static SnapshotView snapshotView(SnapshotRecord row) {
+	private SnapshotView snapshotView(SnapshotRecord row) {
 		return new SnapshotView(
 			row.id(),
 			row.callLogId(),
@@ -325,7 +388,26 @@ public class ExternalApiAdminService {
 			row.retentionClass(),
 			row.retentionUntil(),
 			row.immutable(),
-			false);
+			isDownloadable(row));
+	}
+
+	private boolean isDownloadable(SnapshotRecord snapshot) {
+		return downloadUrlProvider.available()
+			&& snapshot.provider() == ExternalApiProvider.KTO
+			&& snapshot.retentionClass() != SnapshotRetentionClass.PROVIDER_RESTRICTED
+			&& !isExpired(snapshot, clock.instant());
+	}
+
+	private static boolean isExpired(SnapshotRecord snapshot, Instant now) {
+		return snapshot.retentionUntil() != null
+			&& !now.isBefore(snapshot.retentionUntil());
+	}
+
+	private static String extension(SnapshotRecord snapshot) {
+		return switch (snapshot.storageFormat()) {
+			case JSON_GZIP -> ".json.gz";
+			case XML_GZIP -> ".xml.gz";
+		};
 	}
 
 	private static SyncCursorView syncCursorView(SyncCursorRecord row) {
@@ -630,6 +712,15 @@ public class ExternalApiAdminService {
 		Instant retentionUntil,
 		boolean immutable,
 		boolean downloadable
+	) {
+	}
+
+	public record SnapshotDownloadView(
+		String downloadUrl,
+		Instant expiresAt,
+		String fileName,
+		String rawContentSha256,
+		String storedObjectSha256
 	) {
 	}
 

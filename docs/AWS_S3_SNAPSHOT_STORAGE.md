@@ -116,10 +116,25 @@ S3를 명시적으로 사용할 때만 아래 값을 설정한다.
 KTO_SNAPSHOT_STORAGE=s3
 KTO_SNAPSHOT_S3_BUCKET=<CloudFormation SnapshotBucketName 출력값>
 AWS_REGION=ap-northeast-2
+KTO_SNAPSHOT_DOWNLOAD_EXPIRATION=5m
 ```
 
 `KTO_SNAPSHOT_STORAGE` 기본값은 `local`이다. S3를 선택했는데 bucket 값이 없거나
 region이 잘못되면 애플리케이션은 시작 단계에서 실패한다.
+
+## 단기 다운로드 URL
+
+S3 저장이 활성화되면 관리자 snapshot 목록·상세의 `downloadable`은 보관기간과 provider
+정책을 함께 확인해 계산한다. 관리자가 다운로드를 누르면 서버는 S3 객체를 공개하지 않고
+기본 5분짜리 presigned GET URL을 발급한다. 만료 설정은 1~15분만 허용한다.
+
+- URL에는 GET 권한과 해당 객체 key만 포함한다.
+- 응답 파일명은 `koready-kto-snapshot-<id>.json.gz` 또는 `.xml.gz`로 서버가 생성한다.
+- URL, session token과 AWS 자격증명은 애플리케이션 로그·DB·감사 로그에 저장하지 않는다.
+- 감사 로그에는 실행자, snapshot ID, 만료 시각, provider·operation과 두 hash만 기록한다.
+- local 저장 모드에서는 다운로드 기능이 비활성이고 `downloadable=false`다.
+- Render에는 AWS 자격증명을 추가하지 않았으므로 현재 로컬 임시 AWS 세션 또는 향후
+  EB instance profile을 연결한 실행 환경에서만 실제 URL 발급이 가능하다.
 
 ## 저장과 재처리
 

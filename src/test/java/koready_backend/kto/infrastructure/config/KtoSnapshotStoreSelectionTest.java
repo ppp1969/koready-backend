@@ -13,8 +13,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import koready_backend.kto.application.port.KtoRawSnapshotStore;
+import koready_backend.kto.application.port.KtoRawSnapshotDownloadUrlProvider;
 import koready_backend.kto.infrastructure.snapshot.LocalKtoRawSnapshotStore;
 import koready_backend.kto.infrastructure.snapshot.S3KtoRawSnapshotStore;
+import koready_backend.kto.infrastructure.snapshot.S3KtoRawSnapshotDownloadUrlProvider;
+import koready_backend.kto.infrastructure.snapshot.UnavailableKtoRawSnapshotDownloadUrlProvider;
 
 class KtoSnapshotStoreSelectionTest {
 
@@ -31,6 +34,9 @@ class KtoSnapshotStoreSelectionTest {
 			assertInstanceOf(
 				LocalKtoRawSnapshotStore.class,
 				context.getBean(KtoRawSnapshotStore.class));
+			assertInstanceOf(
+				UnavailableKtoRawSnapshotDownloadUrlProvider.class,
+				context.getBean(KtoRawSnapshotDownloadUrlProvider.class));
 		});
 	}
 
@@ -46,6 +52,9 @@ class KtoSnapshotStoreSelectionTest {
 				assertInstanceOf(
 					S3KtoRawSnapshotStore.class,
 					context.getBean(KtoRawSnapshotStore.class));
+				assertInstanceOf(
+					S3KtoRawSnapshotDownloadUrlProvider.class,
+					context.getBean(KtoRawSnapshotDownloadUrlProvider.class));
 			});
 	}
 
@@ -58,15 +67,29 @@ class KtoSnapshotStoreSelectionTest {
 			.run(context -> assertNotNull(context.getStartupFailure()));
 	}
 
+	@Test
+	void refusesToStartWithAnExcessiveDownloadExpiration() {
+		contextRunner
+			.withPropertyValues(
+				"koready.kto.snapshot.storage=s3",
+				"koready.kto.snapshot.s3.bucket=koready-kto-snapshots-test",
+				"koready.kto.snapshot.s3.region=ap-northeast-2",
+				"koready.kto.snapshot.download.expiration=16m")
+			.run(context -> assertNotNull(context.getStartupFailure()));
+	}
+
 	@Configuration(proxyBeanMethods = false)
 	@EnableConfigurationProperties({
 		KtoSnapshotProperties.class,
-		KtoS3SnapshotProperties.class
+		KtoS3SnapshotProperties.class,
+		KtoSnapshotDownloadProperties.class
 	})
 	@Import({
 		KtoS3ClientConfiguration.class,
 		LocalKtoRawSnapshotStore.class,
-		S3KtoRawSnapshotStore.class
+		S3KtoRawSnapshotStore.class,
+		UnavailableKtoRawSnapshotDownloadUrlProvider.class,
+		S3KtoRawSnapshotDownloadUrlProvider.class
 	})
 	static class SnapshotStoreConfiguration {
 	}

@@ -125,6 +125,19 @@ public class AdminExternalApiController {
 			TraceIdFilter.current(request));
 	}
 
+	@PostMapping("/snapshots/{snapshotId}/download-url")
+	public ApiEnvelope<ExternalApiDtos.DownloadUrlResponse> createSnapshotDownloadUrl(
+		@PathVariable @Positive long snapshotId,
+		Authentication authentication,
+		HttpServletRequest request
+	) {
+		return ApiEnvelope.success(
+			"RAW_SNAPSHOT_DOWNLOAD_URL_ISSUED",
+			ExternalApiDtos.from(service.createSnapshotDownloadUrl(
+				snapshotId, authentication.getName())),
+			TraceIdFilter.current(request));
+	}
+
 	@GetMapping("/sync-cursors")
 	public ApiEnvelope<ExternalApiDtos.SyncCursorListResponse> syncCursors(
 		HttpServletRequest request

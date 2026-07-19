@@ -37,6 +37,8 @@ class OpenApiContractTests {
 		"GET /users/me/saved-places",
 		"PUT /users/me/saved-places/{placeId}",
 		"DELETE /users/me/saved-places/{placeId}",
+		"GET /users/me/buddy-profile",
+		"PUT /users/me/buddy-profile",
 		"GET /onboarding/place-candidate-sets/current",
 		"GET /admin/onboarding/place-candidate-sets",
 		"POST /admin/onboarding/place-candidate-sets",
@@ -718,6 +720,58 @@ class OpenApiContractTests {
 		for (Object property : localizationProperties.values()) {
 			assertEquals("int64", asMap(property, "localization quality count").get("format"));
 		}
+	}
+
+	@Test
+	void buddyProfileOperationsAndValidationMatchTheImplementedContract()
+		throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> path = asMap(
+			paths.get("/users/me/buddy-profile"), "buddy profile path");
+		Map<String, Object> read = asMap(path.get("get"), "buddy profile read");
+		Map<String, Object> write = asMap(path.get("put"), "buddy profile write");
+
+		assertEquals("IMPLEMENTED", read.get("x-implementation-status"));
+		assertEquals("IMPLEMENTED", write.get("x-implementation-status"));
+		assertTrue(asMap(read.get("responses"), "buddy read responses")
+			.keySet().containsAll(Set.of("401", "200")));
+		assertTrue(asMap(write.get("responses"), "buddy write responses")
+			.keySet().containsAll(Set.of("400", "401", "200")));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> request = asMap(
+			schemas.get("BuddyProfileRequest"), "BuddyProfileRequest");
+		Map<String, Object> properties = asMap(
+			request.get("properties"), "BuddyProfileRequest.properties");
+		assertEquals(2048, asMap(properties.get("profileImageUrl"), "profileImageUrl")
+			.get("maxLength"));
+		assertEquals(30, asMap(properties.get("nickname"), "nickname").get("maxLength"));
+		assertEquals(100, asMap(properties.get("nationality"), "nationality")
+			.get("maxLength"));
+		assertEquals(500, asMap(properties.get("bio"), "bio").get("maxLength"));
+
+		Map<String, Object> languages = asMap(
+			properties.get("availableLanguages"), "availableLanguages");
+		assertEquals(1, languages.get("minItems"));
+		assertEquals(2, languages.get("maxItems"));
+		assertEquals(true, languages.get("uniqueItems"));
+		Map<String, Object> styles = asMap(properties.get("buddyStyles"), "buddyStyles");
+		assertEquals(6, styles.get("maxItems"));
+		assertEquals(true, styles.get("uniqueItems"));
+		assertEquals(20,
+			asMap(properties.get("socialLinks"), "socialLinks").get("maxItems"));
+
+		assertEquals(
+			List.of("BEGINNER", "INTERMEDIATE", "ADVANCED"),
+			asList(asMap(schemas.get("KoreanLevel"), "KoreanLevel").get("enum"),
+				"KoreanLevel.enum"));
+		assertEquals(
+			List.of(
+				"TRADITIONAL_CULTURE", "CAFE_TOUR", "FOODIE", "PHOTOGRAPHY",
+				"HANOK_EXPERIENCE", "QUIET_TRAVEL"),
+			asList(asMap(schemas.get("BuddyStyle"), "BuddyStyle").get("enum"),
+				"BuddyStyle.enum"));
 	}
 
 	private static Set<String> directParameterNames(

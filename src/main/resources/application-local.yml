@@ -15,3 +15,8 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+
+koready:
+  security:
+    dev-principal:
+      enabled: ${LOCAL_DEV_AUTH_ENABLED:true}

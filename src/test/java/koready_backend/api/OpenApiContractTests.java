@@ -25,6 +25,8 @@ class OpenApiContractTests {
 	private static final Set<String> IMPLEMENTED_OPERATIONS = Set.of(
 		"GET /home",
 		"PATCH /users/me/language",
+		"GET /users/me/onboarding",
+		"PUT /users/me/onboarding",
 		"GET /monthly-recommendations",
 		"POST /recommendation-decks",
 		"GET /recommendation-decks/{deckId}",
@@ -257,6 +259,56 @@ class OpenApiContractTests {
 		assertTrue(responses.containsKey("400"));
 		assertTrue(responses.containsKey("401"));
 		assertTrue(responses.containsKey("200"));
+	}
+
+	@Test
+	void onboardingDocumentsRecoveryValidationAndIdempotentCompletion()
+		throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> onboarding = asMap(
+			paths.get("/users/me/onboarding"), "/users/me/onboarding");
+		Map<String, Object> get = asMap(onboarding.get("get"), "onboarding get");
+		Map<String, Object> put = asMap(onboarding.get("put"), "onboarding put");
+
+		assertEquals("IMPLEMENTED", get.get("x-implementation-status"));
+		assertEquals("IMPLEMENTED", put.get("x-implementation-status"));
+		String getDescription = String.valueOf(get.get("description"));
+		assertTrue(getDescription.contains("LOCATION"));
+		assertTrue(getDescription.contains("TRAVEL_STYLES"));
+		assertTrue(getDescription.contains("PREFERENCE_PLACES"));
+		assertTrue(getDescription.contains("COMPLETED"));
+
+		String putDescription = String.valueOf(put.get("description"));
+		assertTrue(putDescription.contains("과거 발행"));
+		assertTrue(putDescription.contains("발행된 적 없는 초안"));
+		assertTrue(putDescription.contains("같은 본문"));
+		assertTrue(putDescription.contains("preferenceTags"));
+		assertTrue(asMap(put.get("responses"), "onboarding put responses")
+			.keySet().containsAll(Set.of("400", "401", "409", "422", "200")));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> request = asMap(
+			schemas.get("OnboardingRequest"), "OnboardingRequest");
+		Map<String, Object> properties = asMap(
+			request.get("properties"), "OnboardingRequest.properties");
+		Map<String, Object> styles = asMap(properties.get("travelStyles"), "travelStyles");
+		Map<String, Object> places = asMap(
+			properties.get("selectedPreferencePlaceIds"), "selectedPreferencePlaceIds");
+		assertEquals(1, styles.get("minItems"));
+		assertEquals(4, styles.get("maxItems"));
+		assertEquals(Boolean.TRUE, styles.get("uniqueItems"));
+		assertEquals(1, places.get("minItems"));
+		assertEquals(3, places.get("maxItems"));
+		assertEquals(Boolean.TRUE, places.get("uniqueItems"));
+
+		Map<String, Object> profile = asMap(
+			schemas.get("OnboardingProfile"), "OnboardingProfile");
+		Map<String, Object> tags = asMap(
+			asMap(profile.get("properties"), "OnboardingProfile.properties")
+				.get("preferenceTags"),
+			"preferenceTags");
+		assertEquals(0, tags.get("maxItems"));
 	}
 
 	@Test

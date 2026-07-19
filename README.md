@@ -149,6 +149,8 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 인증·역할 검증까지 구현된 API는 다음과 같습니다.
 
 - `PATCH /api/v1/users/me/language`: KO/EN 기본 언어와 가입 다음 단계 갱신
+- `GET /api/v1/users/me/onboarding`: 저장된 온보딩 진행 단계와 선택값 복구
+- `PUT /api/v1/users/me/onboarding`: 위치 소유권·후보 버전·선택값 검증 후 멱등 완료
 - `GET /api/v1/home`: 기본 위치·선호 언어·현재 월 축제 추천 미리보기
 - `POST /api/v1/recommendation-decks`: 위치·여행 스타일 기반 K-Local Pick 덱 생성
 - `GET /api/v1/recommendation-decks/{deckId}`: 고정된 추천 덱 페이지 조회
@@ -166,7 +168,7 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 - `GET /api/v1/admin/batch-jobs/**`: 배치 작업·item의 안전한 실행 이력 조회
 - `GET /api/v1/admin/data-quality/summary`: 관광지 준비도·누락 항목·번역 출처의 읽기 전용 집계
 
-소셜 로그인과 JWT 발급은 후속 범위이므로 현재 실행 환경에서는 위 보호 API를 익명으로 호출하면 `401`입니다. snapshot 다운로드 URL 발급, 배치 수동 실행·재시도, sync cursor 활성 변경·초기화는 후속 구현입니다. 현재 snapshot 메타데이터의 `downloadable`은 항상 `false`입니다. 데이터 품질 요약은 외부 API를 새로 호출하지 않고 저장된 DB의 집계값만 반환합니다. 추천 덱은 테스트 principal과 MySQL fixture로 사용자별 고정 순서, 30일 재노출 제한, 소유권을 검증합니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
+소셜 로그인과 JWT 발급은 후속 범위이므로 현재 실행 환경에서는 위 보호 API를 익명으로 호출하면 `401`입니다. snapshot 다운로드 URL 발급, 배치 수동 실행·재시도, sync cursor 활성 변경·초기화는 후속 구현입니다. 현재 snapshot 메타데이터의 `downloadable`은 항상 `false`입니다. 데이터 품질 요약은 외부 API를 새로 호출하지 않고 저장된 DB의 집계값만 반환합니다. 추천 덱은 테스트 principal과 MySQL fixture로 사용자별 고정 순서, 30일 재노출 제한, 소유권을 검증합니다. 온보딩 완료도 테스트 principal과 MySQL fixture로 검증하며, 태그 점수 정책 승인 전에는 `preferenceTags=[]`를 반환합니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
 
 `local`과 `staging` 프로필에서는 `/swagger-ui.html`에서 프론트 연동용 Swagger UI를 제공합니다. UI는 `docs/koready-backend-design/openapi.yaml`을 빌드 시 포함한 단일 계약 파일을 표시합니다.
 

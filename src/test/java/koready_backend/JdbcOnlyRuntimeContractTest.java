@@ -3,6 +3,7 @@ package koready_backend;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,6 +40,20 @@ class JdbcOnlyRuntimeContractTest {
 				Map<?, ?> spring = (Map<?, ?>) yaml.get("spring");
 				assertFalse(spring.containsKey("jpa"), () -> "JPA settings remain in " + profile);
 			}
+		}
+	}
+
+	@Test
+	void rewritesMysqlBatchStatementsForTheRemoteStagingProfile() throws IOException {
+		try (InputStream input = getClass().getClassLoader()
+			.getResourceAsStream("application-staging.yml")) {
+			assertNotNull(input);
+			Map<String, Object> yaml = new Yaml().load(input);
+			Map<?, ?> spring = (Map<?, ?>) yaml.get("spring");
+			Map<?, ?> datasource = (Map<?, ?>) spring.get("datasource");
+			String url = (String) datasource.get("url");
+
+			assertTrue(url.contains("rewriteBatchedStatements=true"));
 		}
 	}
 }

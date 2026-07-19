@@ -575,12 +575,23 @@ flowchart LR
 - cursor 조회(구현): `GET /admin/open-api/sync-cursors`
 - cursor 활성 변경·초기화(후속): `PUT /{cursorId}/enabled`, `POST /{cursorId}/reset`
 - 증빙 번들: `GET/POST /admin/evidence-bundles`, `GET /{bundleId}`, `POST /{bundleId}/download-url`
-- 품질·감사: `GET /admin/data-quality/summary`, `GET /admin/audit-logs`
+- 데이터 품질 요약(구현): `GET /admin/data-quality/summary`
+- 감사 로그(후속): `GET /admin/audit-logs`
 
 - cursor 목록은 화면 진입과 사용자의 새로고침 동작에서 호출하며 자동 polling하지 않는다.
 - 서버 정렬을 그대로 사용하고 `cursorValue`는 해석하지 않는다. `null`이면 `-`처럼 값 없음으로 표시한다.
 - `lastSuccessAt`, `lastFailureAt`, `failureCount`, `enabled`를 함께 보여 주되 DB에 없는 오류 메시지를 추측해 만들지 않는다.
 - enabled 토글과 reset 버튼은 후속 API가 구현될 때까지 숨기거나 비활성화한다.
+
+데이터 품질 화면은 진입 시 `GET /admin/data-quality/summary`를 한 번 호출하고, 이후에는 사용자가 새로고침을 요청할 때 다시 호출한다. 자동 polling은 하지 않는다.
+
+- `places.total`은 전체 저장 수, `places.active`는 현재 표출 가능한 수로 구분해 표시한다.
+- 네 가지 `missing*` 숫자는 서로 겹칠 수 있으므로 합산하거나 `active`에서 빼지 않는다.
+- `curationReady`는 서버가 동일한 추천 후보 준비 조건으로 직접 계산한 값을 그대로 표시한다.
+- `localization`의 세 숫자는 관광지 수가 아니라 번역 출처별 현지화 행 수다.
+- `lastSuccessfulSyncAt=null`이면 오류로 처리하지 않고 `성공 이력 없음`처럼 표시한다.
+- 이 API에는 개별 문제 관광지 목록이 없다. 숫자를 눌러 상세 목록으로 이동하는 UI는 후속 목록 API가 생길 때 연결한다.
+- `401`이면 로그인 흐름, `403 ADMIN_FORBIDDEN`이면 관리자 권한 안내 흐름으로 보낸다.
 
 `POST`가 202를 반환하는 관리자 작업은 비동기다. 프론트는 즉시 완료 toast를 표시하지 말고 반환된 ID의 상세 조회를 반복해 `PENDING -> RUNNING -> COMPLETED|FAILED|PARTIAL_FAILED`를 확인한다.
 

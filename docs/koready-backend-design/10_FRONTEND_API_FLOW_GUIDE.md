@@ -552,9 +552,12 @@ GET /routes/{routeId}
 ```
 
 - 첫 쪽지는 `receiverProfileId`, 관련 `placeId`, `content`를 보낸다.
-- 첫 쪽지와 답장은 `Idempotency-Key` header가 필수다. 버튼을 누를 때 UUID를 만들고 같은 요청의 재시도에는 같은 값을 사용한다.
-- 같은 key로 다른 본문을 보내면 `409 IDEMPOTENCY_KEY_REUSED`다.
-- 본문은 trim 후 1~1,000자다. 화면 counter도 1,000자를 기준으로 한다.
+- 첫 쪽지와 답장은 `Idempotency-Key` header가 필수다. 전송 버튼을 누르는 새 동작마다 8~100자의 UUID 같은 새 값을 만든다.
+- 응답을 받지 못해 **같은 수신자·장소·본문 또는 같은 스레드·본문을 재시도할 때만** 이전 key를 그대로 사용한다. 같은 key와 같은 요청은 서버가 기존 메시지를 돌려주므로 화면에 중복 추가하지 않는다.
+- 사용자가 본문을 수정했거나 다른 상대·장소·스레드로 보내면 반드시 새 key를 만든다. 같은 key를 다른 요청에 사용한 `409 IDEMPOTENCY_KEY_REUSED`는 자동 재시도하지 않는다.
+- 본문은 앞뒤 공백 제거 후 실제 문자 수 1~1,000자다. 화면 counter도 1,000자를 기준으로 한다.
+- `422 BUDDY_PROFILE_REQUIRED`면 내 Buddy 프로필 설정 화면으로 이동하고, `422 MESSAGE_NOT_ALLOWED`면 상대의 비공개·수신 거부·차단 상태로 현재 전송할 수 없음을 안내한다.
+- `404 MESSAGE_THREAD_NOT_FOUND`면 이미 닫았거나 접근할 수 없는 스레드이므로 입력 화면을 종료하고 쪽지함을 새로고침한다.
 - 실시간 채팅이 아니므로 websocket 연결을 만들지 않는다.
 
 ### 10.3 차단과 신고

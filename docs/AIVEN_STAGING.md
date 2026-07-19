@@ -24,11 +24,18 @@ Render의 `koready-backend-staging` 서비스가 Aiven for MySQL을 테스트 DB
 | `DB_PASSWORD` | 해당 DB user password |
 | `DB_SSL_MODE` | `require` |
 
-Spring은 다음 형태의 JDBC URL을 런타임에 구성한다.
+Spring은 다음 형태의 JDBC URL을 런타임에 구성한다. 비밀번호는 URL에 직접 넣지 않고
+반드시 `DB_PASSWORD` 환경변수로만 전달한다.
 
 ```text
-jdbc:mysql://<host>:<port>/<database>?sslmode=require
+jdbc:mysql://<host>:<port>/<database>?sslmode=require&rewriteBatchedStatements=true
 ```
+
+`rewriteBatchedStatements=true`는 staging에서 KTO 축제 데이터를 50건 단위로 저장할 때
+MySQL 드라이버가 여러 INSERT를 한 번의 다중 값 INSERT로 묶어 원격 DB 왕복을 줄인다.
+2026-07-19 실제 Aiven 200건 반영에서 애플리케이션 처리 시간이 약 104초에서 약 7초로
+줄었다. 로컬·테스트 profile에는 이 옵션을 강제하지 않으며, 운영 DB가 확정되면 같은
+측정을 거쳐 prod 적용 여부를 결정한다.
 
 ## 네트워크 제한
 

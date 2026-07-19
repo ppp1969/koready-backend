@@ -1679,13 +1679,20 @@ paths:
       operationId: getSyncCursors
       summary: operation별 동기화 cursor 조회
       description: |
-        KTO operation별 마지막 성공 위치, 마지막 오류, enabled 상태를 관리자 표로 표시합니다.
-        cursor 문자열은 서버 내부 의미를 가지므로 프론트에서 편집하거나 해석하지 않습니다.
-      x-implementation-status: PLANNED
+        관리자 외부 API 화면에 들어오거나 사용자가 새로고침할 때 한 번 호출합니다. 자동 polling은 필요하지 않습니다.
+        items는 provider, apiName, operation, cursorType 순으로 고정 정렬되어 반환됩니다.
+        cursorValue는 서버 내부 진행 위치이므로 프론트에서 파싱하거나 편집하지 않고 문자열 그대로 표시합니다.
+        아직 진행 위치가 없으면 cursorValue가 null이며, lastSuccessAt과 lastFailureAt도 이력이 없으면 null입니다.
+        failureCount는 현재 연속 실패 횟수이고 성공 시 0으로 초기화됩니다. enabled는 자동 동기화 사용 여부를 뜻합니다.
+        이 GET은 상태를 바꾸지 않으며 enabled 토글과 reset 버튼은 각 쓰기 API가 구현되기 전까지 비활성화합니다.
+        DB에 없는 오류 코드·오류 원문·다음 실행 시각은 반환하지 않습니다.
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       responses:
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '200':
           $ref: '#/components/responses/SyncCursorListSuccess'
   /admin/open-api/sync-cursors/{cursorId}/enabled:
@@ -2724,6 +2731,10 @@ components:
       type: string
       description: KTO=한국관광공사, TMAP=대중교통 경로, KAKAO=위치 검색, AI=번역·가공
       enum: [KTO, TMAP, KAKAO, AI]
+    SyncCursorType:
+      type: string
+      description: 외부 API별 증분 수집 위치를 저장하는 실제 DB cursor 유형
+      enum: [MODIFIED_TIME, PAGE, DATE_RANGE, MANUAL]
     TravelStyle:
       type: string
       description: 로컬 맛집, 지역 축제, 전통시장, 문화체험, 자연 명소, 전시·미술관, 드라마 촬영지
@@ -5505,22 +5516,26 @@ components:
               $ref: '#/components/schemas/SyncCursorResponse'
     SyncCursorResponse:
       type: object
-      required: [cursorId, provider, operation, cursorType, cursorValue, enabled, failureCount, updatedAt]
+      required: [cursorId, provider, apiName, operation, cursorType, enabled, failureCount, createdAt, updatedAt]
       properties:
         cursorId:
           type: integer
           format: int64
         provider:
           $ref: '#/components/schemas/ExternalApiProvider'
+        apiName:
+          type: string
+          example: KOR
         operation:
           type: string
           example: areaBasedSyncList2
         cursorType:
-          type: string
-          enum: [MODIFIED_TIME, PAGE, OPAQUE]
+          $ref: '#/components/schemas/SyncCursorType'
         cursorValue:
           type: string
-          example: '20260713090000'
+          nullable: true
+          description: 서버만 해석하는 내부 위치 값. 아직 진행하지 않았거나 MANUAL이면 null일 수 있음
+          example: '20260701:3'
         enabled:
           type: boolean
         failureCount:
@@ -5534,16 +5549,9 @@ components:
           type: string
           format: date-time
           nullable: true
-        lastErrorCode:
-          type: string
-          nullable: true
-        lastErrorMessage:
-          type: string
-          nullable: true
-        nextRunAt:
+        createdAt:
           type: string
           format: date-time
-          nullable: true
         updatedAt:
           type: string
           format: date-time

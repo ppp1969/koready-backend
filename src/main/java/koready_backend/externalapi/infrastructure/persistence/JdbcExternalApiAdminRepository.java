@@ -16,6 +16,7 @@ import koready_backend.externalapi.application.port.ExternalApiAdminRepository;
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
 import koready_backend.externalapi.domain.SnapshotStorageFormat;
+import koready_backend.externalapi.domain.SyncCursorType;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -84,6 +85,23 @@ public class JdbcExternalApiAdminRepository implements ExternalApiAdminRepositor
 		    snapshots.retention_until,
 		    snapshots.immutable
 		FROM open_api_raw_snapshots snapshots
+		""";
+
+	private static final String SYNC_CURSOR_SELECT = """
+		SELECT
+		    cursors.id,
+		    cursors.provider,
+		    cursors.api_name,
+		    cursors.operation,
+		    cursors.cursor_type,
+		    cursors.cursor_value,
+		    cursors.last_success_at,
+		    cursors.last_failure_at,
+		    cursors.failure_count,
+		    cursors.enabled,
+		    cursors.created_at,
+		    cursors.updated_at
+		FROM tour_api_sync_cursors cursors
 		""";
 
 	private final JdbcTemplate jdbcTemplate;
@@ -224,6 +242,15 @@ public class JdbcExternalApiAdminRepository implements ExternalApiAdminRepositor
 			snapshotId).stream().findFirst();
 	}
 
+	@Override
+	public List<SyncCursorRecord> findSyncCursors() {
+		return jdbcTemplate.query(
+			SYNC_CURSOR_SELECT
+				+ " ORDER BY cursors.provider ASC, cursors.api_name ASC, "
+				+ "cursors.operation ASC, cursors.cursor_type ASC, cursors.id ASC",
+			JdbcExternalApiAdminRepository::mapSyncCursor);
+	}
+
 	private static void appendCallFilters(
 		StringBuilder sql,
 		List<Object> parameters,
@@ -341,6 +368,23 @@ public class JdbcExternalApiAdminRepository implements ExternalApiAdminRepositor
 			SnapshotRetentionClass.valueOf(resultSet.getString("retention_class")),
 			instant(resultSet, "retention_until"),
 			resultSet.getBoolean("immutable"));
+	}
+
+	private static SyncCursorRecord mapSyncCursor(ResultSet resultSet, int rowNumber)
+		throws SQLException {
+		return new SyncCursorRecord(
+			resultSet.getLong("id"),
+			ExternalApiProvider.valueOf(resultSet.getString("provider")),
+			resultSet.getString("api_name"),
+			resultSet.getString("operation"),
+			SyncCursorType.valueOf(resultSet.getString("cursor_type")),
+			resultSet.getString("cursor_value"),
+			instant(resultSet, "last_success_at"),
+			instant(resultSet, "last_failure_at"),
+			resultSet.getInt("failure_count"),
+			resultSet.getBoolean("enabled"),
+			instant(resultSet, "created_at"),
+			instant(resultSet, "updated_at"));
 	}
 
 	@SuppressWarnings("unchecked")

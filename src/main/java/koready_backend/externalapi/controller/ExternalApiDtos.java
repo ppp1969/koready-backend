@@ -9,6 +9,7 @@ import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.RawSnapshotStatus;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
 import koready_backend.externalapi.domain.SnapshotStorageFormat;
+import koready_backend.externalapi.domain.SyncCursorType;
 
 final class ExternalApiDtos {
 
@@ -98,6 +99,26 @@ final class ExternalApiDtos {
 			snapshot.retentionUntil(),
 			snapshot.immutable(),
 			snapshot.downloadable());
+	}
+
+	static SyncCursorListResponse syncCursors(
+		List<ExternalApiAdminService.SyncCursorView> cursors
+	) {
+		return new SyncCursorListResponse(cursors.stream()
+			.map(cursor -> new SyncCursorResponse(
+				cursor.cursorId(),
+				cursor.provider(),
+				cursor.apiName(),
+				cursor.operation(),
+				cursor.cursorType(),
+				cursor.cursorValue(),
+				cursor.lastSuccessAt(),
+				cursor.lastFailureAt(),
+				cursor.failureCount(),
+				cursor.enabled(),
+				cursor.createdAt(),
+				cursor.updatedAt()))
+			.toList());
 	}
 
 	private static CallSummaryResponse summary(ExternalApiAdminService.CallView call) {
@@ -251,6 +272,25 @@ final class ExternalApiDtos {
 		Instant retentionUntil,
 		boolean immutable,
 		boolean downloadable
+	) {
+	}
+
+	record SyncCursorListResponse(List<SyncCursorResponse> items) {
+	}
+
+	record SyncCursorResponse(
+		long cursorId,
+		ExternalApiProvider provider,
+		String apiName,
+		String operation,
+		SyncCursorType cursorType,
+		String cursorValue,
+		Instant lastSuccessAt,
+		Instant lastFailureAt,
+		int failureCount,
+		boolean enabled,
+		Instant createdAt,
+		Instant updatedAt
 	) {
 	}
 }

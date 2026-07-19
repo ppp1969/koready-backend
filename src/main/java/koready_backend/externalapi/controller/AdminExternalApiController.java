@@ -119,4 +119,14 @@ public class AdminExternalApiController {
 			ExternalApiDtos.from(service.getSnapshot(snapshotId)),
 			TraceIdFilter.current(request));
 	}
+
+	@GetMapping("/sync-cursors")
+	public ApiEnvelope<ExternalApiDtos.SyncCursorListResponse> syncCursors(
+		HttpServletRequest request
+	) {
+		return ApiEnvelope.success(
+			"SYNC_CURSOR_LIST_OK",
+			ExternalApiDtos.syncCursors(service.listSyncCursors()),
+			TraceIdFilter.current(request));
+	}
 }

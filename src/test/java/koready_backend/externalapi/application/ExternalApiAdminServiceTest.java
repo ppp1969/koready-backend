@@ -2,6 +2,7 @@ package koready_backend.externalapi.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,11 +31,13 @@ import koready_backend.externalapi.application.port.ExternalApiAdminRepository.C
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.CallRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.ProviderAggregate;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotRecord;
+import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SummaryAggregate;
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.RawSnapshotStatus;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
 import koready_backend.externalapi.domain.SnapshotStorageFormat;
+import koready_backend.externalapi.domain.SyncCursorType;
 
 @ExtendWith(MockitoExtension.class)
 class ExternalApiAdminServiceTest {
@@ -148,6 +151,33 @@ class ExternalApiAdminServiceTest {
 	void reportsMissingCalls() {
 		when(repository.findCallById(404L)).thenReturn(Optional.empty());
 		assertThrows(ExternalApiCallNotFoundException.class, () -> service.getCall(404L));
+	}
+
+	@Test
+	void returnsActualSyncCursorStateIncludingNullableValues() {
+		when(repository.findSyncCursors()).thenReturn(List.of(new SyncCursorRecord(
+			13L,
+			ExternalApiProvider.KTO,
+			"KOR",
+			"searchFestival2",
+			SyncCursorType.DATE_RANGE,
+			null,
+			NOW.minusSeconds(30),
+			null,
+			0,
+			true,
+			NOW.minusSeconds(60),
+			NOW.minusSeconds(30))));
+
+		ExternalApiAdminService.SyncCursorView result =
+			service.listSyncCursors().getFirst();
+
+		assertEquals(13L, result.cursorId());
+		assertEquals("KOR", result.apiName());
+		assertEquals(SyncCursorType.DATE_RANGE, result.cursorType());
+		assertNull(result.cursorValue());
+		assertNull(result.lastFailureAt());
+		assertTrue(result.enabled());
 	}
 
 	private static CallRecord call(long id, boolean success, SnapshotRecord snapshot) {

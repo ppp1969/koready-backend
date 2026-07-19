@@ -773,7 +773,7 @@ eventType =
     "enjoyPoints": [],
     "relatedPlaces": []
   },
-  "availableTabs": ["DESCRIPTION", "ROUTE", "MATES"]
+  "availableTabs": ["DESCRIPTION", "MATES"]
 }
 ```
 
@@ -1044,7 +1044,69 @@ TMAP 호출 또는 routeId 캐시 조회
 | GET | `/places/{placeId}/mates?cursor=...&size=20` | 공개 메이트 목록 |
 | GET | `/buddy-profiles/{profileId}` | 공개 프로필 상세 |
 
-차단된 사용자, 신고 제재 사용자, `profilePublic=false` 사용자는 제외한다.
+### 메이트 후보 기준
+
+- 해당 장소를 현재 저장한 `user_saved_places.deleted_at IS NULL` 사용자만 후보가 된다.
+- 온보딩의 선호 여행지는 취향 보정용이며 공개 의사로 간주하지 않으므로 후보에 포함하지 않는다.
+- 장소 저장을 취소하거나 사용자가 탈퇴하면 다음 조회부터 제외한다.
+- `profilePublic=false`, 요청자 본인, 어느 방향이든 차단 관계인 프로필은 제외한다.
+- 신고 접수는 차단·제재를 자동 생성하지 않는다. 운영 제재 상태와 목록 제외 연결은 후속 범위다.
+- 목록은 `saved_at DESC, user_saved_places.id DESC`이며 exact total count를 계산하지 않는다.
+
+### 호출 흐름
+
+```text
+장소 상세 GET /places/{placeId}
+  -> availableTabs에 MATES가 있으면 탭 표시
+  -> 탭 진입 시 GET /places/{placeId}/mates?size=20
+  -> hasMore=true이면 같은 로그인 사용자와 placeId로 nextCursor 전달
+  -> INVALID_CURSOR이면 cursor를 버리고 첫 페이지부터 다시 조회
+```
+
+cursor는 요청자와 placeId에 묶인다. 다른 사용자·다른 장소에서 받은 값을 재사용하거나 값을
+변조하면 `400 INVALID_CURSOR`다. 첫 요청에는 cursor를 보내지 않는다.
+
+```json
+{
+  "success": true,
+  "code": "PLACE_MATE_LIST_OK",
+  "message": "요청이 성공했습니다.",
+  "data": {
+    "placeId": 1001,
+    "items": [
+      {
+        "profileId": 501,
+        "profileImageUrl": null,
+        "nickname": "Emma",
+        "nationality": "France",
+        "availableLanguages": ["EN", "KO"],
+        "koreanLevel": "BEGINNER",
+        "bio": "한국 로컬 맛집을 좋아해요.",
+        "buddyStyles": ["FOODIE"],
+        "socialLinks": [],
+        "profilePublic": true,
+        "snsPublic": false,
+        "allowsMessages": true,
+        "canMessage": true,
+        "blockedByMe": false,
+        "updatedAt": "2026-07-19T02:00:00Z"
+      }
+    ],
+    "nextCursor": null,
+    "hasMore": false
+  },
+  "traceId": "01JZEXAMPLETRACE"
+}
+```
+
+현재 `MATES`는 모든 표출 장소에 포함하고, 설명 원문이 있을 때만 `DESCRIPTION`을 함께
+포함한다. `ROUTE`는 TMAP API 구현이 완료되기 전까지 포함하지 않는다.
+
+- `snsPublic=false`이면 저장된 SNS가 있어도 `socialLinks=[]`다.
+- 요청자의 Buddy 프로필이 없거나 대상이 쪽지를 허용하지 않으면 `canMessage=false`다.
+- 목록은 차단 관계를 이미 제외하므로 모든 item의 `blockedByMe=false`다.
+- 공개 메이트가 없으면 200과 `items=[]`, `nextCursor=null`, `hasMore=false`다.
+- 없는·비활성·비표출 장소는 `404 PLACE_NOT_FOUND`다.
 
 ## 9.3 쪽지 스레드
 

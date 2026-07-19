@@ -44,6 +44,7 @@ class OpenApiContractTests {
 		"DELETE /users/me/saved-places/{placeId}",
 		"GET /users/me/buddy-profile",
 		"PUT /users/me/buddy-profile",
+		"GET /places/{placeId}/mates",
 		"GET /buddy-profiles/{profileId}",
 		"GET /message-threads",
 		"POST /message-threads",
@@ -921,6 +922,37 @@ class OpenApiContractTests {
 		assertTrue(description.contains("snsPublic"));
 		assertTrue(description.contains("blockedByMe"));
 		assertTrue(description.contains("canMessage"));
+	}
+
+	@Test
+	void placeMateListDocumentsSavedInterestPrivacyAndCursorRules() throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> operation = asMap(
+			asMap(paths.get("/places/{placeId}/mates"), "place mate path").get("get"),
+			"place mate operation");
+
+		assertEquals("IMPLEMENTED", operation.get("x-implementation-status"));
+		assertTrue(asMap(operation.get("responses"), "place mate responses")
+			.keySet().containsAll(Set.of("400", "401", "404", "200")));
+		String description = String.valueOf(operation.get("description"));
+		assertTrue(description.contains("저장"));
+		assertTrue(description.contains("profilePublic"));
+		assertTrue(description.contains("양방향 차단"));
+		assertTrue(description.contains("canMessage"));
+		assertTrue(description.contains("온보딩"));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> response = asMap(
+			schemas.get("PlaceMateListResponse"), "PlaceMateListResponse");
+		assertEquals(List.of("placeId", "items", "hasMore"),
+			asList(response.get("required"), "PlaceMateListResponse.required"));
+		Map<String, Object> items = asMap(
+			asMap(response.get("properties"), "PlaceMateListResponse.properties")
+				.get("items"),
+			"PlaceMateListResponse.items");
+		assertEquals("#/components/schemas/BuddyProfile",
+			asMap(items.get("items"), "PlaceMateListResponse.items.items").get("$ref"));
 	}
 
 	private static Set<String> directParameterNames(

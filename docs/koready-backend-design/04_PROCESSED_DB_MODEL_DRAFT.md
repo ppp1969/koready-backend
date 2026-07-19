@@ -570,6 +570,11 @@ MVP에서는 type별 상세 컬럼 테이블보다 key-value 방식이 빠르다
 | saved_at | 저장 시각 |
 | deleted_at | 저장 취소 시각 |
 
+- 사용자 저장 목록 index: `(user_id, deleted_at, saved_at DESC, id DESC)`
+- 장소별 공개 메이트 index: `(place_id, deleted_at, saved_at DESC, id DESC)`
+- 장소별 메이트는 삭제되지 않은 저장 행을 공개 관심의 단일 원천으로 사용한다. 온보딩 선호 장소는 공개하지 않는다.
+- 메이트 조회 시 활성 사용자·공개 Buddy 프로필을 join하고 요청자 본인과 양방향 차단 관계를 제외한다.
+
 ## 8.2 user_place_events
 
 | 컬럼 | 설명 |

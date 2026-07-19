@@ -55,6 +55,8 @@ class OpenApiContractTests {
 		"GET /admin/open-api/snapshots",
 		"GET /admin/open-api/snapshots/{snapshotId}",
 		"GET /admin/open-api/sync-cursors",
+		"PUT /admin/open-api/sync-cursors/{cursorId}/enabled",
+		"POST /admin/open-api/sync-cursors/{cursorId}/reset",
 		"GET /admin/batch-jobs",
 		"GET /admin/batch-jobs/{jobId}",
 		"GET /admin/batch-jobs/{jobId}/items",
@@ -148,6 +150,43 @@ class OpenApiContractTests {
 		assertTrue(description.contains("local-auditor"));
 		assertTrue(description.contains("local-admin"));
 		assertTrue(description.contains("다른 프로필에서는 모두 401"));
+	}
+
+	@Test
+	void syncCursorWritesDocumentAdminOnlyValidationAndAuditBehavior() throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> enabled = asMap(
+			asMap(paths.get("/admin/open-api/sync-cursors/{cursorId}/enabled"),
+				"enabled path").get("put"),
+			"enabled operation");
+		Map<String, Object> reset = asMap(
+			asMap(paths.get("/admin/open-api/sync-cursors/{cursorId}/reset"),
+				"reset path").get("post"),
+			"reset operation");
+
+		for (Map<String, Object> operation : List.of(enabled, reset)) {
+			assertEquals(List.of("ADMIN"),
+				asList(operation.get("x-required-roles"), "cursor write roles"));
+			assertTrue(asMap(operation.get("responses"), "cursor write responses")
+				.keySet().containsAll(Set.of("400", "401", "403", "404", "200")));
+			String description = String.valueOf(operation.get("description"));
+			assertTrue(description.contains("감사 로그"));
+		}
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> enabledRequest = asMap(
+			schemas.get("EnabledRequest"), "EnabledRequest");
+		assertEquals(List.of("enabled", "reason"),
+			asList(enabledRequest.get("required"), "EnabledRequest.required"));
+		assertTextBounds(enabledRequest, "reason", 1, 500);
+
+		Map<String, Object> resetRequest = asMap(
+			schemas.get("ResetCursorRequest"), "ResetCursorRequest");
+		assertEquals(List.of("cursorValue", "reason"),
+			asList(resetRequest.get("required"), "ResetCursorRequest.required"));
+		assertTextBounds(resetRequest, "cursorValue", 1, 500);
+		assertTextBounds(resetRequest, "reason", 1, 500);
 	}
 
 	@Test
@@ -507,7 +546,7 @@ class OpenApiContractTests {
 	}
 
 	@Test
-	void syncCursorReadMatchesTheActualDatabaseSchemaAndKeepsWritesPlanned()
+	void syncCursorOperationsMatchTheActualDatabaseSchemaAndRoles()
 		throws IOException {
 		Map<String, Object> contract = loadContract();
 		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
@@ -533,8 +572,12 @@ class OpenApiContractTests {
 				paths.get("/admin/open-api/sync-cursors/{cursorId}/reset"),
 				"sync cursor reset path").get("post"),
 			"sync cursor reset");
-		assertEquals("PLANNED", enabled.get("x-implementation-status"));
-		assertEquals("PLANNED", reset.get("x-implementation-status"));
+		assertEquals("IMPLEMENTED", enabled.get("x-implementation-status"));
+		assertEquals("IMPLEMENTED", reset.get("x-implementation-status"));
+		assertEquals(List.of("ADMIN"),
+			asList(enabled.get("x-required-roles"), "sync cursor enabled roles"));
+		assertEquals(List.of("ADMIN"),
+			asList(reset.get("x-required-roles"), "sync cursor reset roles"));
 
 		Map<String, Object> schemas = componentSchemas(contract);
 		Map<String, Object> cursor = asMap(
@@ -713,6 +756,19 @@ class OpenApiContractTests {
 		Map<String, Object> schema = asMap(schemas.get(schemaName), schemaName);
 		assertTrue(asList(schema.get("required"), schemaName + ".required").contains(requiredProperty),
 			() -> schemaName + " must require " + requiredProperty);
+	}
+
+	private static void assertTextBounds(
+		Map<String, Object> schema,
+		String property,
+		int minimum,
+		int maximum
+	) {
+		Map<String, Object> properties = asMap(
+			schema.get("properties"), property + " properties");
+		Map<String, Object> text = asMap(properties.get(property), property);
+		assertEquals(minimum, text.get("minLength"));
+		assertEquals(maximum, text.get("maxLength"));
 	}
 
 	private static void collectReferences(Object value, List<String> references) {

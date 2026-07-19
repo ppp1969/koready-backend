@@ -21,6 +21,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
+import koready_backend.externalapi.application.ExternalApiAdminService;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.CallCriteria;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.CallRecord;
@@ -50,6 +51,9 @@ class JdbcExternalApiAdminRepositoryIntegrationTest {
 
 	@Autowired
 	ExternalApiAdminRepository repository;
+
+	@Autowired
+	ExternalApiAdminService service;
 
 	private long successCallId;
 	private long failureCallId;
@@ -142,6 +146,51 @@ class JdbcExternalApiAdminRepositoryIntegrationTest {
 		assertFalse(manual.enabled());
 	}
 
+	@Test
+	void updatesSyncCursorWithoutChangingOperationalHistoryAndAppendsAuditRows() {
+		long cursorId = insertSyncCursor(
+			"KOR", "areaBasedSyncList2", SyncCursorType.PAGE,
+			"7", NOW.minusSeconds(20), NOW.minusSeconds(10), 2, true);
+
+		service.updateSyncCursorEnabled(cursorId, false, "  야간 점검  ", "admin-1");
+		service.resetSyncCursor(cursorId, "  3  ", "  누락 page 재수집  ", "admin-1");
+		service.resetSyncCursor(cursorId, "3", "동일 target 재확인", "admin-1");
+
+		SyncCursorRecord updated = repository.findSyncCursors().stream()
+			.filter(cursor -> cursor.id() == cursorId)
+			.findFirst()
+			.orElseThrow();
+		assertEquals("3", updated.cursorValue());
+		assertFalse(updated.enabled());
+		assertEquals(2, updated.failureCount());
+		assertEquals(NOW.minusSeconds(20), updated.lastSuccessAt());
+		assertEquals(NOW.minusSeconds(10), updated.lastFailureAt());
+		assertEquals(3, jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM admin_audit_logs "
+				+ "WHERE resource_type = 'SYNC_CURSOR' AND resource_id = ?",
+			Integer.class,
+			Long.toString(cursorId)));
+		assertEquals("야간 점검", jdbcTemplate.queryForObject(
+			"SELECT reason FROM admin_audit_logs "
+				+ "WHERE resource_type = 'SYNC_CURSOR' AND action = "
+				+ "'SYNC_CURSOR_ENABLED_UPDATED' AND resource_id = ?",
+			String.class,
+			Long.toString(cursorId)));
+		assertEquals("true", jdbcTemplate.queryForObject(
+			"SELECT JSON_UNQUOTE(JSON_EXTRACT(before_snapshot, '$.enabled')) "
+				+ "FROM admin_audit_logs WHERE resource_type = 'SYNC_CURSOR' "
+				+ "AND action = 'SYNC_CURSOR_ENABLED_UPDATED' AND resource_id = ?",
+			String.class,
+			Long.toString(cursorId)));
+		assertEquals("3", jdbcTemplate.queryForObject(
+			"SELECT JSON_UNQUOTE(JSON_EXTRACT(after_snapshot, '$.cursorValue')) "
+				+ "FROM admin_audit_logs WHERE resource_type = 'SYNC_CURSOR' "
+				+ "AND action = 'SYNC_CURSOR_RESET' AND reason = '동일 target 재확인' "
+				+ "AND resource_id = ?",
+			String.class,
+			Long.toString(cursorId)));
+	}
+
 	private long insertJob() {
 		jdbcTemplate.update(
 			"""
@@ -211,7 +260,7 @@ class JdbcExternalApiAdminRepositoryIntegrationTest {
 			callLogId);
 	}
 
-	private void insertSyncCursor(
+	private long insertSyncCursor(
 		String apiName,
 		String operation,
 		SyncCursorType cursorType,
@@ -239,5 +288,13 @@ class JdbcExternalApiAdminRepositoryIntegrationTest {
 			enabled,
 			java.sql.Timestamp.from(NOW.minusSeconds(60)),
 			java.sql.Timestamp.from(NOW.minusSeconds(5)));
+		return jdbcTemplate.queryForObject(
+			"SELECT id FROM tour_api_sync_cursors "
+				+ "WHERE provider = 'KTO' AND api_name = ? AND operation = ? "
+				+ "AND cursor_type = ?",
+			Long.class,
+			apiName,
+			operation,
+			cursorType.name());
 	}
 }

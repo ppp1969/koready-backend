@@ -1,9 +1,14 @@
 package koready_backend.externalapi.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -16,12 +21,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.externalapi.application.ExternalApiAdminService;
 import koready_backend.externalapi.application.exception.ExternalApiCallNotFoundException;
+import koready_backend.externalapi.application.exception.SyncCursorNotFoundException;
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.RawSnapshotStatus;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
@@ -51,6 +58,11 @@ class AdminExternalApiControllerTest {
 			List.of(snapshot()), null, false));
 		when(service.getSnapshot(11L)).thenReturn(snapshot());
 		when(service.listSyncCursors()).thenReturn(List.of(syncCursor()));
+		when(service.updateSyncCursorEnabled(
+			anyLong(), anyBoolean(), anyString(), anyString()))
+			.thenReturn(syncCursor(false, "20260701:3"));
+		when(service.resetSyncCursor(anyLong(), anyString(), anyString(), anyString()))
+			.thenReturn(syncCursor(true, "20260601:1"));
 	}
 
 	@Test
@@ -128,6 +140,68 @@ class AdminExternalApiControllerTest {
 		}
 	}
 
+	@Test
+	void onlyAdminCanChangeSyncCursorState() throws Exception {
+		mockMvc.perform(put("/api/v1/admin/open-api/sync-cursors/13/enabled")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"enabled\":false,\"reason\":\"야간 점검\"}"))
+			.andExpect(status().isUnauthorized());
+
+		for (String role : List.of("OPERATOR", "AUDITOR", "USER")) {
+			mockMvc.perform(put("/api/v1/admin/open-api/sync-cursors/13/enabled")
+					.with(user(role.toLowerCase()).roles(role))
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("{\"enabled\":false,\"reason\":\"야간 점검\"}"))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("ADMIN_FORBIDDEN"));
+		}
+
+		mockMvc.perform(put("/api/v1/admin/open-api/sync-cursors/13/enabled")
+				.with(user("admin-1").roles("ADMIN"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"enabled\":false,\"reason\":\"야간 점검\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value("SYNC_CURSOR_UPDATED"))
+			.andExpect(jsonPath("$.data.enabled").value(false));
+
+		mockMvc.perform(post("/api/v1/admin/open-api/sync-cursors/13/reset")
+				.with(user("admin-1").roles("ADMIN"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"cursorValue\":\"20260601:1\","
+					+ "\"reason\":\"누락 기간 재수집\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value("SYNC_CURSOR_RESET"))
+			.andExpect(jsonPath("$.data.cursorValue").value("20260601:1"));
+	}
+
+	@Test
+	void validatesSyncCursorWritesAndMapsMissingCursor() throws Exception {
+		mockMvc.perform(put("/api/v1/admin/open-api/sync-cursors/13/enabled")
+				.with(user("admin-1").roles("ADMIN"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"reason\":\"enabled 누락\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+		mockMvc.perform(post("/api/v1/admin/open-api/sync-cursors/13/reset")
+				.with(user("admin-1").roles("ADMIN"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"cursorValue\":\" \",\"reason\":\" \"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+		when(service.resetSyncCursor(
+			99L, "20260601:1", "누락 기간 재수집", "admin-1"))
+			.thenThrow(new SyncCursorNotFoundException(99L));
+		mockMvc.perform(post("/api/v1/admin/open-api/sync-cursors/99/reset")
+				.with(user("admin-1").roles("ADMIN"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"cursorValue\":\"20260601:1\","
+					+ "\"reason\":\"누락 기간 재수집\"}"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("SYNC_CURSOR_NOT_FOUND"));
+	}
+
 	private static ExternalApiAdminService.OpenApiSummary summary() {
 		return new ExternalApiAdminService.OpenApiSummary(
 			new ExternalApiAdminService.Period(NOW.minusSeconds(3600), NOW),
@@ -194,17 +268,24 @@ class AdminExternalApiControllerTest {
 	}
 
 	private static ExternalApiAdminService.SyncCursorView syncCursor() {
+		return syncCursor(true, "20260701:3");
+	}
+
+	private static ExternalApiAdminService.SyncCursorView syncCursor(
+		boolean enabled,
+		String cursorValue
+	) {
 		return new ExternalApiAdminService.SyncCursorView(
 			13L,
 			ExternalApiProvider.KTO,
 			"KOR",
 			"searchFestival2",
 			SyncCursorType.DATE_RANGE,
-			"20260701:3",
+			cursorValue,
 			NOW.minusSeconds(30),
 			null,
 			0,
-			true,
+			enabled,
 			NOW.minusSeconds(60),
 			NOW.minusSeconds(30));
 	}

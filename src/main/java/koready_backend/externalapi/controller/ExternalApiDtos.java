@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import koready_backend.externalapi.application.ExternalApiAdminService;
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.RawSnapshotStatus;
@@ -105,20 +107,24 @@ final class ExternalApiDtos {
 		List<ExternalApiAdminService.SyncCursorView> cursors
 	) {
 		return new SyncCursorListResponse(cursors.stream()
-			.map(cursor -> new SyncCursorResponse(
-				cursor.cursorId(),
-				cursor.provider(),
-				cursor.apiName(),
-				cursor.operation(),
-				cursor.cursorType(),
-				cursor.cursorValue(),
-				cursor.lastSuccessAt(),
-				cursor.lastFailureAt(),
-				cursor.failureCount(),
-				cursor.enabled(),
-				cursor.createdAt(),
-				cursor.updatedAt()))
+			.map(ExternalApiDtos::from)
 			.toList());
+	}
+
+	static SyncCursorResponse from(ExternalApiAdminService.SyncCursorView cursor) {
+		return new SyncCursorResponse(
+			cursor.cursorId(),
+			cursor.provider(),
+			cursor.apiName(),
+			cursor.operation(),
+			cursor.cursorType(),
+			cursor.cursorValue(),
+			cursor.lastSuccessAt(),
+			cursor.lastFailureAt(),
+			cursor.failureCount(),
+			cursor.enabled(),
+			cursor.createdAt(),
+			cursor.updatedAt());
 	}
 
 	private static CallSummaryResponse summary(ExternalApiAdminService.CallView call) {
@@ -276,6 +282,18 @@ final class ExternalApiDtos {
 	}
 
 	record SyncCursorListResponse(List<SyncCursorResponse> items) {
+	}
+
+	record EnabledRequest(
+		@NotNull Boolean enabled,
+		@NotBlank String reason
+	) {
+	}
+
+	record ResetCursorRequest(
+		@NotBlank String cursorValue,
+		@NotBlank String reason
+	) {
 	}
 
 	record SyncCursorResponse(

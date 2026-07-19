@@ -18,6 +18,7 @@ import koready_backend.externalapi.application.exception.ExternalApiCallNotFound
 import koready_backend.externalapi.application.exception.InvalidExternalApiCursorException;
 import koready_backend.externalapi.application.exception.InvalidExternalApiPeriodException;
 import koready_backend.externalapi.application.exception.RawSnapshotNotFoundException;
+import koready_backend.externalapi.application.exception.SyncCursorNotFoundException;
 
 @RestControllerAdvice(assignableTypes = AdminExternalApiController.class)
 public class ExternalApiAdminExceptionHandler {
@@ -38,6 +39,15 @@ public class ExternalApiAdminExceptionHandler {
 	) {
 		return error(
 			HttpStatus.NOT_FOUND, "RAW_SNAPSHOT_NOT_FOUND", exception.getMessage(), request);
+	}
+
+	@ExceptionHandler(SyncCursorNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handleMissingSyncCursor(
+		SyncCursorNotFoundException exception,
+		HttpServletRequest request
+	) {
+		return error(
+			HttpStatus.NOT_FOUND, "SYNC_CURSOR_NOT_FOUND", exception.getMessage(), request);
 	}
 
 	@ExceptionHandler(InvalidExternalApiCursorException.class)

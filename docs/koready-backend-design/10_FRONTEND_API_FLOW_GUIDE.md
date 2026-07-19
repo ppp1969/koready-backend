@@ -599,7 +599,7 @@ flowchart LR
 - 배치 조회(구현): `GET /admin/batch-jobs`, `GET /{jobId}`, `GET /{jobId}/items`
 - 배치 실행·재시도(후속): `POST /admin/batch-jobs`, `POST /{jobId}/retry`
 - cursor 조회(구현): `GET /admin/open-api/sync-cursors`
-- cursor 활성 변경·초기화(후속): `PUT /{cursorId}/enabled`, `POST /{cursorId}/reset`
+- cursor 활성 변경·초기화(구현): `PUT /{cursorId}/enabled`, `POST /{cursorId}/reset`
 - 증빙 번들: `GET/POST /admin/evidence-bundles`, `GET /{bundleId}`, `POST /{bundleId}/download-url`
 - 데이터 품질 요약(구현): `GET /admin/data-quality/summary`
 - 감사 로그(후속): `GET /admin/audit-logs`
@@ -607,7 +607,12 @@ flowchart LR
 - cursor 목록은 화면 진입과 사용자의 새로고침 동작에서 호출하며 자동 polling하지 않는다.
 - 서버 정렬을 그대로 사용하고 `cursorValue`는 해석하지 않는다. `null`이면 `-`처럼 값 없음으로 표시한다.
 - `lastSuccessAt`, `lastFailureAt`, `failureCount`, `enabled`를 함께 보여 주되 DB에 없는 오류 메시지를 추측해 만들지 않는다.
-- enabled 토글과 reset 버튼은 후속 API가 구현될 때까지 숨기거나 비활성화한다.
+- enabled 토글과 reset 버튼은 ADMIN에게만 표시한다. 두 동작 모두 확인 dialog에서 1~500자
+  사유를 받고, reset은 서버가 관리하는 cursor 형식에 맞는 1~500자 target도 함께 받는다.
+- 변경 성공 뒤 cursor 목록을 다시 조회한다. 이 응답은 배치 시작을 뜻하지 않으므로 작업
+  완료 polling이나 외부 API 결과 toast를 표시하지 않는다.
+- `404 SYNC_CURSOR_NOT_FOUND`이면 오래된 목록으로 판단해 목록을 새로고침하고, `403`이면
+  버튼을 숨긴 뒤 관리자 권한 안내를 표시한다.
 
 데이터 품질 화면은 진입 시 `GET /admin/data-quality/summary`를 한 번 호출하고, 이후에는 사용자가 새로고침을 요청할 때 다시 호출한다. 자동 polling은 하지 않는다.
 

@@ -52,6 +52,7 @@ class OpenApiContractTests {
 		"GET /admin/open-api/calls/{callLogId}",
 		"GET /admin/open-api/snapshots",
 		"GET /admin/open-api/snapshots/{snapshotId}",
+		"GET /admin/open-api/sync-cursors",
 		"GET /admin/batch-jobs",
 		"GET /admin/batch-jobs/{jobId}",
 		"GET /admin/batch-jobs/{jobId}/items");
@@ -433,6 +434,58 @@ class OpenApiContractTests {
 			List.of(Boolean.FALSE),
 			asList(asMap(rawProperties.get("downloadable"), "downloadable")
 				.get("enum"), "downloadable.enum"));
+	}
+
+	@Test
+	void syncCursorReadMatchesTheActualDatabaseSchemaAndKeepsWritesPlanned()
+		throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> read = asMap(
+			asMap(paths.get("/admin/open-api/sync-cursors"), "sync cursor path")
+				.get("get"),
+			"sync cursor read");
+
+		assertEquals("IMPLEMENTED", read.get("x-implementation-status"));
+		assertEquals(
+			List.of("ADMIN", "OPERATOR", "AUDITOR"),
+			asList(read.get("x-required-roles"), "sync cursor roles"));
+		assertTrue(asMap(read.get("responses"), "sync cursor responses")
+			.keySet().containsAll(Set.of("401", "403", "200")));
+
+		Map<String, Object> enabled = asMap(
+			asMap(
+				paths.get("/admin/open-api/sync-cursors/{cursorId}/enabled"),
+				"sync cursor enabled path").get("put"),
+			"sync cursor enabled");
+		Map<String, Object> reset = asMap(
+			asMap(
+				paths.get("/admin/open-api/sync-cursors/{cursorId}/reset"),
+				"sync cursor reset path").get("post"),
+			"sync cursor reset");
+		assertEquals("PLANNED", enabled.get("x-implementation-status"));
+		assertEquals("PLANNED", reset.get("x-implementation-status"));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> cursor = asMap(
+			schemas.get("SyncCursorResponse"), "SyncCursorResponse");
+		List<Object> required = asList(cursor.get("required"), "SyncCursorResponse.required");
+		assertTrue(required.containsAll(List.of(
+			"cursorId", "provider", "apiName", "operation", "cursorType",
+			"enabled", "failureCount", "createdAt", "updatedAt")));
+		assertFalse(required.contains("cursorValue"));
+		Map<String, Object> properties = asMap(
+			cursor.get("properties"), "SyncCursorResponse.properties");
+		assertTrue(properties.keySet().containsAll(Set.of(
+			"cursorId", "provider", "apiName", "operation", "cursorType",
+			"cursorValue", "enabled", "failureCount", "lastSuccessAt",
+			"lastFailureAt", "createdAt", "updatedAt")));
+		assertFalse(properties.keySet().stream().anyMatch(Set.of(
+			"lastErrorCode", "lastErrorMessage", "nextRunAt")::contains));
+		assertEquals(
+			List.of("MODIFIED_TIME", "PAGE", "DATE_RANGE", "MANUAL"),
+			asList(asMap(schemas.get("SyncCursorType"), "SyncCursorType")
+				.get("enum"), "SyncCursorType.enum"));
 	}
 
 	@Test

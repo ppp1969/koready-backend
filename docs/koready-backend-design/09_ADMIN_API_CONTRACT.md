@@ -541,11 +541,30 @@ itemId, targetType, targetId, status, errorMessage, createdAt, updatedAt
 
 ## 7.4 동기화 cursor
 
+조회 API는 구현되어 있으며 `ADMIN`, `OPERATOR`, `AUDITOR`가 사용할 수 있습니다.
+전체 행을 provider → apiName → operation → cursorType 순서로 반환합니다. cursor 수는
+operation별 소수의 관리 행이므로 별도 pagination은 사용하지 않습니다.
+
 | Method | URI | 설명 |
 |---|---|---|
-| GET | `/open-api/sync-cursors` | operation별 동기화 위치/오류 조회 |
-| PUT | `/open-api/sync-cursors/{cursorId}/enabled` | 동기화 활성/비활성 |
-| POST | `/open-api/sync-cursors/{cursorId}/reset` | cursor 초기화 |
+| GET | `/open-api/sync-cursors` | operation별 동기화 위치와 성공·실패 현황 조회 (구현) |
+| PUT | `/open-api/sync-cursors/{cursorId}/enabled` | 동기화 활성/비활성 (후속) |
+| POST | `/open-api/sync-cursors/{cursorId}/reset` | cursor 초기화 (후속) |
+
+응답은 실제 `tour_api_sync_cursors` 열만 사용합니다.
+
+```text
+cursorId, provider, apiName, operation, cursorType, cursorValue,
+lastSuccessAt, lastFailureAt, failureCount, enabled, createdAt, updatedAt
+
+cursorType = MODIFIED_TIME | PAGE | DATE_RANGE | MANUAL
+```
+
+`cursorValue`, `lastSuccessAt`, `lastFailureAt`은 아직 값이 없으면 `null`입니다. DB에 없는
+`OPAQUE`, `lastErrorCode`, `lastErrorMessage`, `nextRunAt`은 반환하지 않습니다. cursor 값은
+서버 내부 진행 위치이므로 프론트가 파싱하거나 수정하지 않고 그대로 표시합니다.
+
+아래 변경 API는 현재 Swagger에서 `PLANNED`입니다.
 
 cursor 초기화는 `ADMIN` 전용이며 다음 값을 필수로 받는다.
 

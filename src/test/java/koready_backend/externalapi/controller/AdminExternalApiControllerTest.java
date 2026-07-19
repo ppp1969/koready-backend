@@ -26,6 +26,7 @@ import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.RawSnapshotStatus;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
 import koready_backend.externalapi.domain.SnapshotStorageFormat;
+import koready_backend.externalapi.domain.SyncCursorType;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -49,6 +50,7 @@ class AdminExternalApiControllerTest {
 		when(service.listSnapshots(any())).thenReturn(new ExternalApiAdminService.SnapshotPage(
 			List.of(snapshot()), null, false));
 		when(service.getSnapshot(11L)).thenReturn(snapshot());
+		when(service.listSyncCursors()).thenReturn(List.of(syncCursor()));
 	}
 
 	@Test
@@ -102,6 +104,28 @@ class AdminExternalApiControllerTest {
 				.with(user("admin").roles("ADMIN")))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("OPEN_API_CALL_NOT_FOUND"));
+	}
+
+	@Test
+	void protectsAndReturnsActualSyncCursorFields() throws Exception {
+		mockMvc.perform(get("/api/v1/admin/open-api/sync-cursors"))
+			.andExpect(status().isUnauthorized());
+
+		mockMvc.perform(get("/api/v1/admin/open-api/sync-cursors")
+				.with(user("member").roles("USER")))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ADMIN_FORBIDDEN"));
+
+		for (String role : List.of("ADMIN", "OPERATOR", "AUDITOR")) {
+			mockMvc.perform(get("/api/v1/admin/open-api/sync-cursors")
+					.with(user(role.toLowerCase()).roles(role)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.code").value("SYNC_CURSOR_LIST_OK"))
+				.andExpect(jsonPath("$.data.items[0].apiName").value("KOR"))
+				.andExpect(jsonPath("$.data.items[0].cursorType").value("DATE_RANGE"))
+				.andExpect(jsonPath("$.data.items[0].lastErrorCode").doesNotExist())
+				.andExpect(jsonPath("$.data.items[0].nextRunAt").doesNotExist());
+		}
 	}
 
 	private static ExternalApiAdminService.OpenApiSummary summary() {
@@ -167,5 +191,21 @@ class AdminExternalApiControllerTest {
 			null,
 			true,
 			false);
+	}
+
+	private static ExternalApiAdminService.SyncCursorView syncCursor() {
+		return new ExternalApiAdminService.SyncCursorView(
+			13L,
+			ExternalApiProvider.KTO,
+			"KOR",
+			"searchFestival2",
+			SyncCursorType.DATE_RANGE,
+			"20260701:3",
+			NOW.minusSeconds(30),
+			null,
+			0,
+			true,
+			NOW.minusSeconds(60),
+			NOW.minusSeconds(30));
 	}
 }

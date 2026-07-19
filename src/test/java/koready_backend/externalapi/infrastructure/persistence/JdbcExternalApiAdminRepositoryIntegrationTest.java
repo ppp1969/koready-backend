@@ -1,6 +1,8 @@
 package koready_backend.externalapi.infrastructure.persistence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
@@ -25,8 +27,10 @@ import koready_backend.externalapi.application.port.ExternalApiAdminRepository.C
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotCriteria;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SummaryCriteria;
+import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorRecord;
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
+import koready_backend.externalapi.domain.SyncCursorType;
 
 @Tag("integration")
 @SpringBootTest
@@ -114,6 +118,30 @@ class JdbcExternalApiAdminRepositoryIntegrationTest {
 		assertTrue(detail.immutable());
 	}
 
+	@Test
+	void loadsSyncCursorsInAStableOrderUsingTheActualSchema() {
+		insertSyncCursor(
+			"KOR", "searchFestival2", SyncCursorType.DATE_RANGE,
+			"20260701:3", NOW.minusSeconds(20), null, 0, true);
+		insertSyncCursor(
+			"ENG", "detailCommon2", SyncCursorType.MANUAL,
+			null, null, NOW.minusSeconds(10), 2, false);
+
+		List<SyncCursorRecord> rows = repository.findSyncCursors();
+
+		assertEquals(
+			List.of("detailCommon2", "searchFestival2"),
+			rows.stream().map(SyncCursorRecord::operation).toList());
+		SyncCursorRecord manual = rows.getFirst();
+		assertEquals("ENG", manual.apiName());
+		assertEquals(SyncCursorType.MANUAL, manual.cursorType());
+		assertNull(manual.cursorValue());
+		assertNull(manual.lastSuccessAt());
+		assertEquals(NOW.minusSeconds(10), manual.lastFailureAt());
+		assertEquals(2, manual.failureCount());
+		assertFalse(manual.enabled());
+	}
+
 	private long insertJob() {
 		jdbcTemplate.update(
 			"""
@@ -181,5 +209,35 @@ class JdbcExternalApiAdminRepositoryIntegrationTest {
 			"SELECT id FROM open_api_raw_snapshots WHERE call_log_id = ?",
 			Long.class,
 			callLogId);
+	}
+
+	private void insertSyncCursor(
+		String apiName,
+		String operation,
+		SyncCursorType cursorType,
+		String cursorValue,
+		Instant lastSuccessAt,
+		Instant lastFailureAt,
+		int failureCount,
+		boolean enabled
+	) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO tour_api_sync_cursors
+			    (provider, api_name, operation, cursor_type, cursor_value,
+			     last_success_at, last_failure_at, failure_count, enabled,
+			     created_at, updated_at)
+			VALUES ('KTO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			""",
+			apiName,
+			operation,
+			cursorType.name(),
+			cursorValue,
+			lastSuccessAt == null ? null : java.sql.Timestamp.from(lastSuccessAt),
+			lastFailureAt == null ? null : java.sql.Timestamp.from(lastFailureAt),
+			failureCount,
+			enabled,
+			java.sql.Timestamp.from(NOW.minusSeconds(60)),
+			java.sql.Timestamp.from(NOW.minusSeconds(5)));
 	}
 }

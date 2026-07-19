@@ -8,6 +8,7 @@ import java.util.Optional;
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
 import koready_backend.externalapi.domain.SnapshotStorageFormat;
+import koready_backend.externalapi.domain.SyncCursorType;
 
 public interface ExternalApiAdminRepository {
 
@@ -20,6 +21,8 @@ public interface ExternalApiAdminRepository {
 	List<SnapshotRecord> findSnapshotPage(SnapshotCriteria criteria);
 
 	Optional<SnapshotRecord> findSnapshotById(long snapshotId);
+
+	List<SyncCursorRecord> findSyncCursors();
 
 	record SummaryCriteria(
 		Instant from,
@@ -114,6 +117,22 @@ public interface ExternalApiAdminRepository {
 		SnapshotRetentionClass retentionClass,
 		Instant retentionUntil,
 		boolean immutable
+	) {
+	}
+
+	record SyncCursorRecord(
+		long id,
+		ExternalApiProvider provider,
+		String apiName,
+		String operation,
+		SyncCursorType cursorType,
+		String cursorValue,
+		Instant lastSuccessAt,
+		Instant lastFailureAt,
+		int failureCount,
+		boolean enabled,
+		Instant createdAt,
+		Instant updatedAt
 	) {
 	}
 }

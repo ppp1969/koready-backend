@@ -572,9 +572,15 @@ flowchart LR
 - KTO snapshot: `GET /admin/open-api/snapshots`, `GET /admin/open-api/snapshots/{snapshotId}`, `POST /download-url`
 - 배치 조회(구현): `GET /admin/batch-jobs`, `GET /{jobId}`, `GET /{jobId}/items`
 - 배치 실행·재시도(후속): `POST /admin/batch-jobs`, `POST /{jobId}/retry`
-- cursor: `GET /admin/open-api/sync-cursors`, `PUT /{cursorId}/enabled`, `POST /{cursorId}/reset`
+- cursor 조회(구현): `GET /admin/open-api/sync-cursors`
+- cursor 활성 변경·초기화(후속): `PUT /{cursorId}/enabled`, `POST /{cursorId}/reset`
 - 증빙 번들: `GET/POST /admin/evidence-bundles`, `GET /{bundleId}`, `POST /{bundleId}/download-url`
 - 품질·감사: `GET /admin/data-quality/summary`, `GET /admin/audit-logs`
+
+- cursor 목록은 화면 진입과 사용자의 새로고침 동작에서 호출하며 자동 polling하지 않는다.
+- 서버 정렬을 그대로 사용하고 `cursorValue`는 해석하지 않는다. `null`이면 `-`처럼 값 없음으로 표시한다.
+- `lastSuccessAt`, `lastFailureAt`, `failureCount`, `enabled`를 함께 보여 주되 DB에 없는 오류 메시지를 추측해 만들지 않는다.
+- enabled 토글과 reset 버튼은 후속 API가 구현될 때까지 숨기거나 비활성화한다.
 
 `POST`가 202를 반환하는 관리자 작업은 비동기다. 프론트는 즉시 완료 toast를 표시하지 말고 반환된 ID의 상세 조회를 반복해 `PENDING -> RUNNING -> COMPLETED|FAILED|PARTIAL_FAILED`를 확인한다.
 

@@ -24,11 +24,13 @@ import koready_backend.externalapi.application.port.ExternalApiAdminRepository.C
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.CallRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotCriteria;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotRecord;
+import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorRecord;
 import koready_backend.externalapi.domain.ExternalApiExposurePolicy;
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.RawSnapshotStatus;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
 import koready_backend.externalapi.domain.SnapshotStorageFormat;
+import koready_backend.externalapi.domain.SyncCursorType;
 
 @Service
 public class ExternalApiAdminService {
@@ -155,6 +157,13 @@ public class ExternalApiAdminService {
 			.orElseThrow(() -> new RawSnapshotNotFoundException(snapshotId));
 	}
 
+	@Transactional(readOnly = true)
+	public List<SyncCursorView> listSyncCursors() {
+		return repository.findSyncCursors().stream()
+			.map(ExternalApiAdminService::syncCursorView)
+			.toList();
+	}
+
 	private CallView callView(CallRecord row) {
 		RawSnapshotStatus snapshotStatus = snapshotStatus(row);
 		SnapshotRecord snapshot = row.snapshot();
@@ -233,6 +242,22 @@ public class ExternalApiAdminService {
 			row.retentionUntil(),
 			row.immutable(),
 			false);
+	}
+
+	private static SyncCursorView syncCursorView(SyncCursorRecord row) {
+		return new SyncCursorView(
+			row.id(),
+			row.provider(),
+			row.apiName(),
+			row.operation(),
+			row.cursorType(),
+			row.cursorValue(),
+			row.lastSuccessAt(),
+			row.lastFailureAt(),
+			row.failureCount(),
+			row.enabled(),
+			row.createdAt(),
+			row.updatedAt());
 	}
 
 	private static CallQuery normalize(CallQuery query) {
@@ -521,6 +546,22 @@ public class ExternalApiAdminService {
 		Instant retentionUntil,
 		boolean immutable,
 		boolean downloadable
+	) {
+	}
+
+	public record SyncCursorView(
+		long cursorId,
+		ExternalApiProvider provider,
+		String apiName,
+		String operation,
+		SyncCursorType cursorType,
+		String cursorValue,
+		Instant lastSuccessAt,
+		Instant lastFailureAt,
+		int failureCount,
+		boolean enabled,
+		Instant createdAt,
+		Instant updatedAt
 	) {
 	}
 }

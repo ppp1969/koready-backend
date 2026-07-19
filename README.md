@@ -283,7 +283,7 @@ docker build --tag koready-backend:local .
 - Aiven 연결정보가 든 `.env.local`을 `docker compose --env-file`로 전달하지 않습니다.
 - API 키, OAuth/JWT 토큰, Authorization 헤더, 개인 위치정보를 로그·문서·fixture에 기록하지 않습니다.
 - 원본 외부 API 응답은 공개 안전성 검토와 마스킹을 통과한 경우에만 저장합니다.
-- KTO 수집 원본 gzip은 Git 저장소 밖의 로컬 snapshot 디렉터리에만 저장하고,
-  향후 AWS 전환 시 private S3로 교체합니다.
+- KTO 수집 원본 gzip은 Git 저장소 밖의 로컬 snapshot 디렉터리에 저장하거나,
+  명시적으로 선택한 수집 프로세스에서 서울 리전 private S3에 저장합니다.
 
 기여 절차는 `CONTRIBUTING.md`, AI 개발 규칙은 `AGENTS.md`, 자동 품질 게이트는 `docs/AI_DEVELOPMENT_HARNESS.md`, 공개 가능한 데이터 기준은 `docs/PUBLIC_DATA_POLICY.md`를 참고합니다.

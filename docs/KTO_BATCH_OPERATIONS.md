@@ -193,3 +193,29 @@ PR과 `main`의 Docker job은 이미지 빌드 후 `scripts/smoke-docker.sh`를 
 Windows RSS와 Render cgroup 사용량은 직접 비교할 수 없지만, 현재 로컬 결과는
 400MiB 재검토 기준 아래다. Aiven 반영 후에도 Render에서는 조회만 수행하고 수집은
 개발자 PC에서 실행한다.
+
+### S3와 Aiven staging 종단 검증 (2026-07-19)
+
+AWS CLI v2.36.2의 `aws login`으로 발급한 임시 콘솔 세션을 사용해
+`eventStartDate=20260701`, page 1만 실제 실행했다. 공식 AWS CLI container를 사용했고
+장기 access key, AWS 계정 ID와 자동 생성된 bucket 이름은 로그나 저장소에 남기지
+않았다.
+
+첫 실행 결과:
+
+- KTO 응답: 200건/전체 203건, 157,164byte, 325ms
+- S3 gzip 객체: 25,516byte, SSE-S3 `AES256`, `application/gzip`
+- S3 metadata와 Aiven metadata의 원문 SHA-256, gzip SHA-256, 압축 크기 모두 일치
+- Aiven call/snapshot: 2건에서 3건으로 각각 1건 증가
+- 축제 series/개최 회차: 203건으로 유지, 자동 공개 없음
+- 애플리케이션 시작부터 완료: 약 104초, Gradle 전체 약 1분 59초
+
+같은 요청을 즉시 다시 실행한 결과 `replayedPages=1`이었고 call/snapshot은 3건,
+축제 series/개최 회차는 203건으로 변하지 않았다. S3의 해당 key도 version 1개,
+delete marker 0개로 유지됐다. 재실행 Gradle 전체 시간은 약 16초였다.
+
+같은 크기의 비식별 25KB 객체를 로컬에서 S3에 조건부 PUT한 시간은 약 1.15초였고
+시험 version은 즉시 제거했다. KTO 325ms와 S3 약 1.15초를 제외한 신규 반영 시간은
+원격 Aiven JDBC batch 왕복의 영향으로 추정한다. staging JDBC URL의
+`rewriteBatchedStatements` 적용과 전후 측정은 #97에서 별도로 다룬다. 이번 검증은
+RSS peak를 별도 계측하지 않았으므로 기존 301.7MiB 로컬 기준선을 대체하지 않는다.

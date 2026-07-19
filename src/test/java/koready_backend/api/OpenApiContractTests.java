@@ -45,6 +45,8 @@ class OpenApiContractTests {
 		"GET /users/me/buddy-profile",
 		"PUT /users/me/buddy-profile",
 		"GET /buddy-profiles/{profileId}",
+		"POST /message-threads",
+		"POST /message-threads/{threadId}/messages",
 		"PUT /users/me/blocked-profiles/{profileId}",
 		"DELETE /users/me/blocked-profiles/{profileId}",
 		"GET /onboarding/place-candidate-sets/current",
@@ -803,6 +805,29 @@ class OpenApiContractTests {
 	}
 
 	@Test
+	void buddyMessageSendContractDocumentsImplementedSafetyAndIdempotency() throws IOException {
+		Map<String, Object> paths = asMap(loadContract().get("paths"), "paths");
+		Map<String, Object> threadPath = asMap(
+			paths.get("/message-threads"), "message thread path");
+		Map<String, Object> createThread = asMap(
+			threadPath.get("post"), "create message thread operation");
+		Map<String, Object> reply = asMap(asMap(
+			paths.get("/message-threads/{threadId}/messages"),
+			"message reply path").get("post"), "message reply operation");
+
+		for (Map<String, Object> operation : List.of(createThread, reply)) {
+			assertEquals("IMPLEMENTED", operation.get("x-implementation-status"));
+			assertTrue(parameterReferences(operation, "message send parameters")
+				.contains("#/components/parameters/IdempotencyKey"));
+			assertTrue(asMap(operation.get("responses"), "message send responses")
+				.keySet().containsAll(Set.of("400", "401", "404", "409", "422")));
+			String description = String.valueOf(operation.get("description"));
+			assertTrue(description.contains("1,000"));
+			assertTrue(description.contains("멱등"));
+		}
+	}
+
+	@Test
 	void publicBuddyProfileDocumentsPrivacyAndCalculatedFields() throws IOException {
 		Map<String, Object> paths = asMap(loadContract().get("paths"), "paths");
 		Map<String, Object> operation = asMap(
@@ -832,6 +857,20 @@ class OpenApiContractTests {
 			}
 		}
 		return names;
+	}
+
+	private static Set<String> parameterReferences(
+		Map<String, Object> operation,
+		String location
+	) {
+		Set<String> references = new HashSet<>();
+		for (Object value : asList(operation.get("parameters"), location)) {
+			Map<String, Object> parameter = asMap(value, location + " item");
+			if (parameter.get("$ref") instanceof String reference) {
+				references.add(reference);
+			}
+		}
+		return references;
 	}
 
 	private static Map<String, Object> loadContract() throws IOException {

@@ -1,14 +1,16 @@
 package koready_backend.config;
 
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
 @Configuration
 @EnableMethodSecurity
@@ -18,7 +20,8 @@ public class SecurityConfig {
 	@Bean
 	SecurityFilterChain securityFilterChain(
 		HttpSecurity http,
-		ApiSecurityErrorHandler securityErrorHandler
+		ApiSecurityErrorHandler securityErrorHandler,
+		ObjectProvider<LocalDevAuthenticationFilter> localDevAuthenticationFilter
 	) throws Exception {
 		http
 			.csrf(csrf -> csrf.disable())
@@ -38,6 +41,9 @@ public class SecurityConfig {
 				.requestMatchers(HttpMethod.GET, "/api/v1/monthly-recommendations")
 				.permitAll()
 				.anyRequest().authenticated());
+
+		localDevAuthenticationFilter.ifAvailable(filter ->
+			http.addFilterBefore(filter, AnonymousAuthenticationFilter.class));
 
 		return http.build();
 	}

@@ -134,6 +134,23 @@ class OpenApiContractTests {
 	}
 
 	@Test
+	void bearerSecurityDocumentsTheLocalOnlyDevelopmentHarness() throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> components = asMap(contract.get("components"), "components");
+		Map<String, Object> schemes = asMap(
+			components.get("securitySchemes"), "securitySchemes");
+		Map<String, Object> bearer = asMap(schemes.get("bearerAuth"), "bearerAuth");
+		String description = String.valueOf(bearer.get("description"));
+
+		assertTrue(description.contains("local 프로필"));
+		assertTrue(description.contains("local-user"));
+		assertTrue(description.contains("local-operator"));
+		assertTrue(description.contains("local-auditor"));
+		assertTrue(description.contains("local-admin"));
+		assertTrue(description.contains("다른 프로필에서는 모두 401"));
+	}
+
+	@Test
 	void onboardingDoesNotCollectTravelPurpose() throws IOException {
 		Map<String, Object> contract = loadContract();
 		Map<String, Object> schemas = componentSchemas(contract);

@@ -41,6 +41,7 @@ Java 21과 Docker가 필요합니다. 빠른 개발 피드백은 로컬 Docker M
 ```powershell
 docker compose -p koready-local up -d mysql
 ./scripts/seed-local-places.ps1
+./scripts/seed-local-user.ps1
 
 $env:SPRING_PROFILES_ACTIVE='local'
 $env:DB_URL='jdbc:mysql://localhost:3306/koready?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul'
@@ -49,8 +50,10 @@ $env:DB_PASSWORD='koready-local'
 ./gradlew.bat bootRun
 ```
 
-로컬 시드는 화면 연동 확인용 장소 13개와 상태·정렬 확인용 축제 회차 4개를 Docker Compose의 `mysql` 서비스에만 넣습니다.
-여러 번 실행해도 같은 장소를 갱신하며 Aiven과 Render에는 적용되지 않습니다.
+로컬 시드는 화면 연동 확인용 장소 13개, 상태·정렬 확인용 축제 회차 4개와
+`local-user` 개발 사용자를 Docker Compose의 `mysql` 서비스에만 넣습니다. 개발 사용자는
+서울 기본 위치와 `LOCAL_FOOD`, `NATURE` 관광 유형을 가지며 실제 개인정보는 포함하지 않습니다.
+두 스크립트 모두 반복 실행해도 같은 행을 중복 생성하지 않으며 Aiven과 Render에는 적용되지 않습니다.
 
 ### KTO 축제 수동 수집
 
@@ -139,6 +142,25 @@ docker compose -p koready-local --profile full up --build
 기본 포트는 `8080`, 상태 확인 경로는 `/actuator/health`와 `/actuator/health/readiness`입니다.
 Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 
+### 로컬 Swagger 인증
+
+실제 Google·Apple 로그인과 JWT가 연결되기 전까지 `local` 프로필에서는 Swagger 상단의
+**Authorize**에 아래 공개 개발값 중 하나를 입력해 보호 API를 호출할 수 있습니다. Swagger가
+`Bearer` 접두사를 붙이므로 값만 입력합니다.
+
+| 입력값 | principal | role | 용도 |
+|---|---|---|---|
+| `local-user` | `local-user` | `USER` | 사용자·온보딩·추천 API |
+| `local-operator` | `local-operator` | `OPERATOR` | 관리자 조회와 운영 편집 |
+| `local-auditor` | `local-auditor` | `AUDITOR` | 관리자 읽기 전용 검토 |
+| `local-admin` | `local-admin` | `ADMIN` | 관리자 전체 권한 검증 |
+
+이 값은 secret이나 실제 access token이 아니다. filter는 `local` 프로필만 활성화되고
+`staging`, `prod` 프로필이 함께 활성화되지 않았으며
+`LOCAL_DEV_AUTH_ENABLED=true`가 동시에 적용될 때만 생성된다. `staging`, `prod`, 일반 `test`
+프로필에서는 같은 값을 보내도 401이며, 임의 사용자명이나 role을 조립할 수 없다. 로컬에서도
+실제 인증 흐름을 확인할 때는 `LOCAL_DEV_AUTH_ENABLED=false`로 끈다.
+
 현재 로그인 없이 사용할 수 있는 구현 API는 다음과 같습니다.
 
 - `GET /api/v1/monthly-recommendations`: 연월·날짜·권역·관광유형별 축제 추천
@@ -168,7 +190,7 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 - `GET /api/v1/admin/batch-jobs/**`: 배치 작업·item의 안전한 실행 이력 조회
 - `GET /api/v1/admin/data-quality/summary`: 관광지 준비도·누락 항목·번역 출처의 읽기 전용 집계
 
-소셜 로그인과 JWT 발급은 후속 범위이므로 현재 실행 환경에서는 위 보호 API를 익명으로 호출하면 `401`입니다. snapshot 다운로드 URL 발급, 배치 수동 실행·재시도, sync cursor 활성 변경·초기화는 후속 구현입니다. 현재 snapshot 메타데이터의 `downloadable`은 항상 `false`입니다. 데이터 품질 요약은 외부 API를 새로 호출하지 않고 저장된 DB의 집계값만 반환합니다. 추천 덱은 테스트 principal과 MySQL fixture로 사용자별 고정 순서, 30일 재노출 제한, 소유권을 검증합니다. 온보딩 완료도 테스트 principal과 MySQL fixture로 검증하며, 태그 점수 정책 승인 전에는 `preferenceTags=[]`를 반환합니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
+소셜 로그인과 JWT 발급은 후속 범위이므로 `staging`과 향후 `prod`에서 위 보호 API를 익명 또는 로컬 개발값으로 호출하면 `401`입니다. 로컬에서만 위 개발 인증 하네스를 사용할 수 있습니다. snapshot 다운로드 URL 발급, 배치 수동 실행·재시도, sync cursor 활성 변경·초기화는 후속 구현입니다. 현재 snapshot 메타데이터의 `downloadable`은 항상 `false`입니다. 데이터 품질 요약은 외부 API를 새로 호출하지 않고 저장된 DB의 집계값만 반환합니다. 추천 덱은 테스트 principal과 MySQL fixture로 사용자별 고정 순서, 30일 재노출 제한, 소유권을 검증합니다. 온보딩 완료도 테스트 principal과 MySQL fixture로 검증하며, 태그 점수 정책 승인 전에는 `preferenceTags=[]`를 반환합니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
 
 `local`과 `staging` 프로필에서는 `/swagger-ui.html`에서 프론트 연동용 Swagger UI를 제공합니다. UI는 `docs/koready-backend-design/openapi.yaml`을 빌드 시 포함한 단일 계약 파일을 표시합니다.
 

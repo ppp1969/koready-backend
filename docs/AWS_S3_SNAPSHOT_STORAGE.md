@@ -12,7 +12,7 @@ Aiven MySQL의 snapshot 메타데이터에 연결한다.
 |---|---|---|
 | 자동 테스트 | fake/mock | 없음 |
 | 로컬 기본 | 저장소 밖 로컬 디렉터리 | 없음 |
-| 로컬에서 staging 수집 | S3 선택 가능 | AWS CLI/SSO 기본 profile |
+| 로컬에서 staging 수집 | S3 선택 가능 | AWS CLI `aws login`/SSO 임시 profile |
 | Render web staging | local 기본, 수집 비활성 | AWS 자격증명 없음 |
 | 향후 EB | S3 | EC2 instance profile |
 
@@ -96,8 +96,17 @@ bucket 기준:
 차단하는 한도는 아니다.
 
 현재 Render에는 AWS 자격증명을 넣지 않았고 KTO 웹 배치도 계속 비활성 상태다.
-로컬 수집 작업은 AWS CLI/SSO 임시 세션으로 실행하고, 향후 EB는 이 stack이 만든
-instance profile을 연결한다. EB 환경, EC2와 AWS DB는 이번 배포에 포함하지 않았다.
+로컬 수집 작업은 AWS CLI `aws login` 또는 SSO 임시 세션으로 실행하고, 향후 EB는
+이 stack이 만든 instance profile을 연결한다. EB 환경, EC2와 AWS DB는 이번 배포에
+포함하지 않았다.
+
+### 애플리케이션 종단 검증
+
+2026-07-19 실제 `searchFestival2` 200건을 S3 snapshot과 Aiven staging까지
+처리했다. 157,164byte 원문은 25,516byte gzip으로 저장됐고 S3 metadata와 Aiven의
+원문 hash, 저장 객체 hash와 크기가 모두 일치했다. 같은 입력 재실행은 기존 객체와
+DB 계보를 재사용했으며 S3 version과 DB 행을 추가하지 않았다. 세부 시간과 DB 건수는
+`KTO_BATCH_OPERATIONS.md`의 종단 검증 기록을 따른다.
 
 ## 애플리케이션 설정
 

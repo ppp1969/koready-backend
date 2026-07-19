@@ -13,6 +13,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import koready_backend.batch.application.exception.BatchJobNotFoundException;
+import koready_backend.batch.application.exception.BatchJobAlreadyActiveException;
+import koready_backend.batch.application.exception.BatchJobRetryNotAllowedException;
 import koready_backend.batch.application.exception.InvalidBatchJobCursorException;
 import koready_backend.batch.application.exception.InvalidBatchJobPeriodException;
 import koready_backend.common.controller.ApiErrorResponse;
@@ -36,6 +38,14 @@ public class BatchJobAdminExceptionHandler {
 		HttpServletRequest request
 	) {
 		return error(HttpStatus.BAD_REQUEST, "INVALID_CURSOR", exception.getMessage(), request);
+	}
+
+	@ExceptionHandler({ BatchJobAlreadyActiveException.class, BatchJobRetryNotAllowedException.class })
+	ResponseEntity<ApiErrorResponse> handleConflict(RuntimeException exception, HttpServletRequest request) {
+		String code = exception instanceof BatchJobAlreadyActiveException
+			? "BATCH_JOB_ALREADY_ACTIVE"
+			: "BATCH_JOB_RETRY_NOT_ALLOWED";
+		return error(HttpStatus.CONFLICT, code, exception.getMessage(), request);
 	}
 
 	@ExceptionHandler({

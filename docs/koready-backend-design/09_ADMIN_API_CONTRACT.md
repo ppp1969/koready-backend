@@ -509,9 +509,9 @@ itemId, targetType, targetId, status, errorMessage, createdAt, updatedAt
 `attemptCount`, `errorCode`, `relatedCallLogId`, item별 `finishedAt`은 현재 DB에 없으므로
 응답에 포함하지 않습니다.
 
-## 7.2 수동 실행 (후속 범위)
+## 7.2 수동 실행
 
-아래 POST API는 현재 Swagger에서 `PLANNED`이며 호출할 수 없습니다.
+아래 POST API는 구현되어 있습니다. `202 Accepted`는 실행 완료가 아니라 DB 대기열 접수 성공을 뜻하므로, 응답의 `jobId`로 상세 상태를 조회합니다.
 
 `POST /api/v1/admin/batch-jobs`
 
@@ -519,21 +519,24 @@ itemId, targetType, targetId, status, errorMessage, createdAt, updatedAt
 {
   "jobType": "KTO_DAILY_SYNC",
   "parameters": {
-    "operations": ["areaBasedSyncList2"],
-    "pageSize": 500
+    "startPage": 1,
+    "maxPages": 1
   },
   "reason": "공모전 제출 전 최종 동기화"
 }
 ```
 
-- `OPERATOR` 이상만 실행할 수 있다.
-- 동일한 배타 job이 실행 중이면 `409 BATCH_ALREADY_RUNNING`을 반환한다.
-- `reason`은 필수이며 감사 로그에 남긴다.
-- API는 `202 Accepted`와 생성된 `jobId`를 반환한다.
+- `ADMIN`, `OPERATOR`만 실행할 수 있다. `AUDITOR`는 읽기 전용이다.
+- 현재 지원 job은 `KTO_DAILY_SYNC`, `KTO_FESTIVAL_SYNC` 두 가지다. 다른 job type은 `400`이다.
+- 일일 동기화는 `startPage`(1~100000), `maxPages`(1~20)를 받고 기본값은 각각 1이다.
+- 축제 수집은 위 값에 `eventStartDate`(`YYYY-MM-DD`)를 추가로 받는다.
+- 전 서버에서 `PENDING` 또는 `RUNNING` job은 하나만 허용한다. 이미 있으면 `409 BATCH_JOB_ALREADY_ACTIVE`를 반환한다.
+- `reason`은 필수(공백 제거 후 최대 500자)이며 실행자, job ID, 안전한 실행 파라미터와 함께 관리자 감사 로그에 보관한다. secret과 사용자 위치정보는 받지 않는다.
+- 서버는 짧은 간격으로 한 건을 claim해 KTO 호출과 저장을 실행한다. 재시작 시 `RUNNING`으로 멈춘 작업은 `FAILED`로 정리되어 대기열을 점유하지 않는다.
 
-## 7.3 실패 item 재시도 (후속 범위)
+## 7.3 실패 item 재시도
 
-아래 POST API도 현재 `PLANNED`입니다.
+아래 POST API는 구현되어 있습니다.
 
 `POST /api/v1/admin/batch-jobs/{jobId}/retry`
 
@@ -544,7 +547,7 @@ itemId, targetType, targetId, status, errorMessage, createdAt, updatedAt
 }
 ```
 
-원본 job을 변경하지 않고 새 retry job을 만든다.
+원본 job을 변경하지 않고 `triggerSource=RETRY`, `parentJobId=원본 jobId`인 새 job을 만듭니다. `scope`는 현재 `FAILED_ITEMS`만 허용하고, 원본 상태가 `FAILED` 또는 `PARTIAL_FAILED`가 아니면 `409 BATCH_JOB_RETRY_NOT_ALLOWED`를 반환합니다. 새 job도 7.2의 전역 한 건 실행 제한을 적용하며 실행자·사유는 감사 로그에 남깁니다.
 
 ## 7.4 동기화 cursor
 
@@ -822,8 +825,8 @@ size=1..100
 | `RAW_SNAPSHOT_DOWNLOAD_UNAVAILABLE` | S3 다운로드 비활성 또는 일시적인 URL 서명 실패 |
 | `EVIDENCE_BUNDLE_NOT_READY` | 번들 생성 중 |
 | `EVIDENCE_BUNDLE_FAILED` | 번들 생성 실패 |
-| `BATCH_ALREADY_RUNNING` | 동일 배타 batch 실행 중 |
-| `BATCH_NOT_RETRYABLE` | 재시도 불가 상태 |
+| `BATCH_JOB_ALREADY_ACTIVE` | 이미 대기 또는 실행 중인 batch가 있음 |
+| `BATCH_JOB_RETRY_NOT_ALLOWED` | 원본 batch 상태 또는 scope가 재시도 조건에 맞지 않음 |
 | `CURATION_SET_NOT_EDITABLE` | 발행/보관 세트를 수정하려고 함 |
 | `CURATION_SET_REQUIRES_TEN_ITEMS` | 후보가 정확히 10개가 아님 |
 | `CURATION_PLACE_NOT_READY` | 비표출 또는 필수 카드 데이터 누락 장소 포함 |

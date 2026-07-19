@@ -2,6 +2,7 @@ package koready_backend.batch.domain;
 
 public enum BatchJobType {
 	KTO_DAILY_SYNC,
+	KTO_FESTIVAL_SYNC,
 	KTO_DETAIL_ENRICHMENT,
 	KTO_EN_SYNC,
 	AI_TRANSLATION,

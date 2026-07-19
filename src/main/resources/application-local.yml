@@ -17,6 +17,10 @@ springdoc:
     enabled: true
 
 koready:
+  location:
+    search:
+      provider: local
+      token-secret: local-only-location-search-token-secret-change-me
   security:
     dev-principal:
       enabled: ${LOCAL_DEV_AUTH_ENABLED:true}

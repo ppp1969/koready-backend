@@ -35,6 +35,17 @@ springdoc:
     url: /openapi/koready.yaml
 
 koready:
+  location:
+    search:
+      provider: ${LOCATION_SEARCH_PROVIDER:disabled}
+      token-secret: ${LOCATION_SEARCH_TOKEN_SECRET:}
+      token-ttl: ${LOCATION_SEARCH_TOKEN_TTL:10m}
+    kakao:
+      base-url: ${KAKAO_LOCAL_BASE_URL:https://dapi.kakao.com}
+      rest-api-key: ${KAKAO_REST_API_KEY:}
+      max-response-bytes: ${KAKAO_LOCAL_MAX_RESPONSE_BYTES:524288}
+      connect-timeout: ${KAKAO_LOCAL_CONNECT_TIMEOUT:3s}
+      read-timeout: ${KAKAO_LOCAL_READ_TIMEOUT:5s}
   kto:
     api:
       base-url: ${KTO_API_BASE_URL:https://apis.data.go.kr/B551011/KorService2}

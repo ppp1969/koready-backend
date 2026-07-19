@@ -24,6 +24,7 @@ class OpenApiContractTests {
 		"get", "post", "put", "patch", "delete", "options", "head", "trace");
 	private static final Set<String> IMPLEMENTED_OPERATIONS = Set.of(
 		"GET /home",
+		"GET /locations/search",
 		"PATCH /users/me/language",
 		"GET /users/me/onboarding",
 		"PUT /users/me/onboarding",

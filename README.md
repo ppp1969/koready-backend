@@ -234,6 +234,8 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 
 `local`과 `staging` 프로필에서는 `/swagger-ui.html`에서 프론트 연동용 Swagger UI를 제공합니다. UI는 `docs/koready-backend-design/openapi.yaml`을 빌드 시 포함한 단일 계약 파일을 표시합니다.
 
+PM·디자인·프론트 회의에서는 [2026-07-19 개발 현황 및 협의 보고서](docs/MEETING_PROGRESS_REPORT_2026-07-19.md)에서 구현 범위, 신뢰도, 전체 API 입력·출력, 다음 결정 항목을 함께 확인합니다.
+
 ## Verification
 
 ```powershell

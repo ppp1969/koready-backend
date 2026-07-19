@@ -12,3 +12,9 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+
+koready:
+  location:
+    search:
+      provider: local
+      token-secret: test-only-location-search-token-secret-change-me

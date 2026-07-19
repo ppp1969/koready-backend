@@ -296,7 +296,9 @@ paths:
         **호출 시점:** 위치 검색어 입력을 300~500ms debounce한 뒤 호출합니다.
         백엔드가 Kakao 주소 검색과 키워드 검색을 합치고 중복 제거, 주소 정규화, 7개 권역 매핑을 수행합니다.
         결과 없음은 200 `items=[]`입니다. 선택한 항목의 `searchResultToken`만 위치 저장 요청에 사용합니다.
-      x-implementation-status: PLANNED
+        local 프로필은 외부 키 없이 성신여자대학교·홍익대학교·전주한옥마을 개발 데이터를 검색합니다.
+        staging/prod에서 Kakao 연동이 비활성 상태이거나 provider가 응답하지 않으면 503이며, 검색어와 원본 응답은 저장하지 않습니다.
+      x-implementation-status: IMPLEMENTED
       parameters:
         - name: query
           in: query
@@ -313,6 +315,8 @@ paths:
             maximum: 20
             default: 10
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '200':

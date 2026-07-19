@@ -85,6 +85,11 @@
    - ID, 유일성, 멱등성, 보관 정책과 기능별 완료 기준
    - KTO 우선 개발 순서, 위험 목록, 승인 요청표
 
+14. `../MEETING_PROGRESS_REPORT_2026-07-19.md`
+   - PM·디자인·프론트 회의용 현재 구현 진행도와 신뢰도
+   - 전체 71개 API의 핵심 입력·출력·데이터 출처
+   - 다음 개발 순서, 위험, 제품·화면 결정표
+
 ## 설계 원칙
 
 - 프론트는 외부 API를 직접 호출하지 않고, Koready 백엔드 API만 호출한다.
@@ -107,6 +112,7 @@
 | 프론트 화면별 호출 흐름과 오류 처리 | `10_FRONTEND_API_FLOW_GUIDE.md` |
 | TMAP 실제 응답 구조와 Route 매핑 | `11_TMAP_API_PROFILE.md` |
 | PM 개발 착수 승인 기준과 전체 의사결정 | `12_PM_IMPLEMENTATION_APPROVAL.md` |
+| 현재 진행도, 전체 API 정보, 회의 결정 항목 | `../MEETING_PROGRESS_REPORT_2026-07-19.md` |
 | 기능별 백엔드 범위 | `01_FEATURE_BACKEND_DESIGN.md` |
 | 화면별 필요한 정보 | `01_FEATURE_BACKEND_DESIGN.md`, `02_FEATURE_DTO_DRAFT.md` |
 | 기능별 Request/Response DTO 초안 | `02_FEATURE_DTO_DRAFT.md` |

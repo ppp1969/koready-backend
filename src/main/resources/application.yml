@@ -46,6 +46,11 @@ koready:
       max-response-bytes: ${KAKAO_LOCAL_MAX_RESPONSE_BYTES:524288}
       connect-timeout: ${KAKAO_LOCAL_CONNECT_TIMEOUT:3s}
       read-timeout: ${KAKAO_LOCAL_READ_TIMEOUT:5s}
+  evidence-bundle:
+    directory: ${EVIDENCE_BUNDLE_DIRECTORY:${user.home}/.koready/evidence-bundles}
+    download-expiration: ${EVIDENCE_BUNDLE_DOWNLOAD_EXPIRATION:5m}
+    worker:
+      poll-delay: ${EVIDENCE_BUNDLE_WORKER_POLL_DELAY:30s}
   kto:
     api:
       base-url: ${KTO_API_BASE_URL:https://apis.data.go.kr/B551011/KorService2}

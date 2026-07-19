@@ -595,6 +595,12 @@ cursor 초기화 요청은 다음과 같습니다.
 
 ## 8. 공모전 증빙 번들
 
+현재 구현은 DB에 `QUEUED` 요청을 먼저 남긴 뒤, 서버 안의 단일 작업자가 한 건씩 `RUNNING → COMPLETED` 또는 `FAILED`로 바꾼다. ZIP은 메모리에 모으지 않고 임시 파일에 순서대로 기록한다. 서버가 멈춰도 아직 시작하지 않은 `QUEUED` 요청은 다음 기동 뒤 다시 처리한다.
+
+KTO 원본은 보관 정책과 만료 시각이 허용되고 요청한 operation의 표본 한도 안에 있을 때만 포함한다. TMAP 원본, 사용자 정보, 토큰, 쿠키, Authorization 헤더, 개인 위치·상세 주소는 포함하지 않는다. TMAP은 호출 사실을 나타내는 CSV 행만 남긴다.
+
+`local` 저장소에서는 ZIP 생성·상태 조회가 가능하지만 signed URL은 발급하지 않는다. private S3 저장소가 활성화된 환경에서만 완료된 ZIP에 기본 5분의 GET URL을 발급하며, URL·서명·AWS 자격증명은 DB와 감사 로그에 저장하지 않는다.
+
 ## 8.1 생성
 
 `POST /api/v1/admin/evidence-bundles`

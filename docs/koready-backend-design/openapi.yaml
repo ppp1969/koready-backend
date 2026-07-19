@@ -1975,7 +1975,7 @@ paths:
       description: |
         생성 기간, 상태, 파일 크기, 포함 call/snapshot 수를 cursor로 조회합니다.
         생성 중인 번들은 상세 상태를 확인하고 완료 전 다운로드 버튼을 비활성화합니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
         - $ref: '#/components/parameters/Cursor'
@@ -1983,6 +1983,10 @@ paths:
       responses:
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '200':
           $ref: '#/components/responses/EvidenceBundleListSuccess'
     post:
@@ -1992,7 +1996,7 @@ paths:
       description: |
         기간과 포함 provider/operation을 지정해 비동기 생성을 요청합니다.
         202 뒤 반환 bundleId를 조회해 완료를 확인하며 TMAP 원천 데이터는 장기 번들에서 제외됩니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       requestBody:
         required: true
@@ -2003,6 +2007,10 @@ paths:
       responses:
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '202':
           $ref: '#/components/responses/EvidenceBundleAccepted'
   /admin/evidence-bundles/{bundleId}:
@@ -2013,13 +2021,19 @@ paths:
       description: |
         bundleId의 생성 상태, manifest 요약, 포함 파일 hash와 실패 원인을 조회합니다.
         COMPLETED 상태일 때만 다운로드 URL 발급 동작을 활성화합니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
         - $ref: '#/components/parameters/BundleId'
       responses:
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '200':
           $ref: '#/components/responses/EvidenceBundleSuccess'
   /admin/evidence-bundles/{bundleId}/download-url:
@@ -2029,13 +2043,23 @@ paths:
       summary: 증빙 번들 단기 다운로드 URL 발급
       description: |
         완료된 증빙 번들의 signed URL을 발급합니다. URL은 저장하거나 공유 문서에 고정하지 않고 만료 시 다시 발급합니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
         - $ref: '#/components/parameters/BundleId'
       responses:
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '200':
           $ref: '#/components/responses/DownloadUrlSuccess'
   /admin/data-quality/summary:

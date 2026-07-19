@@ -633,7 +633,7 @@ flowchart LR
 - 배치 실행·재시도(후속): `POST /admin/batch-jobs`, `POST /{jobId}/retry`
 - cursor 조회(구현): `GET /admin/open-api/sync-cursors`
 - cursor 활성 변경·초기화(구현): `PUT /{cursorId}/enabled`, `POST /{cursorId}/reset`
-- 증빙 번들: `GET/POST /admin/evidence-bundles`, `GET /{bundleId}`, `POST /{bundleId}/download-url`
+- 증빙 번들(구현): `POST /admin/evidence-bundles`로 `QUEUED`를 받은 뒤 목록 또는 상세를 polling한다. `COMPLETED`일 때만 `POST /{bundleId}/download-url` 버튼을 활성화하며, local 응답의 `503`은 S3 연결 전 정상 상태다.
 - 데이터 품질 요약(구현): `GET /admin/data-quality/summary`
 - 감사 로그(후속): `GET /admin/audit-logs`
 

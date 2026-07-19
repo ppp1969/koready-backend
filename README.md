@@ -40,8 +40,6 @@ Java 21과 Docker가 필요합니다. 빠른 개발 피드백은 로컬 Docker M
 
 ```powershell
 docker compose -p koready-local up -d mysql
-./scripts/seed-local-places.ps1
-./scripts/seed-local-user.ps1
 
 $env:SPRING_PROFILES_ACTIVE='local'
 $env:DB_URL='jdbc:mysql://localhost:3306/koready?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul'
@@ -50,10 +48,22 @@ $env:DB_PASSWORD='koready-local'
 ./gradlew.bat bootRun
 ```
 
+서버가 `http://localhost:8080/actuator/health/readiness`에서 `200`을 반환하면 두 번째
+PowerShell에서 아래 seed를 실행합니다. 새 DB에서는 서버 시작 시 Flyway가 스키마를 먼저
+생성해야 하므로 seed를 서버보다 먼저 실행하지 않습니다.
+
+```powershell
+./scripts/seed-local-places.ps1
+./scripts/seed-local-user.ps1
+./scripts/seed-local-buddy.ps1
+```
+
 로컬 시드는 화면 연동 확인용 장소 13개, 상태·정렬 확인용 축제 회차 4개와
-`local-user` 개발 사용자를 Docker Compose의 `mysql` 서비스에만 넣습니다. 개발 사용자는
-서울 기본 위치와 `LOCAL_FOOD`, `NATURE` 관광 유형을 가지며 실제 개인정보는 포함하지 않습니다.
-두 스크립트 모두 반복 실행해도 같은 행을 중복 생성하지 않으며 Aiven과 Render에는 적용되지 않습니다.
+`local-user` 개발 사용자, 공개 프로필 `local-buddy-demo`를 Docker Compose의 `mysql`
+서비스에만 넣습니다. 개발 사용자는 서울 기본 위치와 `LOCAL_FOOD`, `NATURE` 관광 유형을
+가지며 실제 개인정보는 포함하지 않습니다. Buddy seed는 실행 결과에 `profileId`를 출력하므로
+`GET /api/v1/buddy-profiles/{profileId}`와 차단·해제 API를 Swagger에서 바로 시험할 수 있습니다.
+세 스크립트 모두 반복 실행해도 같은 행을 중복 생성하지 않으며 Aiven과 Render에는 적용되지 않습니다.
 
 ### KTO 축제 수동 수집
 

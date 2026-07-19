@@ -36,6 +36,8 @@ public class SecurityConfig {
 					"/openapi/**", "/v3/api-docs/**",
 					"/swagger-ui.html", "/swagger-ui/**")
 				.permitAll()
+				.requestMatchers(HttpMethod.GET, "/api/v1/places/*/mates")
+				.authenticated()
 				.requestMatchers(HttpMethod.GET, "/api/v1/places", "/api/v1/places/**")
 				.permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/v1/monthly-recommendations")

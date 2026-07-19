@@ -90,7 +90,8 @@ class PlaceControllerTest {
 			.andExpect(jsonPath("$.data.address").value((Object) null))
 			.andExpect(jsonPath("$.data.operatingHours").value((Object) null))
 			.andExpect(jsonPath("$.data.images", hasSize(0)))
-			.andExpect(jsonPath("$.data.availableTabs", hasSize(0)))
+			.andExpect(jsonPath("$.data.availableTabs", hasSize(1)))
+			.andExpect(jsonPath("$.data.availableTabs[0]").value("MATES"))
 			.andExpect(jsonPath("$.data.isSaved").value(false));
 	}
 

@@ -81,4 +81,34 @@ WHERE profile_id = @local_buddy_profile_id;
 INSERT INTO buddy_social_links (profile_id, link_type, link_value, display_order)
 VALUES (@local_buddy_profile_id, 'INSTAGRAM', '@koready_demo', 1);
 
+SET @local_buddy_place_id = (
+    SELECT id
+    FROM places
+    WHERE active = TRUE AND show_flag = TRUE
+    ORDER BY id
+    LIMIT 1
+);
+
+INSERT INTO user_saved_places (
+    user_id,
+    place_id,
+    source,
+    saved_at,
+    updated_at,
+    deleted_at
+)
+SELECT
+    @local_buddy_user_id,
+    @local_buddy_place_id,
+    'PLACE_DETAIL',
+    NOW(6),
+    NOW(6),
+    NULL
+WHERE @local_buddy_place_id IS NOT NULL
+ON DUPLICATE KEY UPDATE
+    source = 'PLACE_DETAIL',
+    saved_at = VALUES(saved_at),
+    updated_at = VALUES(updated_at),
+    deleted_at = NULL;
+
 SELECT @local_buddy_profile_id AS local_buddy_profile_id;

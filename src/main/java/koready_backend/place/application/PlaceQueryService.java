@@ -106,7 +106,9 @@ public class PlaceQueryService {
 		List<PlaceImage> images = row.imageUrl() == null
 			? List.of()
 			: List.of(new PlaceImage(row.imageUrl(), 1, row.title()));
-		List<String> availableTabs = description == null ? List.of() : List.of("DESCRIPTION");
+		List<String> availableTabs = description == null
+			? List.of("MATES")
+			: List.of("DESCRIPTION", "MATES");
 
 		return new PlaceDetail(
 			row.placeId(),

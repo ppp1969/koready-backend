@@ -470,7 +470,8 @@ sequenceDiagram
 
 - `GET /places/search?query=...`: KoReady에 적재된 관광지를 검색한다. 사용자 주소 검색과 다른 API다.
 - `GET /places/{placeId}`: 카드에서 상세로 진입할 때 호출한다.
-- 상세 응답의 `availableTabs`만 노출하며 현재 값은 `DESCRIPTION | ROUTE | MATES`다.
+- 상세 응답의 `availableTabs`만 노출한다. 현재 구현값은 `DESCRIPTION | MATES`이며 설명이
+  없으면 `MATES`만 온다. `ROUTE`는 TMAP 구현 전까지 표시하지 않는다.
 - 운영시간·휴무·요금·주차가 `null`이면 빈 문자열이나 `null` 글자를 표시하지 말고 해당 행을 숨긴다.
 - 이미지가 여러 개면 `order` 오름차순으로 표시한다.
 - `relatedPlaces` 클릭은 해당 `placeId`로 같은 상세 화면을 다시 연다.
@@ -536,10 +537,30 @@ GET /routes/{routeId}
 
 - `GET /users/me/buddy-profile`: 내 프로필 편집 초기값.
 - `PUT /users/me/buddy-profile`: 전체 저장. 부분 수정이 아니므로 화면의 모든 필드를 보낸다.
-- `GET /places/{placeId}/mates`: 장소의 공개 메이트 목록.
 - `GET /buddy-profiles/{profileId}`: 공개 프로필 상세.
 
 `KoreanLevel`은 `BEGINNER | INTERMEDIATE | ADVANCED`, `BuddyStyle`은 `TRADITIONAL_CULTURE | CAFE_TOUR | FOODIE | PHOTOGRAPHY | HANOK_EXPERIENCE | QUIET_TRAVEL`이다. 온보딩 `TravelStyle`과 섞지 않는다.
+
+#### 장소별 메이트 목록
+
+```text
+GET /places/{placeId}
+  -> availableTabs에 MATES가 있으면 메이트 탭 표시
+  -> 탭을 열 때 GET /places/{placeId}/mates?size=20
+  -> 응답 items를 순서대로 추가
+  -> hasMore=true일 때만 nextCursor로 다음 페이지 호출
+```
+
+- 첫 요청에는 `cursor`를 보내지 않는다. 다음 요청은 같은 로그인 사용자와 `placeId`로 서버가 준 `nextCursor`를 그대로 보낸다.
+- 장소를 바꾸거나 사용자가 바뀌면 기존 cursor와 items를 모두 버린다.
+- `400 INVALID_CURSOR`이면 저장한 cursor를 폐기하고 첫 페이지를 다시 호출한다.
+- `404 PLACE_NOT_FOUND`이면 숨김·삭제된 장소이므로 장소 목록으로 돌아간다.
+- `items=[]`는 오류가 아니라 공개 메이트가 없는 정상 빈 상태다. exact total count는 표시하지 않는다.
+- item은 해당 장소를 현재 저장했고 프로필을 공개한 사용자다. 온보딩 선호 장소 선택자는 자동 공개되지 않는다.
+- 본인·탈퇴·비공개·양방향 차단 관계는 서버가 제외하므로 프론트에서 다시 필터링하지 않는다.
+- `snsPublic=false`이면 `socialLinks=[]`를 그대로 표시하고, `canMessage=false`이면 쪽지 버튼을 비활성화한다.
+- 카드 선택 시 item의 `profileId`로 `GET /buddy-profiles/{profileId}`를 호출한다.
+- 신고 성공만으로 상대가 사라지지는 않는다. 즉시 숨김이 필요하면 차단 API 성공 뒤 현재 목록에서 제거한다.
 
 ### 10.2 쪽지
 

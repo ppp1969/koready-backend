@@ -149,7 +149,7 @@ class PlaceQueryServiceTest {
 
 		PlaceQueryService.PlaceDetail detail = service.getPlace(10L, PlaceLanguage.KO);
 
-		assertEquals(List.of("DESCRIPTION"), detail.availableTabs());
+		assertEquals(List.of("DESCRIPTION", "MATES"), detail.availableTabs());
 		assertEquals(2, detail.description().introParagraphs().size());
 		assertEquals("MANUAL_EDITED", detail.description().sourceType());
 		assertEquals(1, detail.images().size());
@@ -161,7 +161,7 @@ class PlaceQueryServiceTest {
 				null, null, null, null, "KTO_KO")));
 		PlaceQueryService.PlaceDetail empty = service.getPlace(11L, PlaceLanguage.KO);
 		assertNull(empty.description());
-		assertTrue(empty.availableTabs().isEmpty());
+		assertEquals(List.of("MATES"), empty.availableTabs());
 	}
 
 	@Test

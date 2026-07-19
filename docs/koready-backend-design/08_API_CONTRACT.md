@@ -1087,6 +1087,11 @@ TMAP 호출 또는 routeId 캐시 조회
 | DELETE | `/users/me/blocked-profiles/{profileId}` | 차단 해제 |
 | POST | `/reports` | 프로필/쪽지 신고 |
 
+- 신고 요청은 `PROFILE`의 Buddy profileId 또는 `MESSAGE`의 messageId를 숫자 문자열 `targetId`로 보낸다.
+- MESSAGE는 현재 사용자가 받은 메시지만 허용하고, 타인·발신 메시지·없는 메시지는 모두 `404 REPORT_TARGET_NOT_FOUND`다.
+- 첫 제출과 재시도를 구분하기 위해 `Idempotency-Key`가 필수다. 같은 key의 같은 요청은 최초 접수를 반환하고 다른 요청은 `409`다.
+- 신고는 `RECEIVED`로 접수되며 차단·자동 제재를 만들지 않는다. 차단은 별도 API다.
+
 ---
 
 ## 10. 프론트 전용 기능
@@ -1175,6 +1180,9 @@ TMAP 호출 또는 routeId 캐시 조회
 | `BUDDY_PROFILE_REQUIRED` | Buddy 프로필 필요 |
 | `MESSAGE_NOT_ALLOWED` | 차단/수신거부/비공개 정책 위반 |
 | `MESSAGE_TOO_LONG` | 쪽지 1,000자 초과 |
+| `REPORT_TARGET_NOT_FOUND` | 없거나 현재 사용자가 신고할 수 없는 프로필·메시지 |
+| `REPORT_NOT_ALLOWED` | 자기 프로필처럼 정책상 신고할 수 없는 대상 |
+| `IDEMPOTENCY_KEY_REUSED` | 이미 다른 요청에 사용한 멱등 key 재사용 |
 | `RATE_LIMIT_EXCEEDED` | 요청 한도 초과 |
 
 ## 13. 구현 수락 기준

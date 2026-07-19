@@ -1165,9 +1165,27 @@ paths:
       summary: 프로필 또는 쪽지 신고
       description: |
         **호출 시점:** 사용자가 신고 사유와 선택적 설명을 확인한 뒤 호출합니다.
-        targetType은 PROFILE 또는 MESSAGE이며 신고 성공과 차단은 별개이므로 차단을 원하면 차단 API도 호출합니다.
-        성공 뒤 중복 전송을 막고 접수 완료 안내를 표시합니다.
-      x-implementation-status: PLANNED
+        targetType은 PROFILE 또는 MESSAGE이고 targetId는 양의 정수를 문자열로 보냅니다.
+        PROFILE의 targetId는 Buddy profileId, MESSAGE의 targetId는 messageId입니다.
+        reason은 앞뒤 공백 제거 후 실제 문자 수 1~500자입니다.
+
+        **멱등 전송:** 신고 확인 버튼을 누르는 새 논리 요청마다 8~100자의 새 Idempotency-Key를
+        만듭니다. 응답을 받지 못한 같은 대상·같은 사유의 네트워크 재시도에서만 이전 key를
+        그대로 사용합니다. 같은 key와 같은 요청이면 최초 신고를 다시 201로 반환하고, 대상이나
+        사유를 바꾼 뒤 key를 재사용하면 409 IDEMPOTENCY_KEY_REUSED입니다.
+
+        **대상 검증:** PROFILE은 활성 Buddy 프로필만 신고할 수 있고 자기 프로필은
+        422 REPORT_NOT_ALLOWED입니다. MESSAGE는 현재 사용자가 실제로 수신한 메시지만 신고할 수
+        있습니다. 내가 보낸 메시지, 타인의 메시지, 없는 메시지는 대상 존재 여부를 구분하지 않고
+        404 REPORT_TARGET_NOT_FOUND입니다. 메시지 발신자가 이후 탈퇴했더라도 내가 수신한 원본
+        메시지가 DB에 남아 있으면 운영 증빙을 위해 신고할 수 있습니다.
+
+        성공 시 status는 RECEIVED입니다. 신고는 차단을 자동 생성하지 않습니다. 신고 후 상대를
+        숨기고 새 쪽지를 막으려면 `PUT /users/me/blocked-profiles/{profileId}`를 별도로 호출합니다.
+        프론트는 201을 받은 뒤 전송 버튼 중복 클릭을 막고 접수 완료 안내를 표시합니다.
+      x-implementation-status: IMPLEMENTED
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -1175,10 +1193,18 @@ paths:
             schema:
               $ref: '#/components/schemas/ReportRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '201':
           $ref: '#/components/responses/ReportCreated'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /admin/onboarding/place-candidate-sets:
     get:
       tags: [Admin Curation]
@@ -2405,7 +2431,7 @@ components:
           schema:
             $ref: '#/components/schemas/BlockProfileEnvelope'
     ReportCreated:
-      description: 신고 접수 성공
+      description: 신고 접수 또는 동일 멱등 요청 재반환 성공. status는 RECEIVED
       content:
         application/json:
           schema:
@@ -3593,10 +3619,15 @@ components:
           $ref: '#/components/schemas/ReportTargetType'
         targetId:
           type: string
+          minLength: 1
+          maxLength: 19
+          pattern: '^[1-9][0-9]*$'
+          description: PROFILE이면 profileId, MESSAGE이면 messageId인 양의 정수 문자열
         reason:
           type: string
           minLength: 1
           maxLength: 500
+          description: 앞뒤 공백 제거 후 Unicode 문자 기준 1~500자의 신고 사유와 설명
     CreateBatchJobRequest:
       type: object
       required: [jobType, reason]

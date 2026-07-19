@@ -22,6 +22,14 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import koready_backend.buddy.application.port.BuddyBlockRepository;
 import koready_backend.buddy.application.port.BuddyBlockRepository.BlockRelationship;
+import koready_backend.buddy.application.port.BuddyMessageRepository;
+import koready_backend.buddy.application.port.BuddyMessageRepository.MessageThread;
+import koready_backend.buddy.application.port.BuddyMessageRepository.StoredMessage;
+import koready_backend.buddy.application.port.BuddyReportRepository;
+import koready_backend.buddy.application.port.BuddyReportRepository.NewReport;
+import koready_backend.buddy.application.port.BuddyReportRepository.StoredReport;
+import koready_backend.buddy.domain.ReportStatus;
+import koready_backend.buddy.domain.ReportTargetType;
 
 @Tag("integration")
 @SpringBootTest
@@ -43,6 +51,12 @@ class JdbcBuddyBlockRepositoryIntegrationTest {
 
 	@Autowired
 	private BuddyBlockRepository repository;
+
+	@Autowired
+	private BuddyReportRepository reportRepository;
+
+	@Autowired
+	private BuddyMessageRepository messageRepository;
 
 	@Test
 	void storesOneDirectionalBlockAndPreservesTheFirstTimestamp() {
@@ -106,6 +120,153 @@ class JdbcBuddyBlockRepositoryIntegrationTest {
 			Long.MAX_VALUE));
 	}
 
+	@Test
+	void flywayCreatesTheBuddyReportSafetySchema() {
+		Integer tableCount = jdbcTemplate.queryForObject(
+			"""
+			SELECT COUNT(*)
+			FROM information_schema.tables
+			WHERE table_schema = DATABASE() AND table_name = 'buddy_reports'
+			""",
+			Integer.class);
+		Integer idempotencyIndexCount = jdbcTemplate.queryForObject(
+			"""
+			SELECT COUNT(*)
+			FROM information_schema.statistics
+			WHERE table_schema = DATABASE()
+			  AND table_name = 'buddy_reports'
+			  AND index_name = 'uq_buddy_report_idempotency'
+			""",
+			Integer.class);
+
+		assertEquals(1, tableCount);
+		assertEquals(2, idempotencyIndexCount);
+	}
+
+	@Test
+	void storesProfileAndReceivedMessageReportsIdempotently() {
+		long reporterUserId = user("usr_report_db_reporter");
+		long targetUserId = user("usr_report_db_target");
+		long reporterProfileId = profile(reporterUserId, "Reporter");
+		long targetProfileId = profile(targetUserId, "Target");
+		long placeId = place("REPORT-PLACE-001", "Report Place");
+		MessageThread thread = messageRepository.findOrCreateThread(
+			placeId,
+			reporterProfileId,
+			targetProfileId,
+			"thread_report_db_001",
+			FIRST);
+		StoredMessage received = messageRepository.appendMessage(
+			thread,
+			targetProfileId,
+			reporterProfileId,
+			"Evidence message",
+			FIRST);
+
+		assertEquals(reporterUserId,
+			reportRepository.findActiveReporterUserId("usr_report_db_reporter")
+				.orElseThrow());
+		assertEquals(targetUserId,
+			reportRepository.findActiveProfileTarget(targetProfileId)
+				.orElseThrow().ownerUserId());
+		assertEquals(targetProfileId,
+			reportRepository.findReceivedMessageTarget(
+				received.messageId(), reporterUserId).orElseThrow().senderProfileId());
+		assertTrue(reportRepository.findReceivedMessageTarget(
+			received.messageId(), targetUserId).isEmpty());
+
+		NewReport profileReport = new NewReport(
+			reporterUserId,
+			ReportTargetType.PROFILE,
+			targetProfileId,
+			null,
+			"Impersonation",
+			"report-db-key-001",
+			"a".repeat(64),
+			FIRST);
+		StoredReport first = reportRepository.save(profileReport);
+		StoredReport replay = reportRepository.save(profileReport);
+		StoredReport conflictingReplay = reportRepository.save(new NewReport(
+			reporterUserId,
+			ReportTargetType.PROFILE,
+			targetProfileId,
+			null,
+			"Changed reason",
+			"report-db-key-001",
+			"f".repeat(64),
+			SECOND));
+		assertEquals(first, replay);
+		assertEquals(first, conflictingReplay);
+		assertEquals(ReportStatus.RECEIVED, first.status());
+		assertEquals(Long.toString(targetProfileId), first.targetId());
+
+		StoredReport messageReport = reportRepository.save(new NewReport(
+			reporterUserId,
+			ReportTargetType.MESSAGE,
+			targetProfileId,
+			received.messageId(),
+			"Abusive language",
+			"report-db-key-002",
+			"b".repeat(64),
+			SECOND));
+		assertEquals(Long.toString(received.messageId()), messageReport.targetId());
+		assertEquals(2, jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM buddy_reports WHERE reporter_user_id = ?",
+			Integer.class,
+			reporterUserId));
+
+		jdbcTemplate.update(
+			"UPDATE users SET deleted_at = NOW(6) WHERE id = ?", targetUserId);
+		assertTrue(reportRepository.findActiveProfileTarget(targetProfileId).isEmpty());
+		assertTrue(reportRepository.findReceivedMessageTarget(
+			received.messageId(), reporterUserId).isPresent());
+	}
+
+	@Test
+	void databaseRejectsInvalidReportTargetsReasonsAndReferences() {
+		long reporterUserId = user("usr_report_db_constraint");
+		long targetUserId = user("usr_report_db_constraint_target");
+		long targetProfileId = profile(targetUserId, "Constraint Target");
+
+		assertThrows(DataAccessException.class, () -> jdbcTemplate.update(
+			"""
+			INSERT INTO buddy_reports
+			    (reporter_user_id, target_type, target_profile_id,
+			     target_message_id, reason, status, idempotency_key,
+			     request_hash, created_at, updated_at)
+			VALUES (?, 'MESSAGE', ?, NULL, 'Reason', 'RECEIVED',
+			        'constraint-key-001', ?, NOW(6), NOW(6))
+			""",
+			reporterUserId,
+			targetProfileId,
+			"c".repeat(64)));
+		assertThrows(DataAccessException.class, () -> jdbcTemplate.update(
+			"""
+			INSERT INTO buddy_reports
+			    (reporter_user_id, target_type, target_profile_id,
+			     target_message_id, reason, status, idempotency_key,
+			     request_hash, created_at, updated_at)
+			VALUES (?, 'PROFILE', ?, NULL, '   ', 'RECEIVED',
+			        'constraint-key-002', ?, NOW(6), NOW(6))
+			""",
+			reporterUserId,
+			targetProfileId,
+			"d".repeat(64)));
+		assertThrows(DataAccessException.class, () -> jdbcTemplate.update(
+			"""
+			INSERT INTO buddy_reports
+			    (reporter_user_id, target_type, target_profile_id,
+			     target_message_id, reason, status, idempotency_key,
+			     request_hash, created_at, updated_at)
+			VALUES (?, 'MESSAGE', ?, ?, 'Reason', 'RECEIVED',
+			        'constraint-key-003', ?, NOW(6), NOW(6))
+			""",
+			reporterUserId,
+			targetProfileId,
+			Long.MAX_VALUE,
+			"e".repeat(64)));
+	}
+
 	private long user(String publicId) {
 		jdbcTemplate.update(
 			"INSERT INTO users (public_id, signup_status) VALUES (?, 'COMPLETED')",
@@ -137,5 +298,22 @@ class JdbcBuddyBlockRepositoryIntegrationTest {
 			Integer.class,
 			blockerUserId,
 			blockedUserId);
+	}
+
+	private long place(String contentId, String title) {
+		jdbcTemplate.update(
+			"INSERT INTO places (kto_content_id, active, show_flag) VALUES (?, TRUE, TRUE)",
+			contentId);
+		long placeId = jdbcTemplate.queryForObject(
+			"SELECT id FROM places WHERE kto_content_id = ?", Long.class, contentId);
+		jdbcTemplate.update(
+			"""
+			INSERT INTO place_localizations
+			    (place_id, language, title, translation_source)
+			VALUES (?, 'KO', ?, 'MANUAL_EDITED')
+			""",
+			placeId,
+			title);
+		return placeId;
 	}
 }

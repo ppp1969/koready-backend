@@ -569,7 +569,11 @@ GET /routes/{routeId}
 
 - `PUT /users/me/blocked-profiles/{profileId}`: 차단 성공 뒤 공개 메이트 목록에서는 숨긴다. 이미 생긴 쪽지 스레드는 신고 증빙과 과거 대화 확인을 위해 남기고 `blocked=true`, `canReply=false`로 표시한다.
 - `DELETE /users/me/blocked-profiles/{profileId}`: 차단을 해제해도 상대의 공개·수신 허용 상태가 모두 충족되어야 다시 답장할 수 있다.
-- `POST /reports`: `targetType=PROFILE|MESSAGE`, 대상 ID, 사유를 전송한다. 신고와 차단은 서로 다른 동작이다.
+- `POST /reports`: `targetType=PROFILE|MESSAGE`, 숫자 문자열 `targetId`, 1~500자 `reason`을 전송한다. PROFILE은 `profileId`, MESSAGE는 사용자가 받은 `messageId`다.
+- 신고 확인 버튼을 누르는 새 동작마다 8~100자의 `Idempotency-Key`를 만든다. 같은 대상·사유를 네트워크 오류로 재시도할 때만 같은 key를 사용한다.
+- `409 IDEMPOTENCY_KEY_REUSED`면 대상이나 사유가 바뀐 요청에 이전 key를 사용한 것이므로 자동 재시도하지 않고 새 key로 사용자의 재확인을 받는다.
+- `404 REPORT_TARGET_NOT_FOUND`면 없거나 신고 권한이 없는 메시지·프로필을 같은 방식으로 안내한다. `422 REPORT_NOT_ALLOWED`는 자기 프로필 신고처럼 허용되지 않는 요청이다.
+- 신고 성공은 상대 차단을 뜻하지 않는다. 신고와 동시에 숨김을 선택한 UI라면 신고 201 확인 뒤 `PUT /users/me/blocked-profiles/{profileId}`를 별도로 호출한다.
 
 ## 11. 관리자 호출 흐름
 

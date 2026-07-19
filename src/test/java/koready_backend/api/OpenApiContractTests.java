@@ -39,6 +39,8 @@ class OpenApiContractTests {
 		"DELETE /users/me/saved-places/{placeId}",
 		"GET /users/me/buddy-profile",
 		"PUT /users/me/buddy-profile",
+		"PUT /users/me/blocked-profiles/{profileId}",
+		"DELETE /users/me/blocked-profiles/{profileId}",
 		"GET /onboarding/place-candidate-sets/current",
 		"GET /admin/onboarding/place-candidate-sets",
 		"POST /admin/onboarding/place-candidate-sets",
@@ -772,6 +774,26 @@ class OpenApiContractTests {
 				"HANOK_EXPERIENCE", "QUIET_TRAVEL"),
 			asList(asMap(schemas.get("BuddyStyle"), "BuddyStyle").get("enum"),
 				"BuddyStyle.enum"));
+	}
+
+	@Test
+	void buddyBlockContractDocumentsIdempotencyAndSafetyErrors() throws IOException {
+		Map<String, Object> paths = asMap(loadContract().get("paths"), "paths");
+		Map<String, Object> blockPath = asMap(
+			paths.get("/users/me/blocked-profiles/{profileId}"), "buddy block path");
+		Map<String, Object> block = asMap(blockPath.get("put"), "buddy block operation");
+		Map<String, Object> unblock = asMap(
+			blockPath.get("delete"), "buddy unblock operation");
+
+		for (Map<String, Object> operation : List.of(block, unblock)) {
+			assertEquals("IMPLEMENTED", operation.get("x-implementation-status"));
+			assertTrue(String.valueOf(operation.get("description")).contains("멱등"));
+			assertTrue(asMap(operation.get("responses"), "buddy safety responses")
+				.keySet().containsAll(Set.of("400", "401", "404")));
+		}
+		assertTrue(asMap(block.get("responses"), "block responses").containsKey("200"));
+		assertTrue(asMap(unblock.get("responses"), "unblock responses")
+			.containsKey("204"));
 	}
 
 	private static Set<String> directParameterNames(

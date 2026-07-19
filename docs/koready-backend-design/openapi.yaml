@@ -1026,12 +1026,18 @@ paths:
       description: |
         차단 확인 modal에서 호출합니다. 성공 뒤 상대를 메이트 목록과 쪽지 진입점에서 즉시 제거합니다.
         차단은 신고를 자동 생성하지 않으므로 신고가 필요하면 별도 API를 호출합니다.
-      x-implementation-status: PLANNED
+        멱등 요청이므로 같은 profileId를 반복 호출해도 차단 행은 하나만 유지되며 최초 blockedAt을 반환합니다.
+        본인 프로필은 차단할 수 없고, 존재하지 않거나 삭제된 사용자의 프로필은 찾을 수 없는 대상으로 처리합니다.
+      x-implementation-status: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/ProfileId'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '200':
           $ref: '#/components/responses/BlockProfileSuccess'
     delete:
@@ -1040,12 +1046,17 @@ paths:
       summary: Buddy 프로필 차단 해제
       description: |
         차단 목록에서 해제를 확정할 때 호출합니다. 204 body는 없으며 과거 쪽지나 공개 상태를 자동 복원한다는 의미는 아닙니다.
-      x-implementation-status: PLANNED
+        차단 기록이 이미 없어도 204를 반환하는 멱등 요청입니다. 본인 프로필은 대상으로 사용할 수 없습니다.
+      x-implementation-status: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/ProfileId'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '204':
           description: 차단 해제 성공
   /reports:

@@ -149,6 +149,15 @@ $env:DB_URL='jdbc:mysql://localhost:3307/koready?useUnicode=true&characterEncodi
 docker compose -p koready-local --profile full up --build
 ```
 
+Render와 같은 메모리 경계에서 이미지 부팅, Flyway, readiness를 한 번에 확인하려면
+Git Bash 또는 WSL에서 다음 스모크를 실행합니다. 테스트는 격리된 Compose project와
+로컬 전용 DB 값만 사용하고 종료 시 컨테이너와 volume을 제거합니다.
+
+```bash
+docker build --tag koready-backend:local .
+./scripts/smoke-docker.sh koready-backend:local
+```
+
 기본 포트는 `8080`, 상태 확인 경로는 `/actuator/health`와 `/actuator/health/readiness`입니다.
 Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 

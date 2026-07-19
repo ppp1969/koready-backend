@@ -2,7 +2,9 @@ package koready_backend.buddy.controller;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,7 +21,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.buddy.application.BuddyMessageService;
+import koready_backend.buddy.application.BuddyMessageQueryService;
 import koready_backend.buddy.application.exception.BuddyProfileRequiredException;
+import koready_backend.buddy.application.exception.InvalidMessageCursorException;
 import koready_backend.buddy.application.exception.MessageIdempotencyConflictException;
 import koready_backend.buddy.application.exception.MessageNotAllowedException;
 import koready_backend.buddy.application.exception.MessageThreadNotFoundException;
@@ -38,8 +42,23 @@ class BuddyMessageControllerTest {
 	@MockitoBean
 	private BuddyMessageService service;
 
+	@MockitoBean
+	private BuddyMessageQueryService queryService;
+
 	@Test
-	void requiresAuthenticationForThreadCreationAndReplies() throws Exception {
+	void requiresAuthenticationForEveryMessageOperation() throws Exception {
+		mockMvc.perform(get("/api/v1/message-threads"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+
+		mockMvc.perform(get("/api/v1/message-threads/thread_001"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+
+		mockMvc.perform(put("/api/v1/message-threads/thread_001/read"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+
 		mockMvc.perform(post("/api/v1/message-threads")
 				.header("Idempotency-Key", KEY)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -55,6 +74,99 @@ class BuddyMessageControllerTest {
 				.content("{\"content\":\"Reply\"}"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+	}
+
+	@Test
+	void returnsThreadListDetailAndExplicitReadResults() throws Exception {
+		BuddyMessageQueryService.ThreadSummary summary =
+			new BuddyMessageQueryService.ThreadSummary(
+				"thread_001",
+				new BuddyMessageService.PlaceSummary(
+					1001L, "Gimbap Festival", "https://example.com/place.jpg"),
+				new BuddyMessageService.ProfileSummary(
+					51L, "Receiver", "https://example.com/profile.jpg"),
+				"Hello",
+				SENT_AT,
+				2L,
+				true,
+				false);
+		when(queryService.getThreads("usr_sender", null, 20))
+			.thenReturn(new BuddyMessageQueryService.ThreadListResult(
+				List.of(summary), "next_threads", true, 2L));
+		when(queryService.getThread("usr_sender", "thread_001", null, 20))
+			.thenReturn(new BuddyMessageService.ThreadResult(
+				"thread_001",
+				summary.place(),
+				summary.otherProfile(),
+				List.of(message(9001L, "Hello")),
+				null,
+				false,
+				false));
+		when(queryService.markRead("usr_sender", "thread_001"))
+			.thenReturn(new BuddyMessageQueryService.ReadResult(
+				"thread_001", SENT_AT, 0L, 0L));
+
+		mockMvc.perform(get("/api/v1/message-threads")
+				.with(user("usr_sender").roles("USER")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value("MESSAGE_THREADS_OK"))
+			.andExpect(jsonPath("$.data.items[0].threadId").value("thread_001"))
+			.andExpect(jsonPath("$.data.items[0].blocked").value(true))
+			.andExpect(jsonPath("$.data.items[0].canReply").value(false))
+			.andExpect(jsonPath("$.data.nextCursor").value("next_threads"))
+			.andExpect(jsonPath("$.data.unreadTotal").value(2));
+
+		mockMvc.perform(get("/api/v1/message-threads/thread_001")
+				.with(user("usr_sender").roles("USER")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value("MESSAGE_THREAD_OK"))
+			.andExpect(jsonPath("$.data.messages[0].messageId").value(9001))
+			.andExpect(jsonPath("$.data.canReply").value(false));
+
+		mockMvc.perform(put("/api/v1/message-threads/thread_001/read")
+				.with(user("usr_sender").roles("USER")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value("MESSAGE_THREAD_READ"))
+			.andExpect(jsonPath("$.data.threadUnreadCount").value(0))
+			.andExpect(jsonPath("$.data.unreadTotal").value(0));
+	}
+
+	@Test
+	void validatesMessagePagingAndMapsCursorErrors() throws Exception {
+		mockMvc.perform(get("/api/v1/message-threads?size=51")
+				.with(user("usr_sender").roles("USER")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+		when(queryService.getThreads("usr_sender", "bad-cursor", 20))
+			.thenThrow(new InvalidMessageCursorException());
+		mockMvc.perform(get("/api/v1/message-threads?cursor=bad-cursor")
+				.with(user("usr_sender").roles("USER")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_CURSOR"));
+	}
+
+	@Test
+	void hidesForeignThreadsAndMapsMissingBuddyProfile() throws Exception {
+		when(queryService.getThread("usr_sender", "thread_hidden", null, 20))
+			.thenThrow(new MessageThreadNotFoundException());
+		when(queryService.markRead("usr_sender", "thread_hidden"))
+			.thenThrow(new MessageThreadNotFoundException());
+		when(queryService.getThreads("usr_no_profile", null, 20))
+			.thenThrow(new BuddyProfileRequiredException());
+
+		mockMvc.perform(get("/api/v1/message-threads/thread_hidden")
+				.with(user("usr_sender").roles("USER")))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("MESSAGE_THREAD_NOT_FOUND"));
+		mockMvc.perform(put("/api/v1/message-threads/thread_hidden/read")
+				.with(user("usr_sender").roles("USER")))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("MESSAGE_THREAD_NOT_FOUND"));
+		mockMvc.perform(get("/api/v1/message-threads")
+				.with(user("usr_no_profile").roles("USER")))
+			.andExpect(status().is(422))
+			.andExpect(jsonPath("$.code").value("BUDDY_PROFILE_REQUIRED"));
 	}
 
 	@Test

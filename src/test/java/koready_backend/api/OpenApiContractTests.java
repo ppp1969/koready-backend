@@ -45,8 +45,11 @@ class OpenApiContractTests {
 		"GET /users/me/buddy-profile",
 		"PUT /users/me/buddy-profile",
 		"GET /buddy-profiles/{profileId}",
+		"GET /message-threads",
 		"POST /message-threads",
+		"GET /message-threads/{threadId}",
 		"POST /message-threads/{threadId}/messages",
+		"PUT /message-threads/{threadId}/read",
 		"PUT /users/me/blocked-profiles/{profileId}",
 		"DELETE /users/me/blocked-profiles/{profileId}",
 		"GET /onboarding/place-candidate-sets/current",
@@ -825,6 +828,52 @@ class OpenApiContractTests {
 			assertTrue(description.contains("1,000"));
 			assertTrue(description.contains("멱등"));
 		}
+	}
+
+	@Test
+	void buddyMessageInboxContractDocumentsPaginationBlockingAndExplicitRead()
+		throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> threadCollection = asMap(
+			paths.get("/message-threads"), "message thread collection");
+		Map<String, Object> list = asMap(
+			threadCollection.get("get"), "message thread list");
+		Map<String, Object> detail = asMap(asMap(
+			paths.get("/message-threads/{threadId}"), "message thread detail path")
+			.get("get"), "message thread detail");
+		Map<String, Object> read = asMap(asMap(
+			paths.get("/message-threads/{threadId}/read"), "message read path")
+			.get("put"), "message read operation");
+
+		for (Map<String, Object> operation : List.of(list, detail, read)) {
+			assertEquals("IMPLEMENTED", operation.get("x-implementation-status"));
+			assertTrue(asMap(operation.get("responses"), "message inbox responses")
+				.keySet().containsAll(Set.of("400", "401", "422", "200")));
+		}
+		assertTrue(asMap(detail.get("responses"), "message detail responses")
+			.containsKey("404"));
+		assertTrue(asMap(read.get("responses"), "message read responses")
+			.containsKey("404"));
+
+		String listDescription = String.valueOf(list.get("description"));
+		String detailDescription = String.valueOf(detail.get("description"));
+		String readDescription = String.valueOf(read.get("description"));
+		assertTrue(listDescription.contains("updatedAt DESC"));
+		assertTrue(listDescription.contains("blocked=true"));
+		assertTrue(detailDescription.contains("messageId ASC"));
+		assertTrue(detailDescription.contains("읽음 처리하지"));
+		assertTrue(readDescription.contains("멱등"));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> summary = asMap(
+			schemas.get("MessageThreadSummary"), "MessageThreadSummary");
+		assertTrue(asList(summary.get("required"), "MessageThreadSummary.required")
+			.contains("blocked"));
+		Map<String, Object> preview = asMap(asMap(
+			summary.get("properties"), "MessageThreadSummary.properties")
+			.get("preview"), "MessageThreadSummary.preview");
+		assertEquals(100, preview.get("maxLength"));
 	}
 
 	@Test

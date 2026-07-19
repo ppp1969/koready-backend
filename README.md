@@ -173,6 +173,7 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 - `PATCH /api/v1/users/me/language`: KO/EN 기본 언어와 가입 다음 단계 갱신
 - `GET /api/v1/users/me/buddy-profile`: 내 Buddy 프로필 편집값 또는 `exists=false` 조회
 - `PUT /api/v1/users/me/buddy-profile`: 언어·한국어 수준·Buddy 스타일·SNS 설정 전체 저장
+- `GET /api/v1/buddy-profiles/{profileId}`: 공개·SNS·차단 정책을 적용한 Buddy 프로필 상세
 - `PUT /api/v1/users/me/blocked-profiles/{profileId}`: Buddy 프로필 멱등 차단과 최초 차단 시각 반환
 - `DELETE /api/v1/users/me/blocked-profiles/{profileId}`: Buddy 프로필 멱등 차단 해제
 - `GET /api/v1/users/me/onboarding`: 저장된 온보딩 진행 단계와 선택값 복구
@@ -196,7 +197,7 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 - `GET /api/v1/admin/batch-jobs/**`: 배치 작업·item의 안전한 실행 이력 조회
 - `GET /api/v1/admin/data-quality/summary`: 관광지 준비도·누락 항목·번역 출처의 읽기 전용 집계
 
-소셜 로그인과 JWT 발급은 후속 범위이므로 `staging`과 향후 `prod`에서 위 보호 API를 익명 또는 로컬 개발값으로 호출하면 `401`입니다. 로컬에서만 위 개발 인증 하네스를 사용할 수 있습니다. snapshot 다운로드 URL 발급과 배치 수동 실행·재시도는 후속 구현입니다. 현재 snapshot 메타데이터의 `downloadable`은 항상 `false`입니다. sync cursor 변경 API는 외부 호출이나 배치를 시작하지 않고 관리 상태만 변경하며 실행자·사유·전후 값을 감사 로그에 남깁니다. 데이터 품질 요약은 외부 API를 새로 호출하지 않고 저장된 DB의 집계값만 반환합니다. 추천 덱은 테스트 principal과 MySQL fixture로 사용자별 고정 순서, 30일 재노출 제한, 소유권을 검증합니다. 온보딩 완료도 테스트 principal과 MySQL fixture로 검증하며, 태그 점수 정책 승인 전에는 `preferenceTags=[]`를 반환합니다. Buddy 프로필 PUT은 현재 form 전체를 교체합니다. 차단 관계는 방향성 있게 저장하고 반복 PUT에서도 최초 차단 시각을 유지하며, 반복 DELETE는 기록 유무와 무관하게 204를 반환합니다. 프로필 이미지 업로드, 공개 메이트 목록, 쪽지는 후속 범위입니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
+소셜 로그인과 JWT 발급은 후속 범위이므로 `staging`과 향후 `prod`에서 위 보호 API를 익명 또는 로컬 개발값으로 호출하면 `401`입니다. 로컬에서만 위 개발 인증 하네스를 사용할 수 있습니다. snapshot 다운로드 URL 발급과 배치 수동 실행·재시도는 후속 구현입니다. 현재 snapshot 메타데이터의 `downloadable`은 항상 `false`입니다. sync cursor 변경 API는 외부 호출이나 배치를 시작하지 않고 관리 상태만 변경하며 실행자·사유·전후 값을 감사 로그에 남깁니다. 데이터 품질 요약은 외부 API를 새로 호출하지 않고 저장된 DB의 집계값만 반환합니다. 추천 덱은 테스트 principal과 MySQL fixture로 사용자별 고정 순서, 30일 재노출 제한, 소유권을 검증합니다. 온보딩 완료도 테스트 principal과 MySQL fixture로 검증하며, 태그 점수 정책 승인 전에는 `preferenceTags=[]`를 반환합니다. Buddy 프로필 PUT은 현재 form 전체를 교체합니다. 공개 상세는 프로필·SNS 공개 설정과 양방향 차단을 서버에서 적용하고 메시지 가능 여부를 계산합니다. 차단 관계는 방향성 있게 저장하고 반복 PUT에서도 최초 차단 시각을 유지하며, 반복 DELETE는 기록 유무와 무관하게 204를 반환합니다. 프로필 이미지 업로드, 공개 메이트 목록, 쪽지는 후속 범위입니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
 
 `local`과 `staging` 프로필에서는 `/swagger-ui.html`에서 프론트 연동용 Swagger UI를 제공합니다. UI는 `docs/koready-backend-design/openapi.yaml`을 빌드 시 포함한 단일 계약 파일을 표시합니다.
 

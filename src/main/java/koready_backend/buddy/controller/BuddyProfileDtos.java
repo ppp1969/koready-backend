@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import koready_backend.buddy.application.BuddyProfileService;
+import koready_backend.buddy.application.model.BuddyProfileView;
 import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.KoreanLevel;
@@ -25,7 +26,7 @@ final class BuddyProfileDtos {
 			result.profile() == null ? null : from(result.profile()));
 	}
 
-	static BuddyProfileResponse from(BuddyProfileService.BuddyProfileView profile) {
+	static BuddyProfileResponse from(BuddyProfileView profile) {
 		return new BuddyProfileResponse(
 			profile.profileId(),
 			profile.profileImageUrl(),

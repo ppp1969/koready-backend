@@ -9,7 +9,15 @@ public interface BuddyBlockRepository {
 
 	Optional<Long> findActiveProfileOwnerId(long profileId);
 
+	BlockRelationship relationship(long requesterUserId, long targetUserId);
+
 	Instant block(long blockerUserId, long blockedUserId, Instant blockedAt);
 
 	void unblock(long blockerUserId, long blockedUserId);
+
+	record BlockRelationship(
+		boolean blockedByRequester,
+		boolean blockedByTarget
+	) {
+	}
 }

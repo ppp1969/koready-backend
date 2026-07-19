@@ -8,6 +8,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import koready_backend.buddy.application.port.BuddyBlockRepository;
+import koready_backend.buddy.application.port.BuddyBlockRepository.BlockRelationship;
 
 @Repository
 public class JdbcBuddyBlockRepository implements BuddyBlockRepository {
@@ -38,6 +39,29 @@ public class JdbcBuddyBlockRepository implements BuddyBlockRepository {
 			""",
 			(resultSet, rowNumber) -> resultSet.getLong("user_id"),
 			profileId).stream().findFirst();
+	}
+
+	@Override
+	public BlockRelationship relationship(long requesterUserId, long targetUserId) {
+		return jdbcTemplate.queryForObject(
+			"""
+			SELECT
+			    EXISTS(
+			        SELECT 1 FROM buddy_blocks
+			        WHERE blocker_user_id = ? AND blocked_user_id = ?
+			    ) AS blocked_by_requester,
+			    EXISTS(
+			        SELECT 1 FROM buddy_blocks
+			        WHERE blocker_user_id = ? AND blocked_user_id = ?
+			    ) AS blocked_by_target
+			""",
+			(resultSet, rowNumber) -> new BlockRelationship(
+				resultSet.getBoolean("blocked_by_requester"),
+				resultSet.getBoolean("blocked_by_target")),
+			requesterUserId,
+			targetUserId,
+			targetUserId,
+			requesterUserId);
 	}
 
 	@Override

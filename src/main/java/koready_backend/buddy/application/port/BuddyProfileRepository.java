@@ -13,6 +13,8 @@ public interface BuddyProfileRepository {
 
 	Optional<BuddyProfileRecord> findByUserId(long userId);
 
+	Optional<BuddyProfileRecord> findActiveById(long profileId);
+
 	BuddyProfileRecord save(long userId, BuddyProfileDraft profile, Instant updatedAt);
 
 	record BuddyProfileRecord(

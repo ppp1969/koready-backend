@@ -22,6 +22,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.buddy.application.BuddyProfileService;
+import koready_backend.buddy.application.model.BuddyProfileView;
 import koready_backend.buddy.application.exception.BuddyUserUnavailableException;
 import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
@@ -127,8 +128,8 @@ class BuddyProfileControllerTest {
 			.andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
 	}
 
-	private static BuddyProfileService.BuddyProfileView profile() {
-		return new BuddyProfileService.BuddyProfileView(
+	private static BuddyProfileView profile() {
+		return new BuddyProfileView(
 			51L,
 			"https://cdn.example.com/emma.jpg",
 			"Emma",

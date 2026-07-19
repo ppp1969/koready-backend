@@ -86,11 +86,14 @@ class JdbcBuddyProfileRepositoryIntegrationTest {
 		assertTrue(repository.findActiveUserId("usr_buddy_missing").isEmpty());
 
 		BuddyProfileRecord loaded = repository.findByUserId(active).orElseThrow();
+		assertEquals(loaded, repository.findActiveById(loaded.profileId()).orElseThrow());
 		assertEquals(List.of(PlaceLanguage.EN, PlaceLanguage.KO),
 			loaded.profile().availableLanguages());
 		assertEquals(List.of(BuddyStyle.FOODIE, BuddyStyle.PHOTOGRAPHY),
 			loaded.profile().buddyStyles());
 		assertFalse(loaded.profile().snsPublic());
+		jdbcTemplate.update("UPDATE users SET deleted_at = NOW(6) WHERE id = ?", active);
+		assertTrue(repository.findActiveById(loaded.profileId()).isEmpty());
 	}
 
 	private BuddyProfileDraft firstDraft() {

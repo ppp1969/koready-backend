@@ -54,6 +54,19 @@ class LocalDevUserSeedIntegrationTest {
 			"SELECT COUNT(*) FROM user_locations WHERE user_id = ? AND deleted_at IS NULL",
 			Integer.class,
 			userId));
+		assertEquals(1, jdbcTemplate.queryForObject(
+			"""
+			SELECT COUNT(*)
+			FROM user_locations
+			WHERE user_id = ?
+			  AND provider = 'KAKAO'
+			  AND road_address IS NOT NULL
+			  AND latitude IS NOT NULL
+			  AND longitude IS NOT NULL
+			  AND deleted_at IS NULL
+			""",
+			Integer.class,
+			userId));
 		assertEquals(2, jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM user_travel_styles WHERE user_id = ?",
 			Integer.class,

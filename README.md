@@ -198,6 +198,10 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 - `GET /api/v1/users/me/onboarding`: 저장된 온보딩 진행 단계와 선택값 복구
 - `PUT /api/v1/users/me/onboarding`: 위치 소유권·후보 버전·선택값 검증 후 멱등 완료
 - `GET /api/v1/locations/search`: Kakao 주소·장소 정규화 검색과 10분 유효 서명 token 발급
+- `GET /api/v1/users/me/locations`: 기본 위치 우선으로 저장 위치 목록 조회
+- `POST /api/v1/users/me/locations`: 서명된 검색 결과를 주소·좌표 위변조 없이 저장
+- `PUT /api/v1/users/me/locations/{locationId}/default`: 내 활성 위치를 기본 위치로 변경
+- `DELETE /api/v1/users/me/locations/{locationId}`: 위치 soft delete와 대체 기본 위치 자동 지정
 - `GET /api/v1/home`: 기본 위치·선호 언어·현재 월 축제 추천 미리보기
 - `POST /api/v1/recommendation-decks`: 위치·여행 스타일 기반 K-Local Pick 덱 생성
 - `GET /api/v1/recommendation-decks/{deckId}`: 고정된 추천 덱 페이지 조회

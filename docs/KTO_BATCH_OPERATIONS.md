@@ -165,6 +165,15 @@ runtime을 제거하고 다시 측정한 최신 기준선은 다음과 같다.
 약 264MiB의 여유가 있다. object storage 업로드까지 연결한 200건 end-to-end
 측정에서 400MiB를 지속해서 넘으면 page 크기를 100건으로 낮춘다.
 
+## CI 512MB 부팅 게이트
+
+PR과 `main`의 Docker job은 이미지 빌드 후 `scripts/smoke-docker.sh`를 실행한다.
+이 스모크는 격리된 MySQL 8.4에 Flyway migration을 적용하고 512MiB 제한의 앱
+컨테이너가 readiness `UP`에 도달하는지 확인한다. 적용된 cgroup 메모리 제한이
+정확히 512MiB인지와 `OOMKilled=false`도 함께 검사하며, 성공과 실패 모두에서
+컨테이너와 volume을 제거한다. 이는 순간 부하를 측정하는 성능 시험이 아니라
+배포 이미지의 최소 부팅 회귀 게이트다.
+
 ## 축제 수집 검증 기록
 
 2026-07-18 로컬 MySQL과 실제 `searchFestival2` 응답으로 다음을 확인했다.

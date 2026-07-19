@@ -46,6 +46,7 @@ jobs:
   docker:
     name: "Docker Build"
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: "소스 체크아웃"
@@ -53,3 +54,6 @@ jobs:
 
       - name: "컨테이너 이미지 빌드"
         run: docker build --tag koready-backend:ci .
+
+      - name: "512MB 제한 부팅 스모크"
+        run: ./scripts/smoke-docker.sh koready-backend:ci

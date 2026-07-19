@@ -23,7 +23,8 @@ services:
 
   app:
     profiles: ["full"]
-    image: koready-backend:local
+    image: ${APP_IMAGE:-koready-backend:local}
+    mem_limit: 512m
     build:
       context: .
     depends_on:

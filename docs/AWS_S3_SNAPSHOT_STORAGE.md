@@ -63,6 +63,42 @@ bucket 기준:
 애플리케이션 role은 `kto/*`의 `GetObject`, `PutObject`와 bucket 위치·prefix
 조회만 허용한다. `DeleteObject`, bucket 정책 수정, 공개 설정 변경 권한은 없다.
 
+## 실제 배포 검증 (2026-07-19)
+
+서울 리전의 실제 AWS 계정에 `koready-kto-snapshot-storage` stack을 배포했고
+상태가 `CREATE_COMPLETE`임을 확인했다. 공개 저장소에는 계정 ID, 자동 생성된 bucket
+이름, 결제 정보와 알림 수신 주소를 기록하지 않는다.
+
+| 검증 항목 | 실제 확인 결과 |
+|---|---|
+| 리전 | `ap-northeast-2` |
+| 외부 공개 여부 | `IsPublic=false` |
+| Block Public Access | 네 설정 모두 `true` |
+| 객체 소유권·ACL | `BucketOwnerEnforced`, ACL 비활성 |
+| 기본 암호화 | SSE-S3 `AES256` |
+| 버전 관리 | `Enabled` |
+| bucket 강제 정책 | TLS 사용, `If-None-Match: *` 조건부 쓰기 |
+| 애플리케이션 role | 위치·prefix 조회와 `GetObject`/`PutObject`만 허용 |
+| 삭제 권한 | `DeleteObject` 없음 |
+| 미완료 multipart 정리 | 7일 |
+
+비식별 16-byte 시험 파일로 다음 순서의 스모크 테스트를 수행했다.
+
+1. 조건 헤더가 없는 `kto/*` PUT은 `AccessDenied`로 거절됐다.
+2. `If-None-Match: *`가 있는 첫 PUT은 성공했다.
+3. 같은 key의 두 번째 조건부 PUT은 `PreconditionFailed`로 거절됐다.
+4. 저장 객체가 `AES256`으로 암호화됐음을 확인했다.
+5. 시험 객체의 version을 지정해 삭제한 뒤 남은 version과 delete marker가 0건임을
+   확인했다.
+
+월간 AWS 비용 예산은 USD 5로 설정했다. 실제 비용 85%·100%와 예측 비용 100%에서
+알림을 받는다. 이 값은 서비스 예산 확정 전의 초기 안전장치이며, 비용을 강제로
+차단하는 한도는 아니다.
+
+현재 Render에는 AWS 자격증명을 넣지 않았고 KTO 웹 배치도 계속 비활성 상태다.
+로컬 수집 작업은 AWS CLI/SSO 임시 세션으로 실행하고, 향후 EB는 이 stack이 만든
+instance profile을 연결한다. EB 환경, EC2와 AWS DB는 이번 배포에 포함하지 않았다.
+
 ## 애플리케이션 설정
 
 S3를 명시적으로 사용할 때만 아래 값을 설정한다.

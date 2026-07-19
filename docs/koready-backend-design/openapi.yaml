@@ -1735,7 +1735,10 @@ paths:
       description: |
         ADMIN이 확인 dialog를 거쳐 enabled boolean을 변경합니다.
         성공 뒤 목록을 갱신하고 변경자·이전값·새값은 감사 로그에 기록됩니다.
-      x-implementation-status: PLANNED
+        같은 값을 다시 보내도 성공하며 요청 사유와 전후 값이 감사 로그에 새로 기록됩니다.
+        cursorValue, 성공·실패 시각, failureCount는 변경하지 않습니다.
+        reason은 장기 감사 기록이므로 키·토큰·개인 위치정보를 입력하지 않습니다.
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN]
       parameters:
         - $ref: '#/components/parameters/CursorId'
@@ -1746,8 +1749,14 @@ paths:
             schema:
               $ref: '#/components/schemas/EnabledRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '200':
           $ref: '#/components/responses/SyncCursorSuccess'
   /admin/open-api/sync-cursors/{cursorId}/reset:
@@ -1758,7 +1767,11 @@ paths:
       description: |
         재수집 영향 범위를 확인한 ADMIN만 reason과 reset target을 제출합니다.
         데이터 중복은 서버 upsert 정책으로 보호하지만 비용이 큰 작업이므로 일반 재시도 버튼으로 사용하지 않습니다.
-      x-implementation-status: PLANNED
+        cursorValue는 공백 제거 후 1~500자이며 provider별 의미를 프론트가 해석하지 않습니다.
+        reset은 cursorValue만 바꾸고 enabled, 성공·실패 시각, failureCount는 유지합니다.
+        같은 값을 다시 보내도 성공하며 실행자·사유·전후 값은 감사 로그에 기록됩니다.
+        reason은 장기 감사 기록이므로 키·토큰·개인 위치정보를 입력하지 않습니다.
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN]
       parameters:
         - $ref: '#/components/parameters/CursorId'
@@ -1769,8 +1782,14 @@ paths:
             schema:
               $ref: '#/components/schemas/ResetCursorRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '200':
           $ref: '#/components/responses/SyncCursorSuccess'
   /admin/evidence-bundles:
@@ -2066,6 +2085,7 @@ components:
       schema:
         type: integer
         format: int64
+        minimum: 1
     BundleId:
       name: bundleId
       in: path
@@ -3490,6 +3510,8 @@ components:
       properties:
         cursorValue:
           type: string
+          minLength: 1
+          maxLength: 500
         reason:
           type: string
           minLength: 1

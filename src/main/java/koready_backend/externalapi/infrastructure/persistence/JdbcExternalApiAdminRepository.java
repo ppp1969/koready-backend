@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository;
+import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorAuditRecord;
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
 import koready_backend.externalapi.domain.SnapshotStorageFormat;
@@ -251,6 +252,76 @@ public class JdbcExternalApiAdminRepository implements ExternalApiAdminRepositor
 			JdbcExternalApiAdminRepository::mapSyncCursor);
 	}
 
+	@Override
+	public Optional<SyncCursorRecord> findSyncCursorByIdForUpdate(long cursorId) {
+		return jdbcTemplate.query(
+			SYNC_CURSOR_SELECT + " WHERE cursors.id = ? FOR UPDATE",
+			JdbcExternalApiAdminRepository::mapSyncCursor,
+			cursorId).stream().findFirst();
+	}
+
+	@Override
+	public SyncCursorRecord updateSyncCursorEnabled(
+		long cursorId,
+		boolean enabled,
+		Instant updatedAt
+	) {
+		requireSingleUpdate(jdbcTemplate.update(
+			"UPDATE tour_api_sync_cursors SET enabled = ?, updated_at = ? WHERE id = ?",
+			enabled,
+			timestamp(updatedAt),
+			cursorId), cursorId);
+		return loadSyncCursor(cursorId);
+	}
+
+	@Override
+	public SyncCursorRecord resetSyncCursor(
+		long cursorId,
+		String cursorValue,
+		Instant updatedAt
+	) {
+		requireSingleUpdate(jdbcTemplate.update(
+			"UPDATE tour_api_sync_cursors SET cursor_value = ?, updated_at = ? WHERE id = ?",
+			cursorValue,
+			timestamp(updatedAt),
+			cursorId), cursorId);
+		return loadSyncCursor(cursorId);
+	}
+
+	@Override
+	public void recordSyncCursorAudit(SyncCursorAuditRecord audit) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO admin_audit_logs
+			    (actor_subject, action, resource_type, resource_id, reason,
+			     before_status, after_status, before_snapshot, after_snapshot, created_at)
+			VALUES (?, ?, 'SYNC_CURSOR', ?, ?, NULL, NULL, ?, ?, ?)
+			""",
+			audit.actorSubject(),
+			audit.action(),
+			Long.toString(audit.cursorId()),
+			audit.reason(),
+			json(audit.beforeSummary()),
+			json(audit.afterSummary()),
+			timestamp(audit.occurredAt()));
+	}
+
+	private SyncCursorRecord loadSyncCursor(long cursorId) {
+		return jdbcTemplate.query(
+			SYNC_CURSOR_SELECT + " WHERE cursors.id = ?",
+			JdbcExternalApiAdminRepository::mapSyncCursor,
+			cursorId).stream().findFirst()
+			.orElseThrow(() -> new IllegalStateException(
+				"Sync cursor disappeared during update: " + cursorId));
+	}
+
+	private static void requireSingleUpdate(int updatedRows, long cursorId) {
+		if (updatedRows != 1) {
+			throw new IllegalStateException(
+				"Sync cursor update affected an unexpected row count: " + cursorId);
+		}
+	}
+
 	private static void appendCallFilters(
 		StringBuilder sql,
 		List<Object> parameters,
@@ -396,6 +467,15 @@ public class JdbcExternalApiAdminRepository implements ExternalApiAdminRepositor
 			return jsonMapper.readValue(value, Map.class);
 		} catch (JacksonException exception) {
 			throw new IllegalStateException("External API metadata could not be parsed", exception);
+		}
+	}
+
+	private String json(Object value) {
+		try {
+			return jsonMapper.writeValueAsString(value);
+		} catch (JacksonException exception) {
+			throw new IllegalStateException(
+				"Sync cursor audit data could not be serialized", exception);
 		}
 	}
 

@@ -548,8 +548,8 @@ operation별 소수의 관리 행이므로 별도 pagination은 사용하지 않
 | Method | URI | 설명 |
 |---|---|---|
 | GET | `/open-api/sync-cursors` | operation별 동기화 위치와 성공·실패 현황 조회 (구현) |
-| PUT | `/open-api/sync-cursors/{cursorId}/enabled` | 동기화 활성/비활성 (후속) |
-| POST | `/open-api/sync-cursors/{cursorId}/reset` | cursor 초기화 (후속) |
+| PUT | `/open-api/sync-cursors/{cursorId}/enabled` | ADMIN 전용 동기화 활성/비활성 (구현) |
+| POST | `/open-api/sync-cursors/{cursorId}/reset` | ADMIN 전용 지정 cursor 초기화 (구현) |
 
 응답은 실제 `tour_api_sync_cursors` 열만 사용합니다.
 
@@ -564,9 +564,11 @@ cursorType = MODIFIED_TIME | PAGE | DATE_RANGE | MANUAL
 `OPAQUE`, `lastErrorCode`, `lastErrorMessage`, `nextRunAt`은 반환하지 않습니다. cursor 값은
 서버 내부 진행 위치이므로 프론트가 파싱하거나 수정하지 않고 그대로 표시합니다.
 
-아래 변경 API는 현재 Swagger에서 `PLANNED`입니다.
+두 변경 API는 `ADMIN` 전용입니다. `OPERATOR`, `AUDITOR`는 조회만 가능하며 변경 시
+`403 ADMIN_FORBIDDEN`을 받습니다. 활성 변경은 `enabled`, 초기화는 공백 제거 후 1~500자의
+`cursorValue`를 받고 두 요청 모두 공백 제거 후 1~500자의 `reason`이 필수입니다.
 
-cursor 초기화는 `ADMIN` 전용이며 다음 값을 필수로 받는다.
+cursor 초기화 요청은 다음과 같습니다.
 
 ```json
 {
@@ -574,6 +576,13 @@ cursor 초기화는 `ADMIN` 전용이며 다음 값을 필수로 받는다.
   "reason": "누락 기간 재수집"
 }
 ```
+
+변경 대상 행은 잠근 뒤 update와 감사 로그 insert를 같은 transaction에서 수행합니다.
+활성 변경은 cursorValue·성공/실패 시각·failureCount를 유지하고, 초기화는 enabled와 같은
+운영 이력을 유지한 채 cursorValue만 바꿉니다. 같은 값을 다시 제출해도 성공하며 실행자,
+사유, 변경 전후 JSON이 새 감사 로그로 남습니다. 이 API 자체는 배치나 외부 호출을 시작하지
+않습니다. reason에는 키·토큰·개인 위치정보를 입력하지 않습니다. 없는 cursorId는
+`404 SYNC_CURSOR_NOT_FOUND`입니다.
 
 ---
 
@@ -810,6 +819,7 @@ size=1..100
 | `HORI_TIP_NOT_EDITABLE` | 보관 상태 또는 version 충돌 |
 | `HORI_TIP_ACTIVATION_INVALID` | 번역·scope·trigger·기간 활성화 조건 미충족 |
 | `SYNC_CURSOR_RESET_FORBIDDEN` | cursor 초기화 권한 없음 |
+| `SYNC_CURSOR_NOT_FOUND` | 변경할 동기화 cursor 없음 |
 
 ## 12. 구현 수락 기준
 

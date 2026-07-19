@@ -24,6 +24,22 @@ public interface ExternalApiAdminRepository {
 
 	List<SyncCursorRecord> findSyncCursors();
 
+	Optional<SyncCursorRecord> findSyncCursorByIdForUpdate(long cursorId);
+
+	SyncCursorRecord updateSyncCursorEnabled(
+		long cursorId,
+		boolean enabled,
+		Instant updatedAt
+	);
+
+	SyncCursorRecord resetSyncCursor(
+		long cursorId,
+		String cursorValue,
+		Instant updatedAt
+	);
+
+	void recordSyncCursorAudit(SyncCursorAuditRecord audit);
+
 	record SummaryCriteria(
 		Instant from,
 		Instant to,
@@ -133,6 +149,17 @@ public interface ExternalApiAdminRepository {
 		boolean enabled,
 		Instant createdAt,
 		Instant updatedAt
+	) {
+	}
+
+	record SyncCursorAuditRecord(
+		String actorSubject,
+		String action,
+		long cursorId,
+		String reason,
+		Map<String, Object> beforeSummary,
+		Map<String, Object> afterSummary,
+		Instant occurredAt
 	) {
 	}
 }

@@ -26,12 +26,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import koready_backend.externalapi.application.exception.ExternalApiCallNotFoundException;
 import koready_backend.externalapi.application.exception.InvalidExternalApiCursorException;
+import koready_backend.externalapi.application.exception.SyncCursorNotFoundException;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.CallCriteria;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.CallRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.ProviderAggregate;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorRecord;
+import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorAuditRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SummaryAggregate;
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.RawSnapshotStatus;
@@ -180,6 +182,76 @@ class ExternalApiAdminServiceTest {
 		assertTrue(result.enabled());
 	}
 
+	@Test
+	void updatesEnabledStateAndRecordsNormalizedAuditContext() {
+		SyncCursorRecord before = syncCursor(true, "20260701:3", NOW.minusSeconds(30));
+		SyncCursorRecord after = syncCursor(false, "20260701:3", NOW);
+		when(repository.findSyncCursorByIdForUpdate(13L)).thenReturn(Optional.of(before));
+		when(repository.updateSyncCursorEnabled(13L, false, NOW)).thenReturn(after);
+
+		ExternalApiAdminService.SyncCursorView result = service.updateSyncCursorEnabled(
+			13L, false, "  야간 점검  ", "admin-1");
+
+		assertFalse(result.enabled());
+		assertEquals("20260701:3", result.cursorValue());
+		ArgumentCaptor<SyncCursorAuditRecord> audit =
+			ArgumentCaptor.forClass(SyncCursorAuditRecord.class);
+		verify(repository).recordSyncCursorAudit(audit.capture());
+		assertEquals("admin-1", audit.getValue().actorSubject());
+		assertEquals("SYNC_CURSOR_ENABLED_UPDATED", audit.getValue().action());
+		assertEquals("야간 점검", audit.getValue().reason());
+		assertEquals(Map.of("enabled", true), audit.getValue().beforeSummary());
+		assertEquals(Map.of("enabled", false), audit.getValue().afterSummary());
+	}
+
+	@Test
+	void resetsOnlyCursorValueAndAuditsEvenWhenTheValueIsUnchanged() {
+		SyncCursorRecord before = syncCursor(true, "20260701:3", NOW.minusSeconds(30));
+		SyncCursorRecord after = syncCursor(true, "20260601:1", NOW);
+		when(repository.findSyncCursorByIdForUpdate(13L)).thenReturn(Optional.of(before));
+		when(repository.resetSyncCursor(13L, "20260601:1", NOW)).thenReturn(after);
+
+		ExternalApiAdminService.SyncCursorView result = service.resetSyncCursor(
+			13L, "  20260601:1  ", "  누락 기간 재수집  ", "admin-1");
+
+		assertEquals("20260601:1", result.cursorValue());
+		assertTrue(result.enabled());
+		assertEquals(before.failureCount(), result.failureCount());
+		assertEquals(before.lastSuccessAt(), result.lastSuccessAt());
+		assertEquals(before.lastFailureAt(), result.lastFailureAt());
+		ArgumentCaptor<SyncCursorAuditRecord> audit =
+			ArgumentCaptor.forClass(SyncCursorAuditRecord.class);
+		verify(repository).recordSyncCursorAudit(audit.capture());
+		assertEquals("SYNC_CURSOR_RESET", audit.getValue().action());
+		assertEquals("누락 기간 재수집", audit.getValue().reason());
+		assertEquals(Map.of("cursorValue", "20260701:3"),
+			audit.getValue().beforeSummary());
+		assertEquals(Map.of("cursorValue", "20260601:1"),
+			audit.getValue().afterSummary());
+	}
+
+	@Test
+	void rejectsMissingCursorsAndInvalidWriteValues() {
+		when(repository.findSyncCursorByIdForUpdate(404L)).thenReturn(Optional.empty());
+
+		assertThrows(SyncCursorNotFoundException.class, () ->
+			service.updateSyncCursorEnabled(404L, true, "점검 완료", "admin-1"));
+		assertThrows(IllegalArgumentException.class, () ->
+			service.updateSyncCursorEnabled(13L, true, "  ", "admin-1"));
+		assertThrows(IllegalArgumentException.class, () ->
+			service.updateSyncCursorEnabled(13L, true, "x".repeat(501), "admin-1"));
+		assertThrows(IllegalArgumentException.class, () ->
+			service.resetSyncCursor(13L, "  ", "누락 기간 재수집", "admin-1"));
+		assertThrows(IllegalArgumentException.class, () ->
+			service.resetSyncCursor(
+				13L, "x".repeat(501), "누락 기간 재수집", "admin-1"));
+		assertThrows(IllegalArgumentException.class, () ->
+			service.resetSyncCursor(13L, "20260701:1", "누락 기간 재수집", "  "));
+		assertThrows(IllegalArgumentException.class, () ->
+			service.resetSyncCursor(
+				13L, "20260701:1", "누락 기간 재수집", "a".repeat(192)));
+	}
+
 	private static CallRecord call(long id, boolean success, SnapshotRecord snapshot) {
 		return new CallRecord(
 			id,
@@ -222,5 +294,25 @@ class ExternalApiAdminServiceTest {
 			SnapshotRetentionClass.COMPETITION_EVIDENCE,
 			retentionUntil,
 			true);
+	}
+
+	private static SyncCursorRecord syncCursor(
+		boolean enabled,
+		String cursorValue,
+		Instant updatedAt
+	) {
+		return new SyncCursorRecord(
+			13L,
+			ExternalApiProvider.KTO,
+			"KOR",
+			"searchFestival2",
+			SyncCursorType.DATE_RANGE,
+			cursorValue,
+			NOW.minusSeconds(120),
+			NOW.minusSeconds(60),
+			2,
+			enabled,
+			NOW.minusSeconds(180),
+			updatedAt);
 	}
 }

@@ -2,15 +2,20 @@ package koready_backend.externalapi.controller;
 
 import java.time.Instant;
 
+import org.springframework.security.core.Authentication;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
@@ -127,6 +132,39 @@ public class AdminExternalApiController {
 		return ApiEnvelope.success(
 			"SYNC_CURSOR_LIST_OK",
 			ExternalApiDtos.syncCursors(service.listSyncCursors()),
+			TraceIdFilter.current(request));
+	}
+
+	@PutMapping("/sync-cursors/{cursorId}/enabled")
+	@PreAuthorize("hasRole('ADMIN')")
+	public ApiEnvelope<ExternalApiDtos.SyncCursorResponse> updateSyncCursorEnabled(
+		@PathVariable @Positive long cursorId,
+		@RequestBody @Valid ExternalApiDtos.EnabledRequest body,
+		Authentication authentication,
+		HttpServletRequest request
+	) {
+		return ApiEnvelope.success(
+			"SYNC_CURSOR_UPDATED",
+			ExternalApiDtos.from(service.updateSyncCursorEnabled(
+				cursorId, body.enabled(), body.reason(), authentication.getName())),
+			TraceIdFilter.current(request));
+	}
+
+	@PostMapping("/sync-cursors/{cursorId}/reset")
+	@PreAuthorize("hasRole('ADMIN')")
+	public ApiEnvelope<ExternalApiDtos.SyncCursorResponse> resetSyncCursor(
+		@PathVariable @Positive long cursorId,
+		@RequestBody @Valid ExternalApiDtos.ResetCursorRequest body,
+		Authentication authentication,
+		HttpServletRequest request
+	) {
+		return ApiEnvelope.success(
+			"SYNC_CURSOR_RESET",
+			ExternalApiDtos.from(service.resetSyncCursor(
+				cursorId,
+				body.cursorValue(),
+				body.reason(),
+				authentication.getName())),
 			TraceIdFilter.current(request));
 	}
 }

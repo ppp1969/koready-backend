@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -19,12 +20,14 @@ import koready_backend.externalapi.application.exception.ExternalApiCallNotFound
 import koready_backend.externalapi.application.exception.InvalidExternalApiCursorException;
 import koready_backend.externalapi.application.exception.InvalidExternalApiPeriodException;
 import koready_backend.externalapi.application.exception.RawSnapshotNotFoundException;
+import koready_backend.externalapi.application.exception.SyncCursorNotFoundException;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.CallCriteria;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.CallRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotCriteria;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorRecord;
+import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorAuditRecord;
 import koready_backend.externalapi.domain.ExternalApiExposurePolicy;
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.RawSnapshotStatus;
@@ -38,6 +41,9 @@ public class ExternalApiAdminService {
 	private static final Duration DEFAULT_SUMMARY_PERIOD = Duration.ofDays(30);
 	private static final int MAX_CURSOR_LENGTH = 512;
 	private static final int MAX_PAGE_SIZE = 100;
+	private static final int MAX_AUDIT_REASON_LENGTH = 500;
+	private static final int MAX_SYNC_CURSOR_VALUE_LENGTH = 500;
+	private static final int MAX_ACTOR_SUBJECT_LENGTH = 191;
 
 	private final ExternalApiAdminRepository repository;
 	private final Clock clock;
@@ -162,6 +168,84 @@ public class ExternalApiAdminService {
 		return repository.findSyncCursors().stream()
 			.map(ExternalApiAdminService::syncCursorView)
 			.toList();
+	}
+
+	@Transactional
+	public SyncCursorView updateSyncCursorEnabled(
+		long cursorId,
+		boolean enabled,
+		String reason,
+		String actorSubject
+	) {
+		validateSyncCursorId(cursorId);
+		String normalizedReason = requireText(
+			reason, MAX_AUDIT_REASON_LENGTH, "Audit reason");
+		String normalizedActor = requireText(
+			actorSubject, MAX_ACTOR_SUBJECT_LENGTH, "Actor subject");
+		SyncCursorRecord before = lockedSyncCursor(cursorId);
+		Instant now = clock.instant();
+		SyncCursorRecord after = repository.updateSyncCursorEnabled(
+			cursorId, enabled, now);
+		repository.recordSyncCursorAudit(new SyncCursorAuditRecord(
+			normalizedActor,
+			"SYNC_CURSOR_ENABLED_UPDATED",
+			cursorId,
+			normalizedReason,
+			Collections.singletonMap("enabled", before.enabled()),
+			Collections.singletonMap("enabled", after.enabled()),
+			now));
+		return syncCursorView(after);
+	}
+
+	@Transactional
+	public SyncCursorView resetSyncCursor(
+		long cursorId,
+		String cursorValue,
+		String reason,
+		String actorSubject
+	) {
+		validateSyncCursorId(cursorId);
+		String normalizedCursorValue = requireText(
+			cursorValue, MAX_SYNC_CURSOR_VALUE_LENGTH, "Cursor value");
+		String normalizedReason = requireText(
+			reason, MAX_AUDIT_REASON_LENGTH, "Audit reason");
+		String normalizedActor = requireText(
+			actorSubject, MAX_ACTOR_SUBJECT_LENGTH, "Actor subject");
+		SyncCursorRecord before = lockedSyncCursor(cursorId);
+		Instant now = clock.instant();
+		SyncCursorRecord after = repository.resetSyncCursor(
+			cursorId, normalizedCursorValue, now);
+		repository.recordSyncCursorAudit(new SyncCursorAuditRecord(
+			normalizedActor,
+			"SYNC_CURSOR_RESET",
+			cursorId,
+			normalizedReason,
+			Collections.singletonMap("cursorValue", before.cursorValue()),
+			Collections.singletonMap("cursorValue", after.cursorValue()),
+			now));
+		return syncCursorView(after);
+	}
+
+	private SyncCursorRecord lockedSyncCursor(long cursorId) {
+		return repository.findSyncCursorByIdForUpdate(cursorId)
+			.orElseThrow(() -> new SyncCursorNotFoundException(cursorId));
+	}
+
+	private static void validateSyncCursorId(long cursorId) {
+		if (cursorId <= 0) {
+			throw new IllegalArgumentException("Sync cursor ID must be positive");
+		}
+	}
+
+	private static String requireText(String value, int maxLength, String field) {
+		if (value == null || value.isBlank()) {
+			throw new IllegalArgumentException(field + " is required");
+		}
+		String normalized = value.strip();
+		if (normalized.length() > maxLength) {
+			throw new IllegalArgumentException(field + " is too long");
+		}
+		return normalized;
 	}
 
 	private CallView callView(CallRecord row) {

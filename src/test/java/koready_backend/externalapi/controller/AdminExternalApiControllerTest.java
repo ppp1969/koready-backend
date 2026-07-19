@@ -28,6 +28,10 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.externalapi.application.ExternalApiAdminService;
 import koready_backend.externalapi.application.exception.ExternalApiCallNotFoundException;
+import koready_backend.externalapi.application.exception.ProviderRetentionRestrictedException;
+import koready_backend.externalapi.application.exception.RawSnapshotDownloadUnavailableException;
+import koready_backend.externalapi.application.exception.RawSnapshotExpiredException;
+import koready_backend.externalapi.application.exception.RawSnapshotNotFoundException;
 import koready_backend.externalapi.application.exception.SyncCursorNotFoundException;
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.RawSnapshotStatus;
@@ -57,6 +61,13 @@ class AdminExternalApiControllerTest {
 		when(service.listSnapshots(any())).thenReturn(new ExternalApiAdminService.SnapshotPage(
 			List.of(snapshot()), null, false));
 		when(service.getSnapshot(11L)).thenReturn(snapshot());
+		when(service.createSnapshotDownloadUrl(anyLong(), anyString()))
+			.thenReturn(new ExternalApiAdminService.SnapshotDownloadView(
+				"https://private-storage.example/snapshot?signature=temporary",
+				NOW.plusSeconds(300),
+				"koready-kto-snapshot-11.json.gz",
+				"a".repeat(64),
+				"b".repeat(64)));
 		when(service.listSyncCursors()).thenReturn(List.of(syncCursor()));
 		when(service.updateSyncCursorEnabled(
 			anyLong(), anyBoolean(), anyString(), anyString()))
@@ -116,6 +127,63 @@ class AdminExternalApiControllerTest {
 				.with(user("admin").roles("ADMIN")))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("OPEN_API_CALL_NOT_FOUND"));
+	}
+
+	@Test
+	void protectsAndIssuesShortLivedSnapshotDownloadUrls() throws Exception {
+		mockMvc.perform(post("/api/v1/admin/open-api/snapshots/11/download-url"))
+			.andExpect(status().isUnauthorized());
+
+		mockMvc.perform(post("/api/v1/admin/open-api/snapshots/11/download-url")
+				.with(user("member").roles("USER")))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.code").value("ADMIN_FORBIDDEN"));
+
+		for (String role : List.of("ADMIN", "OPERATOR", "AUDITOR")) {
+			mockMvc.perform(post("/api/v1/admin/open-api/snapshots/11/download-url")
+					.with(user(role.toLowerCase()).roles(role)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.code").value("RAW_SNAPSHOT_DOWNLOAD_URL_ISSUED"))
+				.andExpect(jsonPath("$.data.downloadUrl").isString())
+				.andExpect(jsonPath("$.data.expiresAt").value("2026-07-19T09:05:00Z"))
+				.andExpect(jsonPath("$.data.fileName")
+					.value("koready-kto-snapshot-11.json.gz"))
+				.andExpect(jsonPath("$.data.rawContentSha256").value("a".repeat(64)))
+				.andExpect(jsonPath("$.data.storedObjectSha256").value("b".repeat(64)));
+		}
+	}
+
+	@Test
+	void mapsSnapshotDownloadPolicyAndAvailabilityFailures() throws Exception {
+		when(service.createSnapshotDownloadUrl(20L, "admin-1"))
+			.thenThrow(new RawSnapshotNotFoundException(20L));
+		mockMvc.perform(post("/api/v1/admin/open-api/snapshots/20/download-url")
+				.with(user("admin-1").roles("ADMIN")))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("RAW_SNAPSHOT_NOT_FOUND"));
+
+		when(service.createSnapshotDownloadUrl(21L, "admin-1"))
+			.thenThrow(new RawSnapshotExpiredException(21L));
+		mockMvc.perform(post("/api/v1/admin/open-api/snapshots/21/download-url")
+				.with(user("admin-1").roles("ADMIN")))
+			.andExpect(status().isGone())
+			.andExpect(jsonPath("$.code").value("RAW_SNAPSHOT_EXPIRED"));
+
+		when(service.createSnapshotDownloadUrl(22L, "admin-1"))
+			.thenThrow(new ProviderRetentionRestrictedException(22L));
+		mockMvc.perform(post("/api/v1/admin/open-api/snapshots/22/download-url")
+				.with(user("admin-1").roles("ADMIN")))
+			.andExpect(status().isUnprocessableEntity())
+			.andExpect(jsonPath("$.code")
+				.value("PROVIDER_RETENTION_RESTRICTED"));
+
+		when(service.createSnapshotDownloadUrl(23L, "admin-1"))
+			.thenThrow(new RawSnapshotDownloadUnavailableException());
+		mockMvc.perform(post("/api/v1/admin/open-api/snapshots/23/download-url")
+				.with(user("admin-1").roles("ADMIN")))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(jsonPath("$.code")
+				.value("RAW_SNAPSHOT_DOWNLOAD_UNAVAILABLE"));
 	}
 
 	@Test

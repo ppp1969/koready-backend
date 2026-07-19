@@ -62,6 +62,8 @@ koready:
     snapshot:
       storage: ${KTO_SNAPSHOT_STORAGE:local}
       directory: ${KTO_SNAPSHOT_DIRECTORY:${user.home}/.koready/kto-snapshots}
+      download:
+        expiration: ${KTO_SNAPSHOT_DOWNLOAD_EXPIRATION:5m}
       s3:
         bucket: ${KTO_SNAPSHOT_S3_BUCKET:}
         region: ${AWS_REGION:ap-northeast-2}

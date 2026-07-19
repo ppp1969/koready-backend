@@ -637,6 +637,23 @@ flowchart LR
 - 데이터 품질 요약(구현): `GET /admin/data-quality/summary`
 - 감사 로그(후속): `GET /admin/audit-logs`
 
+snapshot 다운로드 흐름:
+
+1. snapshot 목록 또는 상세 응답에서 `downloadable`을 확인한다.
+2. `false`이면 다운로드 버튼을 비활성화하고 URL API를 호출하지 않는다.
+3. `true`인 항목에서 사용자가 다운로드를 누를 때
+   `POST /admin/open-api/snapshots/{snapshotId}/download-url`을 한 번 호출한다.
+4. 200이면 `downloadUrl`로 즉시 이동한다. URL을 상태 저장소, 분석 이벤트, 오류 수집
+   도구나 공유 문서에 기록하지 않는다.
+5. 발급 URL만 만료됐다면 같은 POST를 다시 호출한다. `410 RAW_SNAPSHOT_EXPIRED`는
+   원본 보관기간 종료라 재발급할 수 없으며, `422`는 provider 정책 제한이다.
+6. `503 RAW_SNAPSHOT_DOWNLOAD_UNAVAILABLE`이면 현재 목록을 유지하고 잠시 뒤 다시
+   시도할 수 있게 한다. 일반 사용자에게 AWS 설정이나 내부 storage key를 보여주지 않는다.
+
+응답의 `storedObjectSha256`은 내려받은 gzip 파일 확인용이고 `rawContentSha256`은 압축을
+푼 원문 확인용이다. 프론트 화면은 두 값을 복사 가능한 문자열로 표시할 수 있지만 자체
+해시 계산을 필수 기능으로 만들 필요는 없다.
+
 - cursor 목록은 화면 진입과 사용자의 새로고침 동작에서 호출하며 자동 polling하지 않는다.
 - 서버 정렬을 그대로 사용하고 `cursorValue`는 해석하지 않는다. `null`이면 `-`처럼 값 없음으로 표시한다.
 - `lastSuccessAt`, `lastFailureAt`, `failureCount`, `enabled`를 함께 보여 주되 DB에 없는 오류 메시지를 추측해 만들지 않는다.

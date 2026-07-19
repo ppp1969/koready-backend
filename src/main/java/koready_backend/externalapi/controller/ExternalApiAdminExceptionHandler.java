@@ -17,6 +17,9 @@ import koready_backend.common.controller.TraceIdFilter;
 import koready_backend.externalapi.application.exception.ExternalApiCallNotFoundException;
 import koready_backend.externalapi.application.exception.InvalidExternalApiCursorException;
 import koready_backend.externalapi.application.exception.InvalidExternalApiPeriodException;
+import koready_backend.externalapi.application.exception.ProviderRetentionRestrictedException;
+import koready_backend.externalapi.application.exception.RawSnapshotDownloadUnavailableException;
+import koready_backend.externalapi.application.exception.RawSnapshotExpiredException;
 import koready_backend.externalapi.application.exception.RawSnapshotNotFoundException;
 import koready_backend.externalapi.application.exception.SyncCursorNotFoundException;
 
@@ -39,6 +42,39 @@ public class ExternalApiAdminExceptionHandler {
 	) {
 		return error(
 			HttpStatus.NOT_FOUND, "RAW_SNAPSHOT_NOT_FOUND", exception.getMessage(), request);
+	}
+
+	@ExceptionHandler(RawSnapshotExpiredException.class)
+	ResponseEntity<ApiErrorResponse> handleExpiredSnapshot(
+		RawSnapshotExpiredException exception,
+		HttpServletRequest request
+	) {
+		return error(
+			HttpStatus.GONE, "RAW_SNAPSHOT_EXPIRED", exception.getMessage(), request);
+	}
+
+	@ExceptionHandler(ProviderRetentionRestrictedException.class)
+	ResponseEntity<ApiErrorResponse> handleRestrictedSnapshot(
+		ProviderRetentionRestrictedException exception,
+		HttpServletRequest request
+	) {
+		return error(
+			HttpStatus.UNPROCESSABLE_ENTITY,
+			"PROVIDER_RETENTION_RESTRICTED",
+			exception.getMessage(),
+			request);
+	}
+
+	@ExceptionHandler(RawSnapshotDownloadUnavailableException.class)
+	ResponseEntity<ApiErrorResponse> handleUnavailableSnapshotDownload(
+		RawSnapshotDownloadUnavailableException exception,
+		HttpServletRequest request
+	) {
+		return error(
+			HttpStatus.SERVICE_UNAVAILABLE,
+			"RAW_SNAPSHOT_DOWNLOAD_UNAVAILABLE",
+			exception.getMessage(),
+			request);
 	}
 
 	@ExceptionHandler(SyncCursorNotFoundException.class)

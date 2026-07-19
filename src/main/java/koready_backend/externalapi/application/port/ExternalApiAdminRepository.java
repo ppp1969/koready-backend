@@ -40,6 +40,8 @@ public interface ExternalApiAdminRepository {
 
 	void recordSyncCursorAudit(SyncCursorAuditRecord audit);
 
+	void recordSnapshotDownloadAudit(SnapshotDownloadAuditRecord audit);
+
 	record SummaryCriteria(
 		Instant from,
 		Instant to,
@@ -159,6 +161,18 @@ public interface ExternalApiAdminRepository {
 		String reason,
 		Map<String, Object> beforeSummary,
 		Map<String, Object> afterSummary,
+		Instant occurredAt
+	) {
+	}
+
+	record SnapshotDownloadAuditRecord(
+		String actorSubject,
+		long snapshotId,
+		ExternalApiProvider provider,
+		String operation,
+		Instant expiresAt,
+		String rawContentSha256,
+		String storedObjectSha256,
 		Instant occurredAt
 	) {
 	}

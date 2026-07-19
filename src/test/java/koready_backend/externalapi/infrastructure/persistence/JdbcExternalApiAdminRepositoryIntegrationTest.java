@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
@@ -17,6 +19,7 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -33,6 +36,8 @@ import koready_backend.externalapi.application.port.ExternalApiAdminRepository.S
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
 import koready_backend.externalapi.domain.SyncCursorType;
+import koready_backend.kto.application.port.KtoRawSnapshotDownloadUrlProvider;
+import koready_backend.kto.application.port.KtoRawSnapshotDownloadUrlProvider.DownloadLink;
 
 @Tag("integration")
 @SpringBootTest
@@ -56,6 +61,9 @@ class JdbcExternalApiAdminRepositoryIntegrationTest {
 
 	@Autowired
 	ExternalApiAdminService service;
+
+	@MockitoBean
+	KtoRawSnapshotDownloadUrlProvider downloadUrlProvider;
 
 	private long successCallId;
 	private long failureCallId;
@@ -191,6 +199,36 @@ class JdbcExternalApiAdminRepositoryIntegrationTest {
 				+ "AND resource_id = ?",
 			String.class,
 			Long.toString(cursorId)));
+	}
+
+	@Test
+	void appendsSnapshotDownloadAuditWithoutPersistingTheSignedUrl() {
+		when(downloadUrlProvider.available()).thenReturn(true);
+		when(downloadUrlProvider.issue(anyString(), anyString())).thenReturn(
+			new DownloadLink(
+				"https://private-storage.example/object?signature=temporary-secret",
+				NOW.plusSeconds(300)));
+
+		var result = service.createSnapshotDownloadUrl(snapshotId, "auditor-1");
+
+		assertEquals("koready-kto-snapshot-" + snapshotId + ".json.gz",
+			result.fileName());
+		assertEquals(1, jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM admin_audit_logs "
+				+ "WHERE resource_type = 'RAW_SNAPSHOT' AND resource_id = ? "
+				+ "AND action = 'RAW_SNAPSHOT_DOWNLOAD_URL_ISSUED'",
+			Integer.class,
+			Long.toString(snapshotId)));
+		String persisted = jdbcTemplate.queryForObject(
+			"SELECT CAST(after_snapshot AS CHAR) FROM admin_audit_logs "
+				+ "WHERE resource_type = 'RAW_SNAPSHOT' AND resource_id = ?",
+			String.class,
+			Long.toString(snapshotId));
+		assertTrue(persisted.contains("\"expiresAt\""));
+		assertTrue(persisted.contains("\"storedObjectSha256\""));
+		assertFalse(persisted.contains("downloadUrl"));
+		assertFalse(persisted.contains("signature"));
+		assertFalse(persisted.contains("temporary-secret"));
 	}
 
 	private long insertJob() {

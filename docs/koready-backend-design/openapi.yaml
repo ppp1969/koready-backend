@@ -1627,7 +1627,8 @@ paths:
       summary: 외부 API 호출 로그 상세 조회
       description: |
         호출 목록에서 한 건을 선택했을 때 상태, 지연시간, item 수, 관련 batch와 snapshot 계보를 조회합니다.
-        원천 본문은 반환하지 않습니다. snapshot 다운로드 URL 발급은 별도 PLANNED API이며 현재 응답의 downloadable은 false입니다.
+        원천 본문은 반환하지 않습니다. rawSnapshot.downloadable=true일 때만 snapshotId로 단기 다운로드 URL API를 호출합니다.
+        false이면 S3 기능 비활성, 보관기간 만료 또는 provider 보관 제한 중 하나이므로 다운로드 버튼을 비활성화합니다.
       x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
@@ -1687,7 +1688,7 @@ paths:
       description: |
         원문 SHA-256, gzip 객체 SHA-256, 크기, storage key, callLogId와 보관 상태를 조회합니다.
         hash를 화면 표시 문자열로만 다루고 프론트에서 원천 파일 무결성을 새 규칙으로 계산하지 않습니다.
-        AWS 저장소 연결 전까지 메타데이터만 조회할 수 있고 downloadable은 항상 false입니다.
+        downloadable=true이면 아래 단기 URL API를 사용합니다. URL은 이 상세 응답이나 DB에 저장되지 않습니다.
       x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
@@ -1709,19 +1710,37 @@ paths:
       operationId: createSnapshotDownloadUrl
       summary: snapshot 단기 다운로드 URL 발급
       description: |
-        관리자가 원천 파일 다운로드를 명시적으로 요청할 때만 호출합니다.
-        반환 URL은 짧게 만료되고 발급 행위는 감사 로그에 남습니다. 410이면 새 URL을 다시 발급합니다.
-      x-implementation-status: PLANNED
+        **호출 시점:** snapshot 목록 또는 상세의 downloadable=true인 항목에서 관리자가 다운로드를 누를 때 한 번 호출합니다.
+
+        private S3 객체를 GET할 수 있는 기본 5분짜리 presigned URL을 발급합니다. 프론트는 응답을 받으면
+        downloadUrl로 즉시 이동하고 URL을 앱 DB, 분석 이벤트, 오류 로그 또는 공유 문서에 저장하지 않습니다.
+        URL 자체와 AWS 자격증명은 서버 DB에도 저장하지 않으며, 감사 로그에는 실행자, snapshot ID,
+        expiresAt, provider, operation과 두 SHA-256만 남습니다.
+
+        발급된 URL만 만료됐다면 같은 API를 다시 호출합니다. API가 410 RAW_SNAPSHOT_EXPIRED를 반환하면
+        snapshot 자체의 보관기간이 끝난 것이므로 재발급할 수 없습니다. 422는 provider 보관 정책 제한,
+        503은 S3 다운로드 기능 비활성 또는 일시적인 서명 실패입니다.
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR, AUDITOR]
       parameters:
         - $ref: '#/components/parameters/SnapshotId'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '200':
-          $ref: '#/components/responses/DownloadUrlSuccess'
+          $ref: '#/components/responses/SnapshotDownloadUrlSuccess'
         '410':
           $ref: '#/components/responses/Gone'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
   /admin/batch-jobs:
     get:
       tags: [Admin Batch]
@@ -2620,6 +2639,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/DownloadUrlEnvelope'
+    SnapshotDownloadUrlSuccess:
+      description: 감사 로그가 남는 KTO snapshot 단기 signed URL
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SnapshotDownloadUrlEnvelope'
     BatchJobListSuccess:
       description: 배치 실행 목록
       content:
@@ -5504,8 +5529,7 @@ components:
           minimum: 0
         downloadable:
           type: boolean
-          enum: [false]
-          description: 다운로드 URL 발급 API가 구현되기 전까지 항상 false
+          description: S3 다운로드 기능이 활성이고 KTO 보관기간과 provider 정책이 허용할 때 true
     RawSnapshotListEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'
@@ -5592,8 +5616,38 @@ components:
           enum: [true]
         downloadable:
           type: boolean
-          enum: [false]
-          description: 다운로드 URL 발급 API가 구현되기 전까지 항상 false
+          description: S3 다운로드 기능이 활성이고 KTO 보관기간과 provider 정책이 허용할 때 true
+    SnapshotDownloadUrlEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/SnapshotDownloadUrlResponse'
+    SnapshotDownloadUrlResponse:
+      type: object
+      required: [downloadUrl, expiresAt, fileName, rawContentSha256, storedObjectSha256]
+      properties:
+        downloadUrl:
+          type: string
+          format: uri
+          description: private S3 GET URL. 기본 5분 유효하며 저장·로깅하지 않음
+        expiresAt:
+          type: string
+          format: date-time
+          description: AWS SDK가 실제 서명에 적용한 만료 시각
+        fileName:
+          type: string
+          pattern: '^koready-kto-snapshot-[0-9]+\.(json|xml)\.gz$'
+          example: koready-kto-snapshot-11.json.gz
+        rawContentSha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          description: 다운로드 후 압축을 푼 원문 byte와 비교할 SHA-256
+        storedObjectSha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          description: 다운로드한 gzip byte와 직접 비교할 SHA-256
     DownloadUrlEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'

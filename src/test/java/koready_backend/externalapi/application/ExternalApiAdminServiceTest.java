@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -26,12 +27,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import koready_backend.externalapi.application.exception.ExternalApiCallNotFoundException;
 import koready_backend.externalapi.application.exception.InvalidExternalApiCursorException;
+import koready_backend.externalapi.application.exception.ProviderRetentionRestrictedException;
+import koready_backend.externalapi.application.exception.RawSnapshotDownloadUnavailableException;
+import koready_backend.externalapi.application.exception.RawSnapshotExpiredException;
 import koready_backend.externalapi.application.exception.SyncCursorNotFoundException;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.CallCriteria;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.CallRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.ProviderAggregate;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotRecord;
+import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotDownloadAuditRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorAuditRecord;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SummaryAggregate;
@@ -40,6 +45,9 @@ import koready_backend.externalapi.domain.RawSnapshotStatus;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
 import koready_backend.externalapi.domain.SnapshotStorageFormat;
 import koready_backend.externalapi.domain.SyncCursorType;
+import koready_backend.kto.application.port.KtoRawSnapshotDownloadUrlProvider;
+import koready_backend.kto.application.port.KtoRawSnapshotDownloadUrlProvider.DownloadLink;
+import koready_backend.kto.application.exception.KtoSnapshotDownloadException;
 
 @ExtendWith(MockitoExtension.class)
 class ExternalApiAdminServiceTest {
@@ -49,12 +57,16 @@ class ExternalApiAdminServiceTest {
 	@Mock
 	ExternalApiAdminRepository repository;
 
+	@Mock
+	KtoRawSnapshotDownloadUrlProvider downloadUrlProvider;
+
 	private ExternalApiAdminService service;
 
 	@BeforeEach
 	void setUp() {
 		service = new ExternalApiAdminService(
 			repository,
+			downloadUrlProvider,
 			Clock.fixed(NOW, ZoneOffset.UTC));
 	}
 
@@ -153,6 +165,91 @@ class ExternalApiAdminServiceTest {
 	void reportsMissingCalls() {
 		when(repository.findCallById(404L)).thenReturn(Optional.empty());
 		assertThrows(ExternalApiCallNotFoundException.class, () -> service.getCall(404L));
+	}
+
+	@Test
+	void issuesShortLivedSnapshotUrlAndRecordsAuditWithoutTheUrl() {
+		SnapshotRecord snapshot = snapshot(77L, null);
+		when(repository.findSnapshotById(77L)).thenReturn(Optional.of(snapshot));
+		when(downloadUrlProvider.available()).thenReturn(true);
+		when(downloadUrlProvider.issue(
+			"kto/kor/searchFestival2/snapshot.json.gz",
+			"koready-kto-snapshot-77.json.gz"))
+			.thenReturn(new DownloadLink(
+				"https://private-storage.example/snapshot?signature=temporary",
+				NOW.plusSeconds(300)));
+
+		ExternalApiAdminService.SnapshotDownloadView result =
+			service.createSnapshotDownloadUrl(77L, "auditor-1");
+
+		assertEquals("https://private-storage.example/snapshot?signature=temporary",
+			result.downloadUrl());
+		assertEquals(NOW.plusSeconds(300), result.expiresAt());
+		assertEquals("koready-kto-snapshot-77.json.gz", result.fileName());
+		assertEquals("a".repeat(64), result.rawContentSha256());
+		assertEquals("b".repeat(64), result.storedObjectSha256());
+
+		ArgumentCaptor<SnapshotDownloadAuditRecord> audit =
+			ArgumentCaptor.forClass(SnapshotDownloadAuditRecord.class);
+		verify(repository).recordSnapshotDownloadAudit(audit.capture());
+		assertEquals("auditor-1", audit.getValue().actorSubject());
+		assertEquals(77L, audit.getValue().snapshotId());
+		assertEquals(NOW.plusSeconds(300), audit.getValue().expiresAt());
+		assertEquals("a".repeat(64), audit.getValue().rawContentSha256());
+		assertEquals("b".repeat(64), audit.getValue().storedObjectSha256());
+	}
+
+	@Test
+	void exposesDownloadableOnlyForAvailableUnexpiredKtoSnapshots() {
+		when(downloadUrlProvider.available()).thenReturn(true);
+		when(repository.findSnapshotById(77L)).thenReturn(Optional.of(
+			snapshot(77L, NOW.plusSeconds(1))));
+
+		assertTrue(service.getSnapshot(77L).downloadable());
+
+		when(repository.findSnapshotById(78L)).thenReturn(Optional.of(
+			snapshot(78L, NOW)));
+		assertFalse(service.getSnapshot(78L).downloadable());
+	}
+
+	@Test
+	void rejectsExpiredRestrictedAndUnavailableSnapshotDownloads() {
+		when(repository.findSnapshotById(77L)).thenReturn(Optional.of(
+			snapshot(77L, NOW)));
+		assertThrows(RawSnapshotExpiredException.class,
+			() -> service.createSnapshotDownloadUrl(77L, "admin-1"));
+
+		when(repository.findSnapshotById(78L)).thenReturn(Optional.of(
+			snapshot(
+				78L,
+				ExternalApiProvider.TMAP,
+				SnapshotRetentionClass.PROVIDER_RESTRICTED,
+				NOW.plusSeconds(60))));
+		assertThrows(ProviderRetentionRestrictedException.class,
+			() -> service.createSnapshotDownloadUrl(78L, "admin-1"));
+
+		when(repository.findSnapshotById(79L)).thenReturn(Optional.of(
+			snapshot(79L, NOW.plusSeconds(60))));
+		when(downloadUrlProvider.available()).thenReturn(false);
+		assertThrows(RawSnapshotDownloadUnavailableException.class,
+			() -> service.createSnapshotDownloadUrl(79L, "admin-1"));
+
+		verify(downloadUrlProvider, never()).issue(any(), any());
+		verify(repository, never()).recordSnapshotDownloadAudit(any());
+	}
+
+	@Test
+	void normalizesSigningFailuresWithoutRecordingAnAuditRow() {
+		when(repository.findSnapshotById(77L)).thenReturn(Optional.of(
+			snapshot(77L, NOW.plusSeconds(60))));
+		when(downloadUrlProvider.available()).thenReturn(true);
+		when(downloadUrlProvider.issue(any(), any()))
+			.thenThrow(new KtoSnapshotDownloadException());
+
+		assertThrows(RawSnapshotDownloadUnavailableException.class,
+			() -> service.createSnapshotDownloadUrl(77L, "admin-1"));
+
+		verify(repository, never()).recordSnapshotDownloadAudit(any());
 	}
 
 	@Test
@@ -276,10 +373,23 @@ class ExternalApiAdminServiceTest {
 	}
 
 	private static SnapshotRecord snapshot(long id, Instant retentionUntil) {
+		return snapshot(
+			id,
+			ExternalApiProvider.KTO,
+			SnapshotRetentionClass.COMPETITION_EVIDENCE,
+			retentionUntil);
+	}
+
+	private static SnapshotRecord snapshot(
+		long id,
+		ExternalApiProvider provider,
+		SnapshotRetentionClass retentionClass,
+		Instant retentionUntil
+	) {
 		return new SnapshotRecord(
 			id,
 			7L,
-			ExternalApiProvider.KTO,
+			provider,
 			"KOR",
 			"searchFestival2",
 			"kto/kor/searchFestival2/snapshot.json.gz",
@@ -291,7 +401,7 @@ class ExternalApiAdminServiceTest {
 			256,
 			1,
 			NOW.minusSeconds(9),
-			SnapshotRetentionClass.COMPETITION_EVIDENCE,
+			retentionClass,
 			retentionUntil,
 			true);
 	}

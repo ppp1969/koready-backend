@@ -14,6 +14,7 @@ import org.springframework.stereotype.Repository;
 
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository;
 import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SyncCursorAuditRecord;
+import koready_backend.externalapi.application.port.ExternalApiAdminRepository.SnapshotDownloadAuditRecord;
 import koready_backend.externalapi.domain.ExternalApiProvider;
 import koready_backend.externalapi.domain.SnapshotRetentionClass;
 import koready_backend.externalapi.domain.SnapshotStorageFormat;
@@ -303,6 +304,27 @@ public class JdbcExternalApiAdminRepository implements ExternalApiAdminRepositor
 			audit.reason(),
 			json(audit.beforeSummary()),
 			json(audit.afterSummary()),
+			timestamp(audit.occurredAt()));
+	}
+
+	@Override
+	public void recordSnapshotDownloadAudit(SnapshotDownloadAuditRecord audit) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO admin_audit_logs
+			    (actor_subject, action, resource_type, resource_id, reason,
+			     before_status, after_status, before_snapshot, after_snapshot, created_at)
+			VALUES (?, 'RAW_SNAPSHOT_DOWNLOAD_URL_ISSUED', 'RAW_SNAPSHOT', ?, NULL,
+			        NULL, NULL, NULL, ?, ?)
+			""",
+			audit.actorSubject(),
+			Long.toString(audit.snapshotId()),
+			json(Map.of(
+				"provider", audit.provider().name(),
+				"operation", audit.operation(),
+				"expiresAt", audit.expiresAt().toString(),
+				"rawContentSha256", audit.rawContentSha256(),
+				"storedObjectSha256", audit.storedObjectSha256())),
 			timestamp(audit.occurredAt()));
 	}
 

@@ -3,7 +3,11 @@ package koready_backend.kto.infrastructure.client;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -15,12 +19,15 @@ import koready_backend.kto.application.exception.KtoProviderException;
 import koready_backend.kto.application.exception.KtoResponseTooLargeException;
 import koready_backend.kto.application.exception.KtoTransportException;
 import koready_backend.kto.application.port.KtoSyncPageClient;
+import koready_backend.kto.application.port.KtoDailySyncPageClient;
+import koready_backend.kto.application.model.KtoFetchedSyncPage;
+import koready_backend.kto.application.model.KtoSuccessfulCallMetadata;
 import koready_backend.kto.domain.KtoSyncPage;
 import koready_backend.kto.infrastructure.config.KtoApiProperties;
 import koready_backend.kto.infrastructure.config.KtoBatchProperties;
 
 @Component
-public final class KtoTourApiClient implements KtoSyncPageClient {
+public final class KtoTourApiClient implements KtoSyncPageClient, KtoDailySyncPageClient {
 
 	private static final String OPERATION_PATH = "/areaBasedSyncList2";
 	private static final int READ_BUFFER_BYTES = 8 * 1024;
@@ -29,21 +36,39 @@ public final class KtoTourApiClient implements KtoSyncPageClient {
 	private final KtoApiProperties apiProperties;
 	private final KtoBatchProperties batchProperties;
 	private final KtoAreaBasedSyncResponseParser parser;
+	private final Clock clock;
 
+	@Autowired
 	public KtoTourApiClient(
 		@Qualifier("ktoRestClient") RestClient restClient,
 		KtoApiProperties apiProperties,
 		KtoBatchProperties batchProperties,
 		KtoAreaBasedSyncResponseParser parser
 	) {
+		this(restClient, apiProperties, batchProperties, parser, Clock.systemUTC());
+	}
+
+	KtoTourApiClient(
+		RestClient restClient,
+		KtoApiProperties apiProperties,
+		KtoBatchProperties batchProperties,
+		KtoAreaBasedSyncResponseParser parser,
+		Clock clock
+	) {
 		this.restClient = restClient;
 		this.apiProperties = apiProperties;
 		this.batchProperties = batchProperties;
 		this.parser = parser;
+		this.clock = clock;
 	}
 
 	@Override
 	public KtoSyncPage fetchPage(int pageNumber) {
+		return fetchFetchedPage(pageNumber).page();
+	}
+
+	@Override
+	public KtoFetchedSyncPage fetchFetchedPage(int pageNumber) {
 		if (pageNumber < 1) {
 			throw new IllegalArgumentException("KTO page number must be at least 1");
 		}
@@ -52,6 +77,7 @@ public final class KtoTourApiClient implements KtoSyncPageClient {
 		}
 
 		try {
+			Instant requestedAt = Instant.now(clock);
 			return restClient.get()
 				.uri(uriBuilder -> uriBuilder
 					.path(OPERATION_PATH)
@@ -71,7 +97,12 @@ public final class KtoTourApiClient implements KtoSyncPageClient {
 					if (contentLength > apiProperties.maxResponseBytes()) {
 						throw new KtoResponseTooLargeException(apiProperties.maxResponseBytes());
 					}
-					return parser.parse(readBounded(response.getBody(), apiProperties.maxResponseBytes()));
+					byte[] payload = readBounded(response.getBody(), apiProperties.maxResponseBytes());
+					KtoSyncPage page = parser.parse(payload);
+					Instant receivedAt = Instant.now(clock);
+					return new KtoFetchedSyncPage(page, new KtoSuccessfulCallMetadata(
+						requestedAt, receivedAt, Duration.between(requestedAt, receivedAt).toMillis(),
+						response.getStatusCode().value()), payload);
 				});
 		} catch (KtoProviderException | KtoResponseTooLargeException exception) {
 			throw exception;

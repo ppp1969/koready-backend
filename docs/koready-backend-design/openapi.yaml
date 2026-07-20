@@ -1783,9 +1783,11 @@ paths:
       operationId: createBatchJob
       summary: 수집·가공 배치 수동 실행
       description: |
-        관리자가 jobType, 대상 범위, dryRun 여부를 확인한 뒤 실행합니다.
-        202는 접수 성공일 뿐 완료가 아니므로 반환 jobId로 상세 상태를 polling합니다. 동일 실행 충돌은 409입니다.
-      x-implementation-status: PLANNED
+        ADMIN 또는 OPERATOR가 KTO 관광지 변경 동기화 또는 축제 수집을 한 번에 하나씩 접수합니다.
+        202는 접수 성공일 뿐 완료가 아니므로 반환 jobId로 상세 상태를 polling합니다. PENDING 또는 RUNNING 작업이 있으면 새 작업은 409입니다.
+        KTO_DAILY_SYNC는 startPage와 maxPages를, KTO_FESTIVAL_SYNC는 eventStartDate와 startPage, maxPages를 사용합니다.
+        실행자, 사유, jobId와 안전한 실행 파라미터는 관리자 감사 로그에 남기므로 reason에는 키·토큰·개인 위치정보를 넣지 않습니다.
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR]
       requestBody:
         required: true
@@ -1794,8 +1796,12 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateBatchJobRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '202':
           $ref: '#/components/responses/BatchJobAccepted'
         '409':
@@ -1865,7 +1871,8 @@ paths:
       description: |
         원본 배치의 FAILED_ITEMS만 새 job으로 재시도합니다. 반환 202의 새 jobId를 원본 ID와 구분해 추적합니다.
         완료·실패 상태가 재시도 불가능하면 409를 처리하고 현재 배치 상태를 재조회합니다.
-      x-implementation-status: PLANNED
+        실행자와 재시도 사유는 관리자 감사 로그에 남기므로 secret이나 개인 위치정보를 입력하지 않습니다.
+      x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR]
       parameters:
         - $ref: '#/components/parameters/JobId'
@@ -1876,10 +1883,16 @@ paths:
             schema:
               $ref: '#/components/schemas/RetryBatchJobRequest'
       responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '202':
           $ref: '#/components/responses/BatchJobAccepted'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /admin/open-api/sync-cursors:
     get:
       tags: [Admin Batch]
@@ -3112,8 +3125,8 @@ components:
       enum: [PENDING, RUNNING, COMPLETED, FAILED]
     BatchJobType:
       type: string
-      description: KTO 동기화·상세·영문·번역·이미지 보강 작업 유형
-      enum: [KTO_DAILY_SYNC, KTO_DETAIL_ENRICHMENT, KTO_EN_SYNC, AI_TRANSLATION, IMAGE_ENRICHMENT]
+      description: 현재 수동 실행을 허용하는 KTO 작업 유형
+      enum: [KTO_DAILY_SYNC, KTO_FESTIVAL_SYNC, KTO_DETAIL_ENRICHMENT, KTO_EN_SYNC, AI_TRANSLATION, IMAGE_ENRICHMENT]
     SocialLoginRequest:
       type: object
       required: [provider, deviceId]
@@ -6197,31 +6210,22 @@ components:
     BatchJobParameters:
       type: object
       description: |
-        jobType에 따라 사용하는 선택 필드가 다릅니다. KTO sync는 operations/pageSize,
-        특정 상세 보강은 contentIds, 번역은 sourceLanguage/targetLanguage를 사용합니다.
+        KTO_DAILY_SYNC는 startPage와 maxPages를 사용합니다.
+        KTO_FESTIVAL_SYNC는 eventStartDate(YYYY-MM-DD)를 추가로 사용합니다.
+        서버의 KTO pageSize와 동시성은 환경 설정으로 고정되어 있어 요청에서 바꾸지 않습니다.
       additionalProperties: false
       properties:
-        operations:
-          type: array
-          uniqueItems: true
-          items:
-            type: string
-          example: [areaBasedSyncList2]
-        pageSize:
+        eventStartDate:
+          type: string
+          format: date
+          description: KTO_FESTIVAL_SYNC에서 필수인 행사 시작일 기준
+        startPage:
           type: integer
           minimum: 1
-          maximum: 1000
-          example: 500
-        contentIds:
-          type: array
-          maxItems: 1000
-          uniqueItems: true
-          items:
-            type: string
-        sourceLanguage:
-          $ref: '#/components/schemas/LanguageCode'
-        targetLanguage:
-          $ref: '#/components/schemas/LanguageCode'
-        dryRun:
-          type: boolean
-          default: false
+          maximum: 100000
+          default: 1
+        maxPages:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 1

@@ -630,7 +630,7 @@ flowchart LR
 - 호출 로그: `GET /admin/open-api/calls`, `GET /admin/open-api/calls/{callLogId}`
 - KTO snapshot: `GET /admin/open-api/snapshots`, `GET /admin/open-api/snapshots/{snapshotId}`, `POST /download-url`
 - 배치 조회(구현): `GET /admin/batch-jobs`, `GET /{jobId}`, `GET /{jobId}/items`
-- 배치 실행·재시도(후속): `POST /admin/batch-jobs`, `POST /{jobId}/retry`
+- 배치 실행·재시도(구현): `POST /admin/batch-jobs`는 `KTO_DAILY_SYNC` 또는 `KTO_FESTIVAL_SYNC`를 `202`로 접수한다. 응답 `jobId`로 목록·상세·item API를 polling하고, `409 BATCH_JOB_ALREADY_ACTIVE`이면 기존 작업을 계속 표시한다. `FAILED` 또는 `PARTIAL_FAILED`일 때만 `POST /{jobId}/retry`에 `scope=FAILED_ITEMS`와 사유를 보내 새 retry job을 만든다.
 - cursor 조회(구현): `GET /admin/open-api/sync-cursors`
 - cursor 활성 변경·초기화(구현): `PUT /{cursorId}/enabled`, `POST /{cursorId}/reset`
 - 증빙 번들(구현): `POST /admin/evidence-bundles`로 `QUEUED`를 받은 뒤 목록 또는 상세를 polling한다. `COMPLETED`일 때만 `POST /{bundleId}/download-url` 버튼을 활성화하며, local 응답의 `503`은 S3 연결 전 정상 상태다.

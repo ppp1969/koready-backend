@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -21,6 +22,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.batch.application.BatchJobAdminService;
+import koready_backend.batch.application.BatchJobCommandService;
 import koready_backend.batch.application.exception.BatchJobNotFoundException;
 import koready_backend.batch.domain.BatchItemStatus;
 import koready_backend.batch.domain.BatchItemTargetType;
@@ -41,6 +43,9 @@ class AdminBatchJobControllerTest {
 	@MockitoBean
 	BatchJobAdminService service;
 
+	@MockitoBean
+	BatchJobCommandService commandService;
+
 	@BeforeEach
 	void defaults() {
 		when(service.listJobs(any())).thenReturn(
@@ -48,6 +53,18 @@ class AdminBatchJobControllerTest {
 		when(service.getJob(7L)).thenReturn(job());
 		when(service.listItems(any(Long.class), any())).thenReturn(
 			new BatchJobAdminService.ItemPage(7L, List.of(item()), null, false));
+		when(commandService.accept(any())).thenReturn(new BatchJobCommandService.JobAcceptance(
+			71L,
+			BatchJobType.KTO_FESTIVAL_SYNC,
+			BatchJobStatus.PENDING,
+			BatchTriggerSource.ADMIN_MANUAL,
+			null));
+		when(commandService.retry(any(Long.class), any())).thenReturn(new BatchJobCommandService.JobAcceptance(
+			72L,
+			BatchJobType.KTO_FESTIVAL_SYNC,
+			BatchJobStatus.PENDING,
+			BatchTriggerSource.RETRY,
+			7L));
 	}
 
 	@Test
@@ -100,6 +117,48 @@ class AdminBatchJobControllerTest {
 				.with(user("admin").roles("ADMIN")))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("BATCH_JOB_NOT_FOUND"));
+	}
+
+	@Test
+	void acceptsManualKtoJobsForOperatorsButNotAuditors() throws Exception {
+		String request = """
+			{
+			  "jobType": "KTO_FESTIVAL_SYNC",
+			  "parameters": {
+			    "eventStartDate": "2026-07-01",
+			    "startPage": 1,
+			    "maxPages": 1
+			  },
+			  "reason": "Refresh festival data"
+			}
+			""";
+
+		mockMvc.perform(post("/api/v1/admin/batch-jobs")
+				.contentType("application/json")
+				.content(request)
+				.with(user("operator").roles("OPERATOR")))
+			.andExpect(status().isAccepted())
+			.andExpect(jsonPath("$.code").value("BATCH_JOB_ACCEPTED"))
+			.andExpect(jsonPath("$.data.jobId").isNumber())
+			.andExpect(jsonPath("$.data.status").value("PENDING"));
+
+		mockMvc.perform(post("/api/v1/admin/batch-jobs")
+				.contentType("application/json")
+				.content(request)
+				.with(user("auditor").roles("AUDITOR")))
+			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void acceptsRetriesForOperatorsAndKeepsTheOriginalJobReference() throws Exception {
+		mockMvc.perform(post("/api/v1/admin/batch-jobs/7/retry")
+				.contentType("application/json")
+				.content("{\"scope\":\"FAILED_ITEMS\",\"reason\":\"Retry failed page\"}")
+				.with(user("admin").roles("ADMIN")))
+			.andExpect(status().isAccepted())
+			.andExpect(jsonPath("$.code").value("BATCH_JOB_RETRY_ACCEPTED"))
+			.andExpect(jsonPath("$.data.jobId").value(72))
+			.andExpect(jsonPath("$.data.originalJobId").value(7));
 	}
 
 	private static BatchJobAdminService.BatchJobView job() {

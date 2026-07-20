@@ -80,8 +80,10 @@ class OpenApiContractTests {
 		"GET /admin/evidence-bundles/{bundleId}",
 		"POST /admin/evidence-bundles/{bundleId}/download-url",
 		"GET /admin/batch-jobs",
+		"POST /admin/batch-jobs",
 		"GET /admin/batch-jobs/{jobId}",
 		"GET /admin/batch-jobs/{jobId}/items",
+		"POST /admin/batch-jobs/{jobId}/retry",
 		"GET /admin/data-quality/summary");
 	private static final Set<String> ANONYMOUS_IMPLEMENTED_OPERATIONS = Set.of(
 		"GET /monthly-recommendations",
@@ -639,7 +641,7 @@ class OpenApiContractTests {
 	}
 
 	@Test
-	void adminBatchReadsMatchTheActualDatabaseSchemaAndKeepWritesPlanned()
+	void adminBatchOperationsMatchTheActualDatabaseSchemaAndWriteContract()
 		throws IOException {
 		Map<String, Object> contract = loadContract();
 		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
@@ -662,9 +664,12 @@ class OpenApiContractTests {
 
 		Map<String, Object> collection = asMap(
 			paths.get("/admin/batch-jobs"), "batch collection");
-		assertEquals(
-			"PLANNED",
-			asMap(collection.get("post"), "batch create").get("x-implementation-status"));
+		Map<String, Object> create = asMap(collection.get("post"), "batch create");
+		assertEquals("IMPLEMENTED", create.get("x-implementation-status"));
+		assertEquals(List.of("ADMIN", "OPERATOR"),
+			asList(create.get("x-required-roles"), "batch create roles"));
+		assertTrue(asMap(create.get("responses"), "batch create responses")
+			.keySet().containsAll(Set.of("400", "401", "403", "409", "202")));
 		assertTrue(directParameterNames(
 			asMap(collection.get("get"), "batch list"), "batch list parameters")
 			.containsAll(Set.of("jobType", "status", "triggerSource")));
@@ -677,7 +682,11 @@ class OpenApiContractTests {
 		Map<String, Object> retry = asMap(
 			asMap(paths.get("/admin/batch-jobs/{jobId}/retry"), "batch retry").get("post"),
 			"batch retry operation");
-		assertEquals("PLANNED", retry.get("x-implementation-status"));
+		assertEquals("IMPLEMENTED", retry.get("x-implementation-status"));
+		assertEquals(List.of("ADMIN", "OPERATOR"),
+			asList(retry.get("x-required-roles"), "batch retry roles"));
+		assertTrue(asMap(retry.get("responses"), "batch retry responses")
+			.keySet().containsAll(Set.of("400", "401", "403", "409", "202")));
 
 		Map<String, Object> schemas = componentSchemas(contract);
 		Map<String, Object> job = asMap(schemas.get("BatchJobResponse"), "BatchJobResponse");

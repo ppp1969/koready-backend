@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import koready_backend.batch.application.BatchJobAdminService;
+import koready_backend.batch.application.BatchJobCommandService;
 import koready_backend.batch.domain.BatchItemStatus;
 import koready_backend.batch.domain.BatchItemTargetType;
 import koready_backend.batch.domain.BatchJobStatus;
@@ -50,6 +51,11 @@ final class BatchJobDtos {
 			page.hasMore());
 	}
 
+	static BatchJobAcceptedResponse accepted(BatchJobCommandService.JobAcceptance job) {
+		return new BatchJobAcceptedResponse(
+			job.jobId(), job.jobType(), job.status(), job.triggerSource(), job.originalJobId());
+	}
+
 	private static BatchItemResponse from(BatchJobAdminService.BatchItemView item) {
 		return new BatchItemResponse(
 			item.itemId(),
@@ -65,6 +71,28 @@ final class BatchJobDtos {
 		List<BatchJobResponse> items,
 		String nextCursor,
 		boolean hasMore
+	) {
+	}
+
+	record CreateBatchJobRequest(
+		BatchJobType jobType,
+		Map<String, Object> parameters,
+		@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 500) String reason
+	) {
+	}
+
+	record BatchJobAcceptedResponse(
+		long jobId,
+		BatchJobType jobType,
+		BatchJobStatus status,
+		BatchTriggerSource triggerSource,
+		Long originalJobId
+	) {
+	}
+
+	record RetryBatchJobRequest(
+		@jakarta.validation.constraints.NotBlank String scope,
+		@jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 500) String reason
 	) {
 	}
 

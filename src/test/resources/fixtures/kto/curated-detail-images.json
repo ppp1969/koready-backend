@@ -1,0 +1,32 @@
+{
+  "response": {
+    "header": { "resultCode": "0000" },
+    "body": {
+      "items": {
+        "item": [
+          {
+            "contentid": "126508",
+            "originimgurl": "https://example.invalid/original-1.jpg",
+            "smallimageurl": "https://example.invalid/thumb-1.jpg",
+            "imgname": "Palace view",
+            "cpyrhtDivCd": "Type1",
+            "serialnum": "1"
+          },
+          {
+            "contentid": "126508",
+            "originimgurl": "   ",
+            "smallimageurl": "https://example.invalid/thumb-2.jpg",
+            "serialnum": "2"
+          },
+          {
+            "contentid": "126508",
+            "originimgurl": "https://example.invalid/original-3.jpg",
+            "smallimageurl": "https://example.invalid/thumb-3.jpg",
+            "serialnum": "3"
+          }
+        ]
+      },
+      "totalCount": 3
+    }
+  }
+}

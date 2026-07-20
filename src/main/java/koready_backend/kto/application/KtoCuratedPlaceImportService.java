@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import koready_backend.kto.application.port.KtoCuratedPlaceClient;
 import koready_backend.kto.application.port.KtoCuratedPlaceStore;
 import koready_backend.kto.domain.KtoPlaceDetail;
+import koready_backend.kto.domain.KtoPlaceImage;
 import koready_backend.kto.domain.KtoPlaceItem;
 import koready_backend.onboarding.domain.InitialCandidatePlace;
 import koready_backend.onboarding.domain.InitialCandidatePlaceCatalog;
@@ -38,8 +39,9 @@ public class KtoCuratedPlaceImportService {
 			KtoPlaceDetail detail = client.fetchDetail(specification.ktoContentId());
 			validateMetadata(specification, detail.place(), "detail");
 			validateRequiredFields(specification, detail.place());
+			List<KtoPlaceImage> images = client.fetchImages(specification.ktoContentId());
 
-			long placeId = store.upsert(specification, detail);
+			long placeId = store.upsert(specification, detail, images);
 			if (placeId <= 0) {
 				throw new IllegalStateException("Curated KTO place store returned an invalid place ID");
 			}

@@ -69,6 +69,24 @@ class KtoCuratedPlaceApiClientTest {
 	}
 
 	@Test
+	void requestsDetailImagesWithoutTheUnsupportedSubImageFlag() throws IOException {
+		KtoApiProperties properties = properties(4 * 1024 * 1024);
+		RestClient.Builder builder = RestClient.builder().baseUrl(properties.baseUrl());
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		KtoCuratedPlaceApiClient client = client(builder.build(), properties);
+		server.expect(request -> {
+			assertEquals("/B551011/KorService2/detailImage2", request.getURI().getPath());
+			var query = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
+			assertEquals("126508", query.getFirst("contentId"));
+			assertEquals("Y", query.getFirst("imageYN"));
+			assertEquals(null, query.getFirst("subImageYN"));
+		}).andRespond(withSuccess(fixture("curated-detail-images.json"), MediaType.APPLICATION_JSON));
+
+		assertEquals(2, client.fetchImages("126508").size());
+		server.verify();
+	}
+
+	@Test
 	void stopsBeforeParsingWhenTheCuratedResponseIsTooLarge() {
 		KtoApiProperties properties = properties(64);
 		RestClient.Builder builder = RestClient.builder();

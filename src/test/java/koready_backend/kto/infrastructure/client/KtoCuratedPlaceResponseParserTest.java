@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import koready_backend.kto.application.exception.KtoProviderException;
 import koready_backend.kto.domain.KtoPlaceDetail;
+import koready_backend.kto.domain.KtoPlaceImage;
 import koready_backend.kto.domain.KtoPlaceItem;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -38,6 +39,17 @@ class KtoCuratedPlaceResponseParserTest {
 		assertEquals("126508", detail.place().contentId());
 		assertEquals("경복궁 소개", detail.overview());
 		assertEquals("https://www.royalpalace.go.kr", detail.homepage());
+	}
+
+	@Test
+	void parsesDetailImagesInProviderOrderAndIgnoresBlankImageUrls() throws IOException {
+		List<KtoPlaceImage> images = parser.parseImages(fixture("curated-detail-images.json"));
+
+		assertEquals(2, images.size());
+		assertEquals("https://example.invalid/original-1.jpg", images.getFirst().originImageUrl());
+		assertEquals("https://example.invalid/thumb-1.jpg", images.getFirst().thumbnailImageUrl());
+		assertEquals(1, images.getFirst().sourceOrder());
+		assertEquals(3, images.get(1).sourceOrder());
 	}
 
 	@Test

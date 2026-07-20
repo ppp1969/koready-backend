@@ -679,9 +679,11 @@ paths:
         프론트는 availableTabs에 있는 DESCRIPTION, ROUTE, MATES만 노출하고 null 운영정보 행은 숨깁니다.
         로그인 전에도 호출할 수 있고 isSaved는 false입니다.
 
-        **현재 MVP 데이터 범위:** KTO/관리 데이터에 근거가 있는 제목, 권역, 주소, 좌표, 대표 이미지와
-        설명만 반환합니다. 아직 수집하지 않은 운영시간·휴무일·요금·주차 정보는 추측하지 않고 null입니다.
-        대표 이미지가 없으면 images는 빈 배열이며, 설명 원문이 없으면 description은 null이고
+        **현재 MVP 데이터 범위:** KTO/관리 데이터에 근거가 있는 제목, 권역, 주소, 좌표, 최대 3장의 이미지와
+        설명만 반환합니다. 이미지 순서는 운영진이 연결한 수상 사진, KTO 상세 이미지, 기존 대표 이미지 순입니다.
+        수상 사진은 제목 유사도만으로 자동 연결하지 않으며, 운영진이 장소 연결을 확인한 사진만 노출합니다.
+        이미지가 없으면 images는 빈 배열이며, 아직 수집하지 않은 운영시간·휴무일·요금·주차 정보는 추측하지 않고 null입니다.
+        설명 원문이 없으면 description은 null이고
         availableTabs에 DESCRIPTION이 포함되지 않습니다. Buddy 메이트 조회가 구현되어 MATES는
         모든 표출 장소에 포함합니다. TMAP Route는 아직 PLANNED이므로 ROUTE는 포함하지 않습니다.
 
@@ -3534,6 +3536,8 @@ components:
           nullable: true
         images:
           type: array
+          maxItems: 3
+          description: 수상 사진, KTO 상세 이미지, 기존 대표 이미지 순으로 최대 3장입니다. 수상 사진은 운영진이 장소 연결을 확인한 경우에만 포함합니다.
           items:
             $ref: '#/components/schemas/PlaceImage'
         tags:
@@ -4546,6 +4550,7 @@ components:
           format: date-time
     PlaceImage:
       type: object
+      description: 장소 상세 갤러리 이미지. order는 프론트 표시 순서이며 1부터 시작합니다.
       required: [imageUrl, order]
       properties:
         imageUrl:

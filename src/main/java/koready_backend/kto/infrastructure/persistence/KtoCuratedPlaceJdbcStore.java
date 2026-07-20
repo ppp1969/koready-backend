@@ -1,9 +1,16 @@
 package koready_backend.kto.infrastructure.persistence;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.List;
 
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -12,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import koready_backend.kto.application.port.KtoCuratedPlaceStore;
 import koready_backend.kto.domain.KtoPlaceDetail;
+import koready_backend.kto.domain.KtoPlaceImage;
 import koready_backend.kto.domain.KtoPlaceItem;
 import koready_backend.onboarding.domain.InitialCandidatePlace;
 
@@ -30,6 +38,16 @@ public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
 	@Override
 	@Transactional
 	public long upsert(InitialCandidatePlace specification, KtoPlaceDetail detail) {
+		return upsert(specification, detail, List.of());
+	}
+
+	@Override
+	@Transactional
+	public long upsert(
+		InitialCandidatePlace specification,
+		KtoPlaceDetail detail,
+		List<KtoPlaceImage> images
+	) {
 		KtoPlaceItem item = detail.place();
 		requirePinnedMetadata(specification, item);
 		String serviceRegionCode = resolveServiceRegion(item);
@@ -99,7 +117,56 @@ public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
 		upsertKoreanLocalization(placeId, item, detail, address);
 		upsertEnglishLocalization(placeId, specification, item.contentId(), address);
 		upsertApprovedStyle(placeId, specification);
+		replaceKtoDetailImages(placeId, item, images);
 		return placeId;
+	}
+
+	private void replaceKtoDetailImages(
+		long placeId,
+		KtoPlaceItem item,
+		List<KtoPlaceImage> collectedImages
+	) {
+		List<KtoPlaceImage> images = galleryImages(item, collectedImages);
+		jdbcTemplate.update(
+			"DELETE FROM place_images WHERE place_id = ? AND source_type = 'KTO_DETAIL'",
+			placeId);
+		for (KtoPlaceImage image : images) {
+			jdbcTemplate.update(
+				"""
+				INSERT INTO place_images
+				    (place_id, image_url, thumbnail_image_url, image_url_sha256,
+				     source_type, source_priority, source_order, source_content_id,
+				     source_image_name, copyright_type)
+				VALUES (?, ?, ?, ?, 'KTO_DETAIL', 100, ?, ?, ?, ?)
+				""",
+				placeId,
+				image.originImageUrl(),
+				image.thumbnailImageUrl(),
+				sha256(image.originImageUrl()),
+				image.sourceOrder(),
+				item.contentId(),
+				optional(image.imageName(), 500, "image name"),
+				optional(image.copyrightType(), 30, "image copyright type"));
+		}
+	}
+
+	private List<KtoPlaceImage> galleryImages(
+		KtoPlaceItem item,
+		List<KtoPlaceImage> collectedImages
+	) {
+		LinkedHashMap<String, KtoPlaceImage> unique = new LinkedHashMap<>();
+		for (KtoPlaceImage image : collectedImages == null ? List.<KtoPlaceImage>of() : collectedImages) {
+			unique.putIfAbsent(image.originImageUrl(), image);
+		}
+		if (unique.size() < 3 && item.primaryImageUrl() != null && !item.primaryImageUrl().isBlank()) {
+			unique.putIfAbsent(item.primaryImageUrl(), new KtoPlaceImage(
+				item.primaryImageUrl(),
+				item.thumbnailImageUrl(),
+				item.title(),
+				item.copyrightType(),
+				unique.size() + 1));
+		}
+		return new ArrayList<>(unique.values()).stream().limit(3).toList();
 	}
 
 	private void upsertKoreanLocalization(
@@ -276,5 +343,14 @@ public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
 			return null;
 		}
 		return required(value, maxLength, field);
+	}
+
+	private String sha256(String value) {
+		try {
+			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+				.digest(value.getBytes(StandardCharsets.UTF_8)));
+		} catch (NoSuchAlgorithmException exception) {
+			throw new IllegalStateException("SHA-256 is unavailable", exception);
+		}
 	}
 }

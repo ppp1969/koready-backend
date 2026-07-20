@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,7 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import koready_backend.kto.application.port.KtoCuratedPlaceStore;
 import koready_backend.kto.domain.KtoPlaceDetail;
+import koready_backend.kto.domain.KtoPlaceImage;
 import koready_backend.kto.domain.KtoPlaceItem;
 import koready_backend.onboarding.domain.InitialCandidatePlace;
 import koready_backend.onboarding.domain.InitialCandidatePlaceCatalog;
@@ -50,6 +53,7 @@ class KtoCuratedPlaceJdbcStoreIntegrationTest {
 		jdbcTemplate.update("DELETE FROM place_source_matches");
 		jdbcTemplate.update("DELETE FROM place_source_records");
 		jdbcTemplate.update("DELETE FROM place_style_mappings");
+		jdbcTemplate.update("DELETE FROM place_images");
 		jdbcTemplate.update("DELETE FROM place_localizations");
 		jdbcTemplate.update("DELETE FROM places");
 		jdbcTemplate.update("DELETE FROM open_api_raw_snapshots");
@@ -61,13 +65,18 @@ class KtoCuratedPlaceJdbcStoreIntegrationTest {
 		InitialCandidatePlace specification = InitialCandidatePlaceCatalog.approved().getFirst();
 		KtoPlaceDetail detail = detail(specification, "1", "11");
 
-		long firstId = store.upsert(specification, detail);
-		long replayId = store.upsert(specification, detail);
+		long firstId = store.upsert(specification, detail, List.of(
+			new KtoPlaceImage("https://example.invalid/gallery.jpg", null, "Gallery", "Type1", 1)));
+		long replayId = store.upsert(specification, detail, List.of(
+			new KtoPlaceImage("https://example.invalid/gallery.jpg", null, "Gallery", "Type1", 1)));
 
 		assertEquals(firstId, replayId);
 		assertEquals(1, count("places"));
 		assertEquals(2, count("place_localizations"));
 		assertEquals(1, count("place_style_mappings"));
+		assertEquals(2, count("place_images"));
+		assertEquals(2, jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM place_images WHERE source_type = 'KTO_DETAIL'", Integer.class));
 		assertEquals("SEOUL", value("service_region_code", "places"));
 		assertEquals(Boolean.TRUE, value(Boolean.class, "active", "places"));
 		assertEquals(Boolean.TRUE, value(Boolean.class, "show_flag", "places"));

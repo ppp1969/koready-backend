@@ -103,9 +103,7 @@ public class PlaceQueryService {
 		PlaceDetailRow row = repository.findDetail(placeId, language)
 			.orElseThrow(() -> new PlaceNotFoundException(placeId));
 		PlaceDescription description = description(row);
-		List<PlaceImage> images = row.imageUrl() == null
-			? List.of()
-			: List.of(new PlaceImage(row.imageUrl(), 1, row.title()));
+		List<PlaceImage> images = images(placeId, row);
 		List<String> availableTabs = description == null
 			? List.of("MATES")
 			: List.of("DESCRIPTION", "MATES");
@@ -129,6 +127,23 @@ public class PlaceQueryService {
 			description,
 			List.of(),
 			availableTabs);
+	}
+
+	private List<PlaceImage> images(long placeId, PlaceDetailRow row) {
+		List<PlaceQueryRepository.PlaceImageRow> gallery = repository.findImages(placeId).stream()
+			.limit(3)
+			.toList();
+		if (!gallery.isEmpty()) {
+			return java.util.stream.IntStream.range(0, gallery.size())
+				.mapToObj(index -> new PlaceImage(
+					gallery.get(index).imageUrl(),
+					index + 1,
+					gallery.get(index).altText()))
+				.toList();
+		}
+		return row.imageUrl() == null
+			? List.of()
+			: List.of(new PlaceImage(row.imageUrl(), 1, row.title()));
 	}
 
 	private PlacePage page(

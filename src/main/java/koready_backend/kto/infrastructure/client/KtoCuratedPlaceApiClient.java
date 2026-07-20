@@ -17,6 +17,7 @@ import koready_backend.kto.application.exception.KtoResponseTooLargeException;
 import koready_backend.kto.application.exception.KtoTransportException;
 import koready_backend.kto.application.port.KtoCuratedPlaceClient;
 import koready_backend.kto.domain.KtoPlaceDetail;
+import koready_backend.kto.domain.KtoPlaceImage;
 import koready_backend.kto.domain.KtoPlaceItem;
 import koready_backend.kto.infrastructure.config.KtoApiProperties;
 
@@ -25,6 +26,7 @@ public final class KtoCuratedPlaceApiClient implements KtoCuratedPlaceClient {
 
 	private static final String SEARCH_PATH = "/searchKeyword2";
 	private static final String DETAIL_PATH = "/detailCommon2";
+	private static final String DETAIL_IMAGE_PATH = "/detailImage2";
 	private static final int SEARCH_RESULT_LIMIT = 10;
 	private static final int READ_BUFFER_BYTES = 8 * 1024;
 
@@ -76,6 +78,24 @@ public final class KtoCuratedPlaceApiClient implements KtoCuratedPlaceClient {
 			.queryParam("serviceKey", apiProperties.serviceKey())
 			.build());
 		return parser.parseDetail(payload);
+	}
+
+	@Override
+	public List<KtoPlaceImage> fetchImages(String contentId) {
+		if (contentId == null || contentId.isBlank()) {
+			throw new IllegalArgumentException("KTO curated content ID is required");
+		}
+		requireServiceKey();
+		byte[] payload = request(uriBuilder -> uriBuilder
+			.path(DETAIL_IMAGE_PATH)
+			.queryParam("MobileOS", apiProperties.mobileOs())
+			.queryParam("MobileApp", apiProperties.mobileApp())
+			.queryParam("_type", "json")
+			.queryParam("contentId", contentId.strip())
+			.queryParam("imageYN", "Y")
+			.queryParam("serviceKey", apiProperties.serviceKey())
+			.build());
+		return parser.parseImages(payload);
 	}
 
 	private byte[] request(java.util.function.Function<org.springframework.web.util.UriBuilder, java.net.URI> uri) {

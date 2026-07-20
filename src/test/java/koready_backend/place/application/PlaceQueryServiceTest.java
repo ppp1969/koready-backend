@@ -165,6 +165,26 @@ class PlaceQueryServiceTest {
 	}
 
 	@Test
+	void returnsOrderedGalleryImagesWhenTheyWereCollectedForThePlace() {
+		when(repository.findDetail(10L, PlaceLanguage.KO)).thenReturn(Optional.of(
+			new PlaceDetailRow(
+				10L, "Place", ServiceRegionCode.SEOUL, "Seoul", "Address",
+				null, null, "https://example.invalid/primary.jpg", "Overview", "KTO_KO")));
+		when(repository.findImages(10L)).thenReturn(List.of(
+			new PlaceQueryRepository.PlaceImageRow("https://example.invalid/first.jpg", "Place 1"),
+			new PlaceQueryRepository.PlaceImageRow("https://example.invalid/second.jpg", "Place 2"),
+			new PlaceQueryRepository.PlaceImageRow("https://example.invalid/third.jpg", "Place 3")));
+
+		PlaceQueryService.PlaceDetail detail = service.getPlace(10L, PlaceLanguage.KO);
+
+		assertEquals(List.of(
+			"https://example.invalid/first.jpg",
+			"https://example.invalid/second.jpg",
+			"https://example.invalid/third.jpg"),
+			detail.images().stream().map(PlaceQueryService.PlaceImage::imageUrl).toList());
+	}
+
+	@Test
 	void reportsMissingPlace() {
 		when(repository.findDetail(404L, PlaceLanguage.EN)).thenReturn(Optional.empty());
 

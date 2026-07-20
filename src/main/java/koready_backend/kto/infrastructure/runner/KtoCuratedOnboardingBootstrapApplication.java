@@ -23,6 +23,8 @@ public final class KtoCuratedOnboardingBootstrapApplication {
 		LoggerFactory.getLogger(KtoCuratedOnboardingBootstrapApplication.class);
 	private static final String CONFIRM_PROPERTY =
 		"koready.kto.curated-bootstrap.confirm";
+	private static final String SNAPSHOT_STORAGE_PROPERTY =
+		"koready.kto.snapshot.storage";
 	private static final String PROFILE_ARGUMENT = "--spring.profiles.active=";
 	private static final Set<String> ALLOWED_PROFILES = Set.of("local", "staging");
 
@@ -79,7 +81,7 @@ public final class KtoCuratedOnboardingBootstrapApplication {
 		}
 	}
 
-	private static void validateEnvironment(Environment environment) {
+	static void validateEnvironment(Environment environment) {
 		if (!environment.getProperty(CONFIRM_PROPERTY, Boolean.class, false)) {
 			throw new IllegalStateException(
 				"Curated onboarding bootstrap requires explicit confirmation");
@@ -88,6 +90,11 @@ public final class KtoCuratedOnboardingBootstrapApplication {
 			|| environment.acceptsProfiles(Profiles.of("prod"))) {
 			throw new IllegalStateException(
 				"Curated onboarding bootstrap is limited to local or staging");
+		}
+		if (environment.acceptsProfiles(Profiles.of("staging"))
+			&& !"s3".equals(environment.getProperty(SNAPSHOT_STORAGE_PROPERTY))) {
+			throw new IllegalStateException(
+				"Staging curated onboarding bootstrap requires S3 snapshot storage");
 		}
 	}
 }

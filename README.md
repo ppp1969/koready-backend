@@ -128,6 +128,11 @@ Render에는 scheduler를 두지 않습니다.
 ./scripts/bootstrap-curated-onboarding.ps1 -Profile staging
 ```
 
+`staging` 실행은 `KTO_SNAPSHOT_STORAGE=s3`, `KTO_SNAPSHOT_S3_BUCKET`, AWS 인증을 갖춘
+수집 환경에서만 허용된다. 이 설정이 없으면 외부 KTO 호출 전에 중단한다. Aiven에 저장된
+원문 증빙이 개인 PC 경로를 가리키지 않도록 하기 위한 안전장치이며, S3 설정 전에는
+`local` 프로필에서만 초기 등록을 검증한다.
+
 같은 명령을 다시 실행하면 KTO `contentId`와 고정 후보 세트 ID를 기준으로 기존
 데이터를 갱신하며 장소나 후보 세트를 중복 생성하지 않습니다. 이미 발행된 후보
 세트의 카드 순서나 문구가 승인 목록과 다르면 자동으로 덮어쓰지 않고 실패합니다.

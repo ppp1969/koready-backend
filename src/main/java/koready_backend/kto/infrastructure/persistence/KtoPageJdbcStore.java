@@ -215,8 +215,8 @@ public class KtoPageJdbcStore implements KtoPageStore {
 					(provider, api_name, operation, endpoint, request_started_at,
 					 response_received_at, duration_ms, success, http_status,
 					 request_params_masked, response_summary, external_result_code,
-					 item_count, response_bytes)
-				VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, ?, ?, ?, '0000', ?, ?)
+					 related_job_id, related_job_item_id, item_count, response_bytes)
+				VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, ?, ?, ?, '0000', ?, ?, ?, ?)
 				""",
 				Statement.RETURN_GENERATED_KEYS);
 			statement.setString(1, PROVIDER);
@@ -229,8 +229,15 @@ public class KtoPageJdbcStore implements KtoPageStore {
 			statement.setInt(8, command.call().httpStatus());
 			statement.setString(9, requestParams);
 			statement.setString(10, responseSummary);
-			statement.setInt(11, command.page().items().size());
-			statement.setLong(12, command.page().responseBytes());
+			if (command.batchExecution() == null) {
+				statement.setNull(11, java.sql.Types.BIGINT);
+				statement.setNull(12, java.sql.Types.BIGINT);
+			} else {
+				statement.setLong(11, command.batchExecution().jobId());
+				statement.setLong(12, command.batchExecution().jobItemId());
+			}
+			statement.setInt(13, command.page().items().size());
+			statement.setLong(14, command.page().responseBytes());
 			return statement;
 		}, keyHolder);
 

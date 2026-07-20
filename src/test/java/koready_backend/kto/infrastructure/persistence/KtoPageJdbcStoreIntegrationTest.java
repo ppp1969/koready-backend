@@ -26,6 +26,7 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import koready_backend.kto.application.exception.KtoDuplicateContentIdException;
 import koready_backend.kto.application.exception.KtoSnapshotConflictException;
+import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoStorePageCommand;
 import koready_backend.kto.application.model.KtoStorePageResult;
 import koready_backend.kto.application.model.KtoStoredSnapshotMetadata;
@@ -66,6 +67,8 @@ class KtoPageJdbcStoreIntegrationTest {
 		jdbcTemplate.update("DELETE FROM places");
 		jdbcTemplate.update("DELETE FROM open_api_raw_snapshots");
 		jdbcTemplate.update("DELETE FROM open_api_call_logs");
+		jdbcTemplate.update("DELETE FROM batch_job_items");
+		jdbcTemplate.update("DELETE FROM batch_jobs");
 		jdbcTemplate.update("DELETE FROM tour_api_sync_cursors");
 	}
 
@@ -151,6 +154,29 @@ class KtoPageJdbcStoreIntegrationTest {
 		assertEquals(1, count("open_api_raw_snapshots"));
 		assertEquals(1, count("places"));
 		assertEquals(1, count("place_source_records"));
+	}
+
+	@Test
+	void linksTheCallLogToTheManualBatchExecution() {
+		long jobId = insertBatchJob();
+		long itemId = insertBatchItem(jobId);
+		KtoSyncPage page = page(1, "a", item("300002", "batch place", "1", "1", "c", "126", "37"));
+		KtoStorePageCommand command = new KtoStorePageCommand(
+			page,
+			new KtoSuccessfulCallMetadata(REQUESTED_AT, RECEIVED_AT, 771, 200),
+			new KtoStoredSnapshotMetadata(
+				"kto/kor/areaBasedSyncList2/2026-07-17/batch.json.gz",
+				"b".repeat(64),
+				35_000,
+				RECEIVED_AT),
+			new KtoBatchExecutionReference(jobId, itemId));
+
+		pageStore.store(command);
+
+		assertEquals(jobId, jdbcTemplate.queryForObject(
+			"SELECT related_job_id FROM open_api_call_logs", Long.class));
+		assertEquals(itemId, jdbcTemplate.queryForObject(
+			"SELECT related_job_item_id FROM open_api_call_logs", Long.class));
 	}
 
 	@Test
@@ -247,6 +273,22 @@ class KtoPageJdbcStoreIntegrationTest {
 				objectHashCharacter.repeat(64),
 				35_000,
 				RECEIVED_AT));
+	}
+
+	private long insertBatchJob() {
+		jdbcTemplate.update(
+			"INSERT INTO batch_jobs (job_type, status, trigger_source) VALUES ('KTO_DAILY_SYNC', 'COMPLETED', 'ADMIN_MANUAL')");
+		return jdbcTemplate.queryForObject("SELECT MAX(id) FROM batch_jobs", Long.class);
+	}
+
+	private long insertBatchItem(long jobId) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO batch_job_items (batch_job_id, target_type, target_id, status)
+			VALUES (?, 'API_PAGE', 'areaBasedSyncList2:1', 'COMPLETED')
+			""",
+			jobId);
+		return jdbcTemplate.queryForObject("SELECT MAX(id) FROM batch_job_items", Long.class);
 	}
 
 	private KtoSyncPage page(int pageNumber, String pageHashCharacter, KtoPlaceItem... items) {

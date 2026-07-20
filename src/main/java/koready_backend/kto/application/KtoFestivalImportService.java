@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import koready_backend.kto.application.exception.KtoResponseParseException;
 import koready_backend.kto.application.model.KtoFetchedFestivalPage;
+import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
 import koready_backend.kto.application.model.KtoFestivalImportResult;
 import koready_backend.kto.application.model.KtoFestivalStorePageResult;
@@ -51,6 +52,13 @@ public class KtoFestivalImportService {
 	}
 
 	public KtoFestivalImportResult importFestivals(KtoFestivalImportRequest request) {
+		return importFestivals(request, null);
+	}
+
+	public KtoFestivalImportResult importFestivals(
+		KtoFestivalImportRequest request,
+		KtoBatchExecutionReference batchExecution
+	) {
 		int processedPages = 0;
 		int processedItems = 0;
 		int replayedPages = 0;
@@ -83,7 +91,8 @@ public class KtoFestivalImportService {
 				request.eventStartDate(),
 				page,
 				fetched.call(),
-				snapshot));
+				snapshot,
+				batchExecution));
 
 			processedPages++;
 			processedItems += stored.processedCount();

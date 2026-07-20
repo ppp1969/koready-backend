@@ -24,6 +24,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
 import koready_backend.kto.application.exception.KtoDuplicateContentIdException;
+import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoFestivalStorePageResult;
 import koready_backend.kto.application.model.KtoStoreFestivalPageCommand;
 import koready_backend.kto.application.model.KtoStoredSnapshotMetadata;
@@ -68,6 +69,8 @@ class KtoFestivalPageJdbcStoreIntegrationTest {
 		jdbcTemplate.update("DELETE FROM places");
 		jdbcTemplate.update("DELETE FROM open_api_raw_snapshots");
 		jdbcTemplate.update("DELETE FROM open_api_call_logs");
+		jdbcTemplate.update("DELETE FROM batch_job_items");
+		jdbcTemplate.update("DELETE FROM batch_jobs");
 		jdbcTemplate.update("DELETE FROM tour_api_sync_cursors");
 	}
 
@@ -133,6 +136,31 @@ class KtoFestivalPageJdbcStoreIntegrationTest {
 		assertEquals(1, count("places"));
 		assertEquals(1, count("festival_series"));
 		assertEquals(1, count("place_event_occurrences"));
+	}
+
+	@Test
+	void linksTheFestivalCallLogToTheManualBatchExecution() {
+		long jobId = insertBatchJob();
+		long itemId = insertBatchItem(jobId);
+		KtoFestivalPage page = page(1, "a", item(
+			"700007", "batch festival", "11", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2), "c"));
+		KtoStoreFestivalPageCommand command = new KtoStoreFestivalPageCommand(
+			QUERY_START_DATE,
+			page,
+			new KtoSuccessfulCallMetadata(REQUESTED_AT, RECEIVED_AT, 771, 200),
+			new KtoStoredSnapshotMetadata(
+				"kto/kor/searchFestival2/2026-07-18/batch.json.gz",
+				"b".repeat(64),
+				35_000,
+				RECEIVED_AT),
+			new KtoBatchExecutionReference(jobId, itemId));
+
+		pageStore.store(command);
+
+		assertEquals(jobId, jdbcTemplate.queryForObject(
+			"SELECT related_job_id FROM open_api_call_logs", Long.class));
+		assertEquals(itemId, jdbcTemplate.queryForObject(
+			"SELECT related_job_item_id FROM open_api_call_logs", Long.class));
 	}
 
 	@Test
@@ -233,6 +261,22 @@ class KtoFestivalPageJdbcStoreIntegrationTest {
 				objectHashCharacter.repeat(64),
 				35_000,
 				RECEIVED_AT));
+	}
+
+	private long insertBatchJob() {
+		jdbcTemplate.update(
+			"INSERT INTO batch_jobs (job_type, status, trigger_source) VALUES ('KTO_FESTIVAL_SYNC', 'COMPLETED', 'ADMIN_MANUAL')");
+		return jdbcTemplate.queryForObject("SELECT MAX(id) FROM batch_jobs", Long.class);
+	}
+
+	private long insertBatchItem(long jobId) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO batch_job_items (batch_job_id, target_type, target_id, status)
+			VALUES (?, 'API_PAGE', 'searchFestival2:20260701:1', 'COMPLETED')
+			""",
+			jobId);
+		return jdbcTemplate.queryForObject("SELECT MAX(id) FROM batch_job_items", Long.class);
 	}
 
 	private KtoFestivalPage page(

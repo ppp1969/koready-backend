@@ -7,8 +7,16 @@ import koready_backend.kto.domain.KtoSyncPage;
 public record KtoStorePageCommand(
 	KtoSyncPage page,
 	KtoSuccessfulCallMetadata call,
-	KtoStoredSnapshotMetadata snapshot
+	KtoStoredSnapshotMetadata snapshot,
+	KtoBatchExecutionReference batchExecution
 ) {
+	public KtoStorePageCommand(
+		KtoSyncPage page,
+		KtoSuccessfulCallMetadata call,
+		KtoStoredSnapshotMetadata snapshot
+	) {
+		this(page, call, snapshot, null);
+	}
 
 	public KtoStorePageCommand {
 		Objects.requireNonNull(page, "KTO page is required");

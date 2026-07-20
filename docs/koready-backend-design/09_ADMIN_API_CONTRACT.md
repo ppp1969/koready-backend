@@ -315,6 +315,10 @@ cursor=<opaque>
 size=1..100
 ```
 
+`relatedJobId`는 관리자 수동 KTO 배치가 새 원문 snapshot을 저장하며 만든 호출 로그에 기록된다.
+CLI나 예약 실행처럼 배치 job 없이 실행한 호출은 이 값이 `null`이다. immutable snapshot을 재사용한
+page는 기존 증빙 로그를 유지하므로, 작업 상세의 item 상태와 함께 확인한다.
+
 ```json
 {
   "items": [

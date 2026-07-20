@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import koready_backend.kto.application.exception.KtoResponseParseException;
+import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDailySyncRequest;
 import koready_backend.kto.application.model.KtoDailySyncResult;
 import koready_backend.kto.application.model.KtoFetchedSyncPage;
@@ -54,6 +55,13 @@ public class KtoDailySyncImportService {
 	}
 
 	public KtoDailySyncResult sync(KtoDailySyncRequest request) {
+		return sync(request, null);
+	}
+
+	public KtoDailySyncResult sync(
+		KtoDailySyncRequest request,
+		KtoBatchExecutionReference batchExecution
+	) {
 		int processedPages = 0;
 		int processedItems = 0;
 		int replayedPages = 0;
@@ -81,7 +89,11 @@ public class KtoDailySyncImportService {
 				page.responseSha256(),
 				fetched.rawPayload(),
 				capturedAt));
-			KtoStorePageResult stored = pageStore.store(new KtoStorePageCommand(page, fetched.call(), snapshot));
+			KtoStorePageResult stored = pageStore.store(new KtoStorePageCommand(
+				page,
+				fetched.call(),
+				snapshot,
+				batchExecution));
 			processedPages++;
 			processedItems += stored.processedCount();
 			replayedPages += stored.replayed() ? 1 : 0;

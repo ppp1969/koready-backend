@@ -9,8 +9,17 @@ public record KtoStoreFestivalPageCommand(
 	LocalDate eventStartDate,
 	KtoFestivalPage page,
 	KtoSuccessfulCallMetadata call,
-	KtoStoredSnapshotMetadata snapshot
+	KtoStoredSnapshotMetadata snapshot,
+	KtoBatchExecutionReference batchExecution
 ) {
+	public KtoStoreFestivalPageCommand(
+		LocalDate eventStartDate,
+		KtoFestivalPage page,
+		KtoSuccessfulCallMetadata call,
+		KtoStoredSnapshotMetadata snapshot
+	) {
+		this(eventStartDate, page, call, snapshot, null);
+	}
 
 	public KtoStoreFestivalPageCommand {
 		Objects.requireNonNull(eventStartDate, "KTO festival query start date is required");

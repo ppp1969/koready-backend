@@ -11,6 +11,7 @@ import koready_backend.batch.domain.BatchJobType;
 import koready_backend.kto.application.KtoDailySyncImportService;
 import koready_backend.kto.application.KtoFestivalImportService;
 import koready_backend.kto.application.model.KtoDailySyncRequest;
+import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
 
 @Component
@@ -31,13 +32,14 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 	public RunResult run(ClaimedJob job) {
 		int startPage = integer(job.parameters(), "startPage");
 		int maxPages = integer(job.parameters(), "maxPages");
+		var batchExecution = new KtoBatchExecutionReference(job.id(), job.itemId());
 		if (job.jobType() == BatchJobType.KTO_DAILY_SYNC) {
-			var result = dailySyncService.sync(new KtoDailySyncRequest(startPage, maxPages));
+			var result = dailySyncService.sync(new KtoDailySyncRequest(startPage, maxPages), batchExecution);
 			return new RunResult(result.processedItems(), result.processedItems(), 0);
 		}
 		if (job.jobType() == BatchJobType.KTO_FESTIVAL_SYNC) {
 			var result = festivalImportService.importFestivals(new KtoFestivalImportRequest(
-				LocalDate.parse(string(job.parameters(), "eventStartDate")), startPage, maxPages));
+				LocalDate.parse(string(job.parameters(), "eventStartDate")), startPage, maxPages), batchExecution);
 			return new RunResult(result.processedItems(), result.processedItems(), 0);
 		}
 		throw new IllegalArgumentException("Unsupported manual batch job type");

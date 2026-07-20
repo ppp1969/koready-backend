@@ -17,6 +17,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import koready_backend.kto.application.model.KtoFetchedFestivalPage;
+import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
 import koready_backend.kto.application.model.KtoFestivalImportResult;
 import koready_backend.kto.application.model.KtoFestivalStorePageResult;
@@ -97,6 +98,27 @@ class KtoFestivalImportServiceTest {
 		assertEquals(1, result.processedPages());
 		assertEquals(2, result.lastProcessedPage());
 		assertTrue(result.truncatedByPageLimit());
+	}
+
+	@Test
+	void passesTheManualBatchReferenceToTheFestivalPageStore() throws Exception {
+		KtoFestivalPageClient client = (date, pageNumber) -> fetched(pageNumber, 0);
+		KtoRawSnapshotStore snapshotStore = snapshot -> new KtoStoredSnapshotMetadata(
+			"kto/kor/searchFestival2/2026-07-18/page-1.json.gz", "b".repeat(64), 100, snapshot.capturedAt());
+		List<koready_backend.kto.application.model.KtoStoreFestivalPageCommand> commands = new ArrayList<>();
+		KtoFestivalPageStore pageStore = command -> {
+			commands.add(command);
+			return new KtoFestivalStorePageResult(1L, 2L, 0, 0, false);
+		};
+		KtoFestivalImportService service = new KtoFestivalImportService(
+			client, snapshotStore, pageStore, Clock.fixed(NOW, ZoneOffset.UTC));
+
+		service.importFestivals(
+			new KtoFestivalImportRequest(EVENT_START_DATE, 1, 1),
+			new KtoBatchExecutionReference(31L, 47L));
+
+		assertEquals(1, commands.size());
+		assertEquals(new KtoBatchExecutionReference(31L, 47L), commands.getFirst().batchExecution());
 	}
 
 	private KtoFetchedFestivalPage fetched(int pageNumber, int totalCount) {

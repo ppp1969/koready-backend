@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import koready_backend.kto.application.model.KtoDailySyncRequest;
+import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoFetchedSyncPage;
 import koready_backend.kto.application.model.KtoRawSnapshot;
 import koready_backend.kto.application.model.KtoStorePageResult;
@@ -64,6 +65,27 @@ class KtoDailySyncImportServiceTest {
 		assertEquals(1, result.processedPages());
 		assertEquals(0, result.processedItems());
 		assertEquals(0, result.reportedTotalCount());
+	}
+
+	@Test
+	void passesTheManualBatchReferenceToThePageStore() throws Exception {
+		byte[] raw = "[]".getBytes(StandardCharsets.UTF_8);
+		KtoSyncPage page = new KtoSyncPage(1, 100, 0, List.of(), raw.length, sha256(raw));
+		when(client.fetchFetchedPage(1)).thenReturn(new KtoFetchedSyncPage(
+			page,
+			new KtoSuccessfulCallMetadata(
+				Instant.parse("2026-07-20T00:00:00Z"), Instant.parse("2026-07-20T00:00:01Z"), 1_000, 200),
+			raw));
+		when(snapshotStore.store(any())).thenReturn(new KtoStoredSnapshotMetadata(
+			"kto/kor/areaBasedSyncList2/test.json.gz", "a".repeat(64), 30, Instant.parse("2026-07-20T00:00:02Z")));
+		when(pageStore.store(any())).thenReturn(new KtoStorePageResult(1L, 2L, 0, 0, 0, false));
+
+		service().sync(new KtoDailySyncRequest(1, 1), new KtoBatchExecutionReference(31L, 47L));
+
+		ArgumentCaptor<koready_backend.kto.application.model.KtoStorePageCommand> command =
+			ArgumentCaptor.forClass(koready_backend.kto.application.model.KtoStorePageCommand.class);
+		verify(pageStore).store(command.capture());
+		assertEquals(new KtoBatchExecutionReference(31L, 47L), command.getValue().batchExecution());
 	}
 
 	private KtoDailySyncImportService service() {

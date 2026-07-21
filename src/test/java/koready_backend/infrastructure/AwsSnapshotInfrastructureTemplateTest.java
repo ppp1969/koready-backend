@@ -42,6 +42,7 @@ class AwsSnapshotInfrastructureTemplateTest {
 
 		Map<String, Object> role = resourceProperties(resources, "SnapshotWriterRole");
 		String roleYaml = new Yaml().dump(role);
+		assertTrue(roleYaml.contains("AWSElasticBeanstalkWebTier"));
 		assertTrue(roleYaml.contains("s3:PutObject"));
 		assertTrue(roleYaml.contains("s3:GetObject"));
 		assertTrue(roleYaml.contains("s3:GetBucketLocation"));

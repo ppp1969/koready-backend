@@ -45,7 +45,7 @@ Resources:
   SnapshotWriterRole:
     Type: AWS::IAM::Role
     Properties:
-      Description: Minimum permissions for KoReady KTO snapshot writes from EC2 or EB.
+      Description: KTO snapshot writes and Elastic Beanstalk web runtime permissions.
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -56,6 +56,8 @@ Resources:
                 - ec2.amazonaws.com
             Action:
               - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
       Policies:
         - PolicyName: KtoSnapshotObjectAccess
           PolicyDocument:

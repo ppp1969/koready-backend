@@ -187,6 +187,18 @@ class JdbcCandidateSetRepositoryIntegrationTest {
 			VALUES (?, 'LOCAL_FESTIVAL', 'MANUAL', 1.0000)
 			""",
 			placeId);
+		for (int imageOrder = 1; imageOrder <= 4; imageOrder++) {
+			jdbcTemplate.update(
+				"""
+				INSERT INTO place_images
+				    (place_id, image_url, image_url_sha256, source_type, source_priority, source_order)
+				VALUES (?, ?, ?, 'KTO_DETAIL', 100, ?)
+				""",
+				placeId,
+				"https://example.com/place-" + index + "-" + imageOrder + ".jpg",
+				String.format("%064d", index * 10 + imageOrder),
+				imageOrder);
+		}
 		return placeId;
 	}
 

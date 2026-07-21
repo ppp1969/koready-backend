@@ -132,7 +132,7 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		    ON localized.place_id = image.place_id AND localized.language = 'KO'
 		WHERE image.place_id = :placeId
 		ORDER BY image.source_priority DESC, image.source_order ASC, image.id ASC
-		LIMIT 3
+		LIMIT 4
 		""";
 
 	private final NamedParameterJdbcTemplate jdbcTemplate;

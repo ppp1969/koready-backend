@@ -165,7 +165,7 @@ class PlaceQueryServiceTest {
 	}
 
 	@Test
-	void returnsOrderedGalleryImagesWhenTheyWereCollectedForThePlace() {
+	void returnsFourOrderedGalleryImagesWhenTheyWereCollectedForThePlace() {
 		when(repository.findDetail(10L, PlaceLanguage.KO)).thenReturn(Optional.of(
 			new PlaceDetailRow(
 				10L, "Place", ServiceRegionCode.SEOUL, "Seoul", "Address",
@@ -173,14 +173,16 @@ class PlaceQueryServiceTest {
 		when(repository.findImages(10L)).thenReturn(List.of(
 			new PlaceQueryRepository.PlaceImageRow("https://example.invalid/first.jpg", "Place 1"),
 			new PlaceQueryRepository.PlaceImageRow("https://example.invalid/second.jpg", "Place 2"),
-			new PlaceQueryRepository.PlaceImageRow("https://example.invalid/third.jpg", "Place 3")));
+			new PlaceQueryRepository.PlaceImageRow("https://example.invalid/third.jpg", "Place 3"),
+			new PlaceQueryRepository.PlaceImageRow("https://example.invalid/fourth.jpg", "Place 4")));
 
 		PlaceQueryService.PlaceDetail detail = service.getPlace(10L, PlaceLanguage.KO);
 
 		assertEquals(List.of(
 			"https://example.invalid/first.jpg",
 			"https://example.invalid/second.jpg",
-			"https://example.invalid/third.jpg"),
+			"https://example.invalid/third.jpg",
+			"https://example.invalid/fourth.jpg"),
 			detail.images().stream().map(PlaceQueryService.PlaceImage::imageUrl).toList());
 	}
 

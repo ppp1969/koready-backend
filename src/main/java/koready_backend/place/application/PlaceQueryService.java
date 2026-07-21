@@ -131,7 +131,7 @@ public class PlaceQueryService {
 
 	private List<PlaceImage> images(long placeId, PlaceDetailRow row) {
 		List<PlaceQueryRepository.PlaceImageRow> gallery = repository.findImages(placeId).stream()
-			.limit(3)
+			.limit(4)
 			.toList();
 		if (!gallery.isEmpty()) {
 			return java.util.stream.IntStream.range(0, gallery.size())

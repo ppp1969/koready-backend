@@ -14,6 +14,7 @@ import koready_backend.kto.application.port.KtoCuratedPlaceClient;
 import koready_backend.kto.application.port.KtoCuratedPlaceStore;
 import koready_backend.kto.domain.KtoPlaceDetail;
 import koready_backend.kto.domain.KtoPlaceItem;
+import koready_backend.kto.domain.KtoPlaceImage;
 import koready_backend.onboarding.domain.InitialCandidatePlace;
 import koready_backend.onboarding.domain.InitialCandidatePlaceCatalog;
 
@@ -36,6 +37,11 @@ class KtoCuratedPlaceImportServiceTest {
 			@Override
 			public KtoPlaceDetail fetchDetail(String contentId) {
 				return new KtoPlaceDetail(items.get(contentId), "Overview", "https://example.invalid");
+			}
+
+			@Override
+			public List<KtoPlaceImage> fetchImages(String contentId) {
+				return detailImages();
 			}
 		};
 		KtoCuratedPlaceStore store = (specification, detail) -> {
@@ -105,7 +111,46 @@ class KtoCuratedPlaceImportServiceTest {
 			public KtoPlaceDetail fetchDetail(String contentId) {
 				return new KtoPlaceDetail(searchResult.getFirst(), "Overview", null);
 			}
+
+			@Override
+			public List<KtoPlaceImage> fetchImages(String contentId) {
+				return detailImages();
+			}
 		};
+	}
+
+	@Test
+	void rejectsAnApprovedPlaceWithFewerThanFourDistinctImages() {
+		Map<String, KtoPlaceItem> items = approvedItems();
+		KtoCuratedPlaceClient client = new KtoCuratedPlaceClient() {
+			@Override
+			public List<KtoPlaceItem> search(String keyword) {
+				return items.values().stream()
+					.filter(item -> catalog(item.contentId()).searchKeyword().equals(keyword)).toList();
+			}
+
+			@Override
+			public KtoPlaceDetail fetchDetail(String contentId) {
+				return new KtoPlaceDetail(items.get(contentId), "Overview", null);
+			}
+
+			@Override
+			public List<KtoPlaceImage> fetchImages(String contentId) {
+				return List.of(new KtoPlaceImage(
+					"https://example.invalid/only-detail.jpg", null, null, "Type1", 1));
+			}
+		};
+
+		assertThrows(IllegalStateException.class,
+			() -> new KtoCuratedPlaceImportService(client, (specification, detail) -> 1L)
+				.importApprovedCatalog());
+	}
+
+	private static List<KtoPlaceImage> detailImages() {
+		return List.of(
+			new KtoPlaceImage("https://example.invalid/detail-1.jpg", null, null, "Type1", 1),
+			new KtoPlaceImage("https://example.invalid/detail-2.jpg", null, null, "Type1", 2),
+			new KtoPlaceImage("https://example.invalid/detail-3.jpg", null, null, "Type1", 3));
 	}
 
 	private static Map<String, KtoPlaceItem> approvedItems() {

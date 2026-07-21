@@ -180,16 +180,20 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 	}
 
 	@Test
-	void ordersAwardedImagesBeforeKtoDetailImages() {
+	void ordersAwardedThenRepresentativeThenKtoDetailImagesAndReturnsFour() {
 		long placeId = placeWithKorean("gallery", "80.00", "Gallery place");
-		insertImage(placeId, "https://example.invalid/kto.jpg", "KTO_DETAIL", 100, 1);
+		insertImage(placeId, "https://example.invalid/representative.jpg", "KTO_DETAIL", 200, 1);
+		insertImage(placeId, "https://example.invalid/kto-1.jpg", "KTO_DETAIL", 100, 1);
+		insertImage(placeId, "https://example.invalid/kto-2.jpg", "KTO_DETAIL", 100, 2);
 		insertImage(placeId, "https://example.invalid/award.jpg", "KTO_PHOTO_AWARD", 300, 1);
 
 		List<PlaceImageRow> images = repository.findImages(placeId);
 
 		assertEquals(List.of(
 			"https://example.invalid/award.jpg",
-			"https://example.invalid/kto.jpg"),
+			"https://example.invalid/representative.jpg",
+			"https://example.invalid/kto-1.jpg",
+			"https://example.invalid/kto-2.jpg"),
 			images.stream().map(PlaceImageRow::imageUrl).toList());
 	}
 

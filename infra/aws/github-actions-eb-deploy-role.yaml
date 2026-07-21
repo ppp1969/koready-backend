@@ -73,6 +73,12 @@ Resources:
                   - s3:PutObject
                 Resource:
                   Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/resources/${BeanstalkApplicationName}/github-actions/*'
+              - Sid: EnvironmentEmbeddedExtensions
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/resources/environments/${BeanstalkEnvironmentName}/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
         - PolicyName: UpdateKoreadyBeanstalkEnvironment
           PolicyDocument:
             Version: '2012-10-17'

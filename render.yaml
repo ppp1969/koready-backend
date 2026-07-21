@@ -32,6 +32,9 @@ services:
         value: 50
       - key: KTO_BATCH_MAX_CONCURRENCY
         value: 1
+      # Render is the Swagger sharing environment. KTO collection runs only on EB.
+      - key: KTO_MANUAL_BATCH_WORKER_ENABLED
+        value: false
       - key: KTO_MAX_RESPONSE_BYTES
         value: 4194304
       - key: KTO_CONNECT_TIMEOUT

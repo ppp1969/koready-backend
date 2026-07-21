@@ -54,6 +54,11 @@ Render의 기본 outbound 주소 범위는 같은 region의 다른 서비스와 
 
 ```text
 GET https://<render-service>.onrender.com/actuator/health/readiness
+
+## Render 역할 제한
+
+Render는 Swagger와 일반 API 확인 전용이다. `KTO_MANUAL_BATCH_WORKER_ENABLED=false`를 유지해
+KTO 수집 대기열을 소비하지 않는다. 실제 KTO 수집은 S3 instance profile이 연결된 EB 환경에서만 실행한다.
 ```
 
 Flyway domain migration은 DB 모델 확정 후 추가한다. migration이 추가되기 전에는 서비스 연결과 schema history 기반만 검증한다.

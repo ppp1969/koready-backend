@@ -21,7 +21,8 @@ public class SecurityConfig {
 	SecurityFilterChain securityFilterChain(
 		HttpSecurity http,
 		ApiSecurityErrorHandler securityErrorHandler,
-		ObjectProvider<LocalDevAuthenticationFilter> localDevAuthenticationFilter
+		ObjectProvider<LocalDevAuthenticationFilter> localDevAuthenticationFilter,
+		ObjectProvider<StagingOperatorAuthenticationFilter> stagingOperatorAuthenticationFilter
 	) throws Exception {
 		http
 			.csrf(csrf -> csrf.disable())
@@ -45,6 +46,8 @@ public class SecurityConfig {
 				.anyRequest().authenticated());
 
 		localDevAuthenticationFilter.ifAvailable(filter ->
+			http.addFilterBefore(filter, AnonymousAuthenticationFilter.class));
+		stagingOperatorAuthenticationFilter.ifAvailable(filter ->
 			http.addFilterBefore(filter, AnonymousAuthenticationFilter.class));
 
 		return http.build();

@@ -35,6 +35,10 @@ springdoc:
     url: /openapi/koready.yaml
 
 koready:
+  security:
+    staging-operator:
+      enabled: ${KOREADY_STAGING_OPERATOR_ENABLED:false}
+      token: ${KOREADY_STAGING_OPERATOR_TOKEN:}
   location:
     search:
       provider: ${LOCATION_SEARCH_PROVIDER:disabled}

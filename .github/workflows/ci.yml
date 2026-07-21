@@ -131,6 +131,42 @@ jobs:
             --source-bundle "S3Bucket=${AWS_EB_ARTIFACT_BUCKET},S3Key=${{ steps.source_bundle.outputs.source_key }}" \
             --process
 
+      - name: "Wait for EB application version processing"
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_label="${{ steps.source_bundle.outputs.version_label }}"
+
+          for attempt in $(seq 1 60); do
+            version_status="$(aws elasticbeanstalk describe-application-versions \
+              --application-name "$AWS_EB_APPLICATION_NAME" \
+              --version-labels "$version_label" \
+              --query 'ApplicationVersions[0].Status' \
+              --output text)"
+
+            case "$version_status" in
+              PROCESSED)
+                echo "EB application version is ready: $version_label"
+                exit 0
+                ;;
+              FAILED|UNPROCESSED)
+                echo "EB application version processing failed: $version_status" >&2
+                exit 1
+                ;;
+              PROCESSING)
+                echo "Waiting for EB application version processing (${attempt}/60)"
+                sleep 5
+                ;;
+              *)
+                echo "Unexpected EB application version status: $version_status" >&2
+                exit 1
+                ;;
+            esac
+          done
+
+          echo "Timed out waiting for EB application version processing" >&2
+          exit 1
+
       - name: "EB 환경 업데이트 대기"
         shell: bash
         run: |

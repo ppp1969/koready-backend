@@ -57,3 +57,108 @@ jobs:
 
       - name: "512MB 제한 부팅 스모크"
         run: ./scripts/smoke-docker.sh koready-backend:ci
+
+  deploy_eb:
+    name: "Elastic Beanstalk Deploy"
+    needs:
+      - test
+      - docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: koready-staging-eb-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_EB_APPLICATION_NAME: ${{ vars.AWS_EB_APPLICATION_NAME }}
+      AWS_EB_ENVIRONMENT_NAME: ${{ vars.AWS_EB_ENVIRONMENT_NAME }}
+      AWS_EB_ARTIFACT_BUCKET: ${{ vars.AWS_EB_ARTIFACT_BUCKET }}
+      AWS_EB_DEPLOY_ROLE_ARN: ${{ vars.AWS_EB_DEPLOY_ROLE_ARN }}
+
+    steps:
+      - name: "배포 설정 확인"
+        shell: bash
+        run: |
+          set -euo pipefail
+          for value_name in \
+            AWS_REGION \
+            AWS_EB_APPLICATION_NAME \
+            AWS_EB_ENVIRONMENT_NAME \
+            AWS_EB_ARTIFACT_BUCKET \
+            AWS_EB_DEPLOY_ROLE_ARN; do
+            if [ -z "${!value_name}" ]; then
+              echo "GitHub Actions variable ${value_name} is required."
+              exit 1
+            fi
+          done
+
+      - name: "소스 체크아웃"
+        uses: actions/checkout@v7
+
+      - name: "AWS OIDC 자격 증명 설정"
+        uses: aws-actions/configure-aws-credentials@v6.1.0
+        with:
+          role-to-assume: ${{ env.AWS_EB_DEPLOY_ROLE_ARN }}
+          role-session-name: koready-eb-deploy-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: "EB 소스 번들 업로드"
+        id: source_bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          version_label="github-${GITHUB_RUN_ID}-${GITHUB_SHA::7}"
+          source_key="resources/${AWS_EB_APPLICATION_NAME}/github-actions/${version_label}.zip"
+
+          git archive --format=zip --output deploy.zip "$GITHUB_SHA"
+          aws s3 cp deploy.zip "s3://${AWS_EB_ARTIFACT_BUCKET}/${source_key}" --only-show-errors
+
+          echo "version_label=${version_label}" >> "$GITHUB_OUTPUT"
+          echo "source_key=${source_key}" >> "$GITHUB_OUTPUT"
+
+      - name: "EB 애플리케이션 버전 생성"
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws elasticbeanstalk create-application-version \
+            --application-name "$AWS_EB_APPLICATION_NAME" \
+            --version-label "${{ steps.source_bundle.outputs.version_label }}" \
+            --description "GitHub Actions ${GITHUB_SHA}" \
+            --source-bundle "S3Bucket=${AWS_EB_ARTIFACT_BUCKET},S3Key=${{ steps.source_bundle.outputs.source_key }}" \
+            --process
+
+      - name: "EB 환경 업데이트 대기"
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws elasticbeanstalk update-environment \
+            --environment-name "$AWS_EB_ENVIRONMENT_NAME" \
+            --version-label "${{ steps.source_bundle.outputs.version_label }}"
+          aws elasticbeanstalk wait environment-updated \
+            --environment-names "$AWS_EB_ENVIRONMENT_NAME"
+
+      - name: "Readiness 스모크"
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="$(aws elasticbeanstalk describe-environments \
+            --environment-names "$AWS_EB_ENVIRONMENT_NAME" \
+            --query 'Environments[0].CNAME' \
+            --output text)"
+          test -n "$endpoint"
+          curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 10 \
+            --connect-timeout 10 "http://${endpoint}/actuator/health/readiness"
+
+      - name: "실패 시 최근 EB 이벤트"
+        if: failure()
+        shell: bash
+        run: |
+          aws elasticbeanstalk describe-events \
+            --environment-name "$AWS_EB_ENVIRONMENT_NAME" \
+            --max-records 10 \
+            --query 'Events[].{time:EventDate,severity:Severity,message:Message}' \
+            --output table || true

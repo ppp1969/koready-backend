@@ -273,7 +273,10 @@ docker build --tag koready-backend:local .
 - KTO 원본 snapshot용 서울 리전 private S3와 IAM 기준은
   `docs/AWS_S3_SNAPSHOT_STORAGE.md`에서 관리합니다. local 저장이 기본이며 S3는
   명시적으로 선택한 수집 프로세스에서만 사용합니다.
-- AWS EC2/Elastic Beanstalk를 포함한 운영 인프라는 빠른 기능 개발 이후 약 한 달 뒤 다시 결정합니다.
+- EB 스테이징 환경은 프론트·PM 공유와 통제된 KTO 수집에 사용합니다. 장기 운영 환경의
+  규모·고가용성 구성은 실제 사용량을 확인한 뒤 별도로 결정합니다.
+- GitHub Actions OIDC 기반 EB 자동 배포의 AWS 준비, 저장소 변수, 실패 확인과 복구 절차는
+  `docs/AWS_EB_GITHUB_ACTIONS_DEPLOYMENT.md`에서 관리합니다. AWS 장기 액세스 키는 사용하지 않습니다.
 
 ## API Conventions
 

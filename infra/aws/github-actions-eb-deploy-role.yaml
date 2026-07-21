@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: GitHub OIDC deployment role for the KoReady Elastic Beanstalk staging environment.
+
+Parameters:
+  GitHubRepository:
+    Type: String
+    Default: ppp1969/koready-backend
+    AllowedPattern: '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+'
+
+  BeanstalkApplicationName:
+    Type: String
+    Default: koready-backend
+    AllowedPattern: '[A-Za-z0-9._-]{1,100}'
+
+  BeanstalkEnvironmentName:
+    Type: String
+    Default: koready-staging-eb
+    AllowedPattern: '[A-Za-z0-9._-]{1,100}'
+
+  BeanstalkArtifactBucketName:
+    Type: String
+    Description: Existing Elastic Beanstalk managed S3 bucket in the same AWS region.
+    AllowedPattern: '[a-z0-9.-]{3,63}'
+
+Resources:
+  GitHubActionsEbDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: KoreadyGitHubActionsEbDeployRole
+      Description: Deploys main branch builds from GitHub Actions to the KoReady EB staging environment.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: GitHubActionsMainBranchOnly
+            Effect: Allow
+            Principal:
+              Federated:
+                Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub:
+                  Fn::Sub: 'repo:${GitHubRepository}:ref:refs/heads/main'
+      Policies:
+        - PolicyName: UploadBeanstalkSourceBundle
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: SourceBundleBucketLocation
+                Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}'
+              - Sid: SourceBundlePrefix
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}'
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - Fn::Sub: 'resources/${BeanstalkApplicationName}/github-actions/*'
+              - Sid: SourceBundleObject
+                Effect: Allow
+                Action:
+                  - s3:AbortMultipartUpload
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/resources/${BeanstalkApplicationName}/github-actions/*'
+        - PolicyName: UpdateKoreadyBeanstalkEnvironment
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: CreateAndInspectApplicationVersions
+                Effect: Allow
+                Action:
+                  - elasticbeanstalk:CreateApplicationVersion
+                  - elasticbeanstalk:DescribeApplicationVersions
+                Resource: '*'
+              - Sid: UpdateAndInspectStagingEnvironment
+                Effect: Allow
+                Action:
+                  - elasticbeanstalk:DescribeEnvironments
+                  - elasticbeanstalk:DescribeEvents
+                  - elasticbeanstalk:UpdateEnvironment
+                Resource: '*'
+
+Outputs:
+  GitHubActionsEbDeployRoleArn:
+    Description: Set this value as the AWS_EB_DEPLOY_ROLE_ARN GitHub Actions variable.
+    Value:
+      Fn::GetAtt:
+        - GitHubActionsEbDeployRole
+        - Arn
+  GitHubRepository:
+    Description: Repository allowed to assume the deployment role from main only.
+    Value:
+      Ref: GitHubRepository
+  BeanstalkEnvironmentName:
+    Description: Environment the role is intended to update.
+    Value:
+      Ref: BeanstalkEnvironmentName

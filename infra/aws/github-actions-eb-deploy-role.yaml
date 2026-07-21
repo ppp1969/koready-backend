@@ -17,6 +17,11 @@ Parameters:
     Default: koready-staging-eb
     AllowedPattern: '[A-Za-z0-9._-]{1,100}'
 
+  BeanstalkEnvironmentId:
+    Type: String
+    Default: e-krckrp4cre
+    AllowedPattern: 'e-[a-z0-9]{10}'
+
   BeanstalkArtifactBucketName:
     Type: String
     Description: Existing Elastic Beanstalk managed S3 bucket in the same AWS region.
@@ -78,7 +83,7 @@ Resources:
                 Action:
                   - s3:GetObject
                 Resource:
-                  Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/resources/environments/${BeanstalkEnvironmentName}/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
+                  Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/resources/environments/${BeanstalkEnvironmentId}/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
         - PolicyName: UpdateKoreadyBeanstalkEnvironment
           PolicyDocument:
             Version: '2012-10-17'

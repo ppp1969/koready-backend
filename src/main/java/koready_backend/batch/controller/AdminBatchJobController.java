@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -48,6 +49,12 @@ public class AdminBatchJobController {
 	@PostMapping
 	@ResponseStatus(HttpStatus.ACCEPTED)
 	@PreAuthorize("hasAnyRole('ADMIN', 'OPERATOR')")
+	@Operation(
+		summary = "KTO 수집 작업 접수",
+		description = "KTO_FULL_CATALOG_SYNC는 KTO 전체 장소 목록을 수집합니다. "
+			+ "한 작업은 최대 20페이지를 처리하고, 성공한 경우에만 다음 페이지 범위를 자동으로 대기열에 넣습니다. "
+			+ "KTO_DAILY_SYNC와 KTO_FESTIVAL_SYNC는 기존처럼 범위를 지정해 수동으로 실행합니다."
+	)
 	public ApiEnvelope<BatchJobDtos.BatchJobAcceptedResponse> create(
 		@RequestBody @Validated BatchJobDtos.CreateBatchJobRequest body,
 		Authentication authentication,

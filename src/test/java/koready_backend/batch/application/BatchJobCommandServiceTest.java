@@ -60,6 +60,23 @@ class BatchJobCommandServiceTest {
 	}
 
 	@Test
+	void acceptsAFullCatalogJobWithABoundedPageWindow() {
+		when(repository.enqueue(any())).thenReturn(93L);
+		BatchJobCommandService service = service();
+
+		var accepted = service.accept(new BatchJobCommandService.CreateCommand(
+			BatchJobType.KTO_FULL_CATALOG_SYNC,
+			Map.of(),
+			"Start the full KTO catalog import", "operator-7"));
+
+		ArgumentCaptor<EnqueueCommand> captor = ArgumentCaptor.forClass(EnqueueCommand.class);
+		verify(repository).enqueue(captor.capture());
+		assertEquals(BatchJobType.KTO_FULL_CATALOG_SYNC, accepted.jobType());
+		assertEquals(1, captor.getValue().parameters().get("startPage"));
+		assertEquals(20, captor.getValue().parameters().get("maxPages"));
+	}
+
+	@Test
 	void retriesOnlyFailedJobsWithANewLinkedJob() {
 		when(repository.findRetrySourceForUpdate(7L)).thenReturn(Optional.of(new RetrySource(
 			7L, BatchJobType.KTO_DAILY_SYNC, BatchJobStatus.FAILED, Map.of("startPage", 1, "maxPages", 1))));

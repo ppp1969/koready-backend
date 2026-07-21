@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import koready_backend.batch.application.port.BatchJobExecutionRepository;
+import koready_backend.batch.application.model.BatchJobContinuation;
 import koready_backend.batch.domain.BatchJobStatus;
 import koready_backend.batch.domain.BatchJobType;
 import tools.jackson.core.JacksonException;
@@ -79,6 +80,48 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 			UPDATE batch_job_items SET status = ?, error_message = NULL
 			WHERE id = ?
 			""", completion.failureCount() == 0 ? "COMPLETED" : "FAILED", job.itemId());
+		if (completion.failureCount() == 0 && completion.continuation() != null) {
+			enqueueContinuation(job, completion.continuation(), completion.finishedAt());
+		}
+	}
+
+	private void enqueueContinuation(ClaimedJob parent, BatchJobContinuation continuation, java.time.Instant createdAt) {
+		var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
+		jdbcTemplate.update(connection -> {
+			var statement = connection.prepareStatement("""
+				INSERT INTO batch_jobs
+					(job_type, status, trigger_source, parent_job_id, parameters_json, active_execution_slot, created_at)
+				VALUES (?, 'PENDING', 'SCHEDULED', ?, CAST(? AS JSON), 1, ?)
+				""", java.sql.Statement.RETURN_GENERATED_KEYS);
+			statement.setString(1, continuation.jobType().name());
+			statement.setLong(2, parent.id());
+			statement.setString(3, json(continuation.parameters()));
+			statement.setTimestamp(4, Timestamp.from(createdAt));
+			return statement;
+		}, keyHolder);
+		Number key = keyHolder.getKey();
+		if (key == null || key.longValue() <= 0) {
+			throw new IllegalStateException("Batch continuation identifier was not generated");
+		}
+		long jobId = key.longValue();
+		jdbcTemplate.update("""
+			INSERT INTO batch_job_items (batch_job_id, target_type, target_id, status)
+			VALUES (?, 'API_PAGE', ?, 'PENDING')
+			""", jobId, targetId(continuation));
+		jdbcTemplate.update("""
+			INSERT INTO admin_audit_logs
+				(actor_subject, action, resource_type, resource_id, reason, after_snapshot, created_at)
+			VALUES ('SYSTEM:KTO_FULL_CATALOG_SYNC', 'BATCH_JOB_CONTINUED', 'BATCH_JOB', ?,
+				'Continue KTO full catalog import.', CAST(? AS JSON), ?)
+			""", Long.toString(jobId), json(continuation.parameters()), Timestamp.from(createdAt));
+	}
+
+	private static String targetId(BatchJobContinuation continuation) {
+		String operation = continuation.jobType() == BatchJobType.KTO_FESTIVAL_SYNC
+			? "searchFestival2"
+			: "areaBasedSyncList2";
+		return operation + ":" + continuation.parameters().getOrDefault("startPage", 1)
+			+ "+" + continuation.parameters().getOrDefault("maxPages", 1);
 	}
 
 	@Override
@@ -109,6 +152,14 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 			return value == null ? Map.of() : Map.copyOf(jsonMapper.readValue(value, Map.class));
 		} catch (JacksonException exception) {
 			throw new IllegalStateException("Batch job parameters could not be parsed", exception);
+		}
+	}
+
+	private String json(Map<String, Object> value) {
+		try {
+			return jsonMapper.writeValueAsString(value);
+		} catch (JacksonException exception) {
+			throw new IllegalStateException("Batch job parameters could not be serialized", exception);
 		}
 	}
 }

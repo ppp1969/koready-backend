@@ -234,7 +234,7 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 - `PUT /api/v1/admin/open-api/sync-cursors/{cursorId}/enabled`: ADMIN 전용 자동 동기화 활성·비활성 변경
 - `POST /api/v1/admin/open-api/sync-cursors/{cursorId}/reset`: ADMIN 전용 지정 cursor 위치 초기화와 감사 기록
 - `GET /api/v1/admin/batch-jobs/**`: 배치 작업·item의 안전한 실행 이력 조회
-- `POST /api/v1/admin/batch-jobs`: KTO 일일 동기화·축제 수집 수동 접수
+- `POST /api/v1/admin/batch-jobs`: KTO 전체 장소 목록 초기 수집·일일 동기화·축제 수집 수동 접수
 - `POST /api/v1/admin/batch-jobs/{jobId}/retry`: 실패·부분 실패 작업의 새 재시도 작업 접수
 - `GET /api/v1/admin/data-quality/summary`: 관광지 준비도·누락 항목·번역 출처의 읽기 전용 집계
 

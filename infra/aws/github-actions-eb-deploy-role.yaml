@@ -84,7 +84,8 @@ Resources:
                   - s3:GetObject
                   - s3:GetObjectVersion
                 Resource:
-                  Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/resources/environments/${BeanstalkEnvironmentId}/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
+                  - Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/resources/environments/${BeanstalkEnvironmentId}/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
+                  - Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/resources/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
               - Sid: EnvironmentEmbeddedExtensionsPrefix
                 Effect: Allow
                 Action:
@@ -95,6 +96,7 @@ Resources:
                   StringLike:
                     s3:prefix:
                       - Fn::Sub: 'resources/environments/${BeanstalkEnvironmentId}/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
+                      - Fn::Sub: 'resources/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
         - PolicyName: UpdateKoreadyBeanstalkEnvironment
           PolicyDocument:
             Version: '2012-10-17'

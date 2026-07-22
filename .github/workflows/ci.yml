@@ -111,7 +111,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version_label="github-${GITHUB_RUN_ID}-${GITHUB_SHA::7}"
+          version_label="github-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA::7}"
           source_key="resources/${AWS_EB_APPLICATION_NAME}/github-actions/${version_label}.zip"
 
           git archive --format=zip --output deploy.zip "$GITHUB_SHA"
@@ -134,11 +134,33 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          target_version="${{ steps.source_bundle.outputs.version_label }}"
           aws elasticbeanstalk update-environment \
             --environment-name "$AWS_EB_ENVIRONMENT_NAME" \
-            --version-label "${{ steps.source_bundle.outputs.version_label }}"
-          aws elasticbeanstalk wait environment-updated \
-            --environment-names "$AWS_EB_ENVIRONMENT_NAME"
+            --version-label "$target_version"
+
+          deadline=$((SECONDS + 1500))
+          while (( SECONDS < deadline )); do
+            read -r current_version current_status current_health <<<"$(
+              aws elasticbeanstalk describe-environments \
+                --environment-names "$AWS_EB_ENVIRONMENT_NAME" \
+                --query 'Environments[0].[VersionLabel,Status,Health]' \
+                --output text
+            )"
+            echo "EB version=${current_version} status=${current_status} health=${current_health}"
+
+            if [[ "$current_version" == "$target_version" && "$current_status" == "Ready" ]]; then
+              exit 0
+            fi
+            if [[ "$current_status" == "Terminated" || "$current_status" == "Terminating" ]]; then
+              echo "EB environment entered terminal status: ${current_status}"
+              exit 1
+            fi
+            sleep 15
+          done
+
+          echo "Timed out waiting for EB target version ${target_version} to become Ready."
+          exit 1
 
       - name: "Readiness 스모크"
         shell: bash

@@ -18,6 +18,10 @@ public interface PlaceQueryRepository {
 
 	Optional<PlaceDetailRow> findDetail(long placeId, PlaceLanguage language);
 
+	default List<PlaceImageRow> findImages(long placeId) {
+		return List.of();
+	}
+
 	record PlaceListCriteria(
 		ServiceRegionCode serviceRegionCode,
 		List<TravelStyle> travelStyles,
@@ -80,5 +84,8 @@ public interface PlaceQueryRepository {
 		String overview,
 		String translationSource
 	) {
+	}
+
+	record PlaceImageRow(String imageUrl, String altText) {
 	}
 }

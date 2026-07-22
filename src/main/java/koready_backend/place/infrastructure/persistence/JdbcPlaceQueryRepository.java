@@ -123,6 +123,18 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		  AND COALESCE(requested.id, korean.id) IS NOT NULL
 		""";
 
+	private static final String PLACE_IMAGES = """
+		SELECT
+		    image.image_url,
+		    COALESCE(NULLIF(TRIM(image.source_image_name), ''), localized.title) AS alt_text
+		FROM place_images image
+		JOIN place_localizations localized
+		    ON localized.place_id = image.place_id AND localized.language = 'KO'
+		WHERE image.place_id = :placeId
+		ORDER BY image.source_priority DESC, image.source_order ASC, image.id ASC
+		LIMIT 4
+		""";
+
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 
 	public JdbcPlaceQueryRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -179,6 +191,16 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		return jdbcTemplate.query(PLACE_DETAIL, parameters, this::mapDetail)
 			.stream()
 			.findFirst();
+	}
+
+	@Override
+	public List<PlaceImageRow> findImages(long placeId) {
+		return jdbcTemplate.query(
+			PLACE_IMAGES,
+			new MapSqlParameterSource("placeId", placeId),
+			(resultSet, rowNumber) -> new PlaceImageRow(
+				resultSet.getString("image_url"),
+				resultSet.getString("alt_text")));
 	}
 
 	private List<PlaceRow> queryPlaces(

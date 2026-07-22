@@ -1,34 +1,59 @@
 package koready_backend.kto.application;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import koready_backend.kto.application.port.KtoCuratedPlaceClient;
 import koready_backend.kto.application.port.KtoCuratedPlaceStore;
+import koready_backend.kto.application.port.KtoPhotoAwardClient;
 import koready_backend.kto.domain.KtoPlaceDetail;
+import koready_backend.kto.domain.KtoPlaceImage;
 import koready_backend.kto.domain.KtoPlaceItem;
+import koready_backend.kto.domain.KtoPhotoAwardImage;
 import koready_backend.onboarding.domain.InitialCandidatePlace;
 import koready_backend.onboarding.domain.InitialCandidatePlaceCatalog;
+import koready_backend.onboarding.domain.InitialCandidatePhotoAwardCatalog;
 
 @Service
 public class KtoCuratedPlaceImportService {
 
 	private final KtoCuratedPlaceClient client;
 	private final KtoCuratedPlaceStore store;
+	private final KtoPhotoAwardClient photoAwardClient;
+	private final Map<String, List<String>> approvedPhotoAwards;
 
+	@Autowired
 	public KtoCuratedPlaceImportService(
 		KtoCuratedPlaceClient client,
-		KtoCuratedPlaceStore store
+		KtoCuratedPlaceStore store,
+		KtoPhotoAwardClient photoAwardClient
+	) {
+		this(client, store, photoAwardClient, InitialCandidatePhotoAwardCatalog.approved());
+	}
+
+	KtoCuratedPlaceImportService(KtoCuratedPlaceClient client, KtoCuratedPlaceStore store) {
+		this(client, store, List::of, Map.of());
+	}
+
+	KtoCuratedPlaceImportService(
+		KtoCuratedPlaceClient client, KtoCuratedPlaceStore store,
+		KtoPhotoAwardClient photoAwardClient, Map<String, List<String>> approvedPhotoAwards
 	) {
 		this.client = client;
 		this.store = store;
+		this.photoAwardClient = photoAwardClient;
+		this.approvedPhotoAwards = Map.copyOf(approvedPhotoAwards);
 	}
 
 	public Map<String, Long> importApprovedCatalog() {
 		Map<String, Long> placeIds = new LinkedHashMap<>();
+		List<KtoPhotoAwardImage> awards = approvedPhotoAwards.isEmpty()
+			? List.of() : photoAwardClient.fetchAll();
 		for (InitialCandidatePlace specification : InitialCandidatePlaceCatalog.approved()) {
 			KtoPlaceItem searchItem = requirePinnedSearchItem(
 				specification,
@@ -38,8 +63,11 @@ public class KtoCuratedPlaceImportService {
 			KtoPlaceDetail detail = client.fetchDetail(specification.ktoContentId());
 			validateMetadata(specification, detail.place(), "detail");
 			validateRequiredFields(specification, detail.place());
+			List<KtoPlaceImage> images = client.fetchImages(specification.ktoContentId());
+			List<KtoPhotoAwardImage> matchedAwards = approvedAwards(specification, awards);
+			validateFourDistinctImages(specification, detail, images, matchedAwards);
 
-			long placeId = store.upsert(specification, detail);
+			long placeId = store.upsert(specification, detail, images, matchedAwards);
 			if (placeId <= 0) {
 				throw new IllegalStateException("Curated KTO place store returned an invalid place ID");
 			}
@@ -49,6 +77,31 @@ public class KtoCuratedPlaceImportService {
 			throw new IllegalStateException("Not all approved KTO places were imported");
 		}
 		return Map.copyOf(placeIds);
+	}
+
+	private List<KtoPhotoAwardImage> approvedAwards(
+		InitialCandidatePlace specification, List<KtoPhotoAwardImage> awards
+	) {
+		List<String> approvedIds = approvedPhotoAwards.getOrDefault(
+			specification.ktoContentId(), List.of());
+		Map<String, KtoPhotoAwardImage> visibleById = new LinkedHashMap<>();
+		awards.stream().filter(KtoPhotoAwardImage::visible)
+			.forEach(image -> visibleById.putIfAbsent(image.contentId(), image));
+		return approvedIds.stream().map(visibleById::get).filter(java.util.Objects::nonNull).toList();
+	}
+
+	private void validateFourDistinctImages(
+		InitialCandidatePlace specification, KtoPlaceDetail detail,
+		List<KtoPlaceImage> images, List<KtoPhotoAwardImage> awards
+	) {
+		var urls = new HashSet<String>();
+		awards.forEach(image -> urls.add(image.originImageUrl()));
+		images.forEach(image -> urls.add(image.originImageUrl()));
+		if (detail.place().primaryImageUrl() != null) urls.add(detail.place().primaryImageUrl());
+		if (urls.size() < 4) {
+			throw new IllegalStateException(
+				"Approved KTO place requires four distinct images: " + specification.ktoContentId());
+		}
 	}
 
 	private KtoPlaceItem requirePinnedSearchItem(

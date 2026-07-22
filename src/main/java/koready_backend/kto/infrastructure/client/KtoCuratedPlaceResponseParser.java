@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import koready_backend.kto.application.exception.KtoProviderException;
 import koready_backend.kto.application.exception.KtoResponseParseException;
 import koready_backend.kto.domain.KtoPlaceDetail;
+import koready_backend.kto.domain.KtoPlaceImage;
 import koready_backend.kto.domain.KtoPlaceItem;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
@@ -53,6 +54,30 @@ public final class KtoCuratedPlaceResponseParser {
 			throw exception;
 		} catch (JacksonException | IllegalArgumentException exception) {
 			throw new KtoResponseParseException("KTO curated detail response could not be parsed");
+		}
+	}
+
+	public List<KtoPlaceImage> parseImages(byte[] payload) {
+		try {
+			List<KtoPlaceImage> images = new ArrayList<>();
+			int fallbackOrder = 1;
+			for (JsonNode item : itemNodes(body(payload).path("items"))) {
+				String originImageUrl = text(item, "originimgurl");
+				if (originImageUrl != null) {
+					images.add(new KtoPlaceImage(
+						originImageUrl,
+						text(item, "smallimageurl"),
+						text(item, "imgname"),
+						text(item, "cpyrhtDivCd"),
+						positiveNumber(text(item, "serialnum"), fallbackOrder)));
+				}
+				fallbackOrder++;
+			}
+			return List.copyOf(images);
+		} catch (KtoProviderException | KtoResponseParseException exception) {
+			throw exception;
+		} catch (JacksonException | IllegalArgumentException exception) {
+			throw new KtoResponseParseException("KTO curated detail image response could not be parsed");
 		}
 	}
 
@@ -162,6 +187,18 @@ public final class KtoCuratedPlaceResponseParser {
 		}
 		String value = valueNode.asString();
 		return value.isBlank() ? null : value.strip();
+	}
+
+	private int positiveNumber(String value, int fallback) {
+		if (value == null) {
+			return fallback;
+		}
+		try {
+			int parsed = Integer.parseInt(value);
+			return parsed > 0 ? parsed : fallback;
+		} catch (NumberFormatException exception) {
+			return fallback;
+		}
 	}
 
 	private String sha256(byte[] payload) {

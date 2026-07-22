@@ -1,0 +1,28 @@
+{
+  "response": {
+    "header": { "resultCode": "0000" },
+    "body": {
+      "pageNo": 1,
+      "numOfRows": 200,
+      "totalCount": 2,
+      "items": {
+        "item": [
+          {
+            "contentId": "award-visible",
+            "koTitle": "승인 수상작",
+            "orgImage": "https://example.invalid/award.jpg",
+            "thumbImage": "https://example.invalid/award-thumb.jpg",
+            "cpyrhtDivCd": "Type1",
+            "showflag": "1"
+          },
+          {
+            "contentId": "award-hidden",
+            "koTitle": "비공개 수상작",
+            "orgImage": "https://example.invalid/hidden.jpg",
+            "showflag": "0"
+          }
+        ]
+      }
+    }
+  }
+}

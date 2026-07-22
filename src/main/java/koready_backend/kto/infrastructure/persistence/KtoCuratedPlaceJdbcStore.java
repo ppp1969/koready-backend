@@ -1,9 +1,16 @@
 package koready_backend.kto.infrastructure.persistence;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.List;
 
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -12,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import koready_backend.kto.application.port.KtoCuratedPlaceStore;
 import koready_backend.kto.domain.KtoPlaceDetail;
+import koready_backend.kto.domain.KtoPlaceImage;
 import koready_backend.kto.domain.KtoPlaceItem;
+import koready_backend.kto.domain.KtoPhotoAwardImage;
 import koready_backend.onboarding.domain.InitialCandidatePlace;
 
 @Repository
@@ -30,6 +39,27 @@ public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
 	@Override
 	@Transactional
 	public long upsert(InitialCandidatePlace specification, KtoPlaceDetail detail) {
+		return upsert(specification, detail, List.of());
+	}
+
+	@Override
+	@Transactional
+	public long upsert(
+		InitialCandidatePlace specification,
+		KtoPlaceDetail detail,
+		List<KtoPlaceImage> images
+	) {
+		return upsert(specification, detail, images, List.of());
+	}
+
+	@Override
+	@Transactional
+	public long upsert(
+		InitialCandidatePlace specification,
+		KtoPlaceDetail detail,
+		List<KtoPlaceImage> images,
+		List<KtoPhotoAwardImage> awardImages
+	) {
 		KtoPlaceItem item = detail.place();
 		requirePinnedMetadata(specification, item);
 		String serviceRegionCode = resolveServiceRegion(item);
@@ -99,7 +129,104 @@ public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
 		upsertKoreanLocalization(placeId, item, detail, address);
 		upsertEnglishLocalization(placeId, specification, item.contentId(), address);
 		upsertApprovedStyle(placeId, specification);
+		replaceImages(placeId, item, images, awardImages);
 		return placeId;
+	}
+
+	private void replaceImages(
+		long placeId,
+		KtoPlaceItem item,
+		List<KtoPlaceImage> collectedImages,
+		List<KtoPhotoAwardImage> collectedAwards
+	) {
+		LinkedHashMap<String, KtoPhotoAwardImage> awards = new LinkedHashMap<>();
+		for (KtoPhotoAwardImage image : collectedAwards == null
+			? List.<KtoPhotoAwardImage>of() : collectedAwards) {
+			if (image.visible()) awards.putIfAbsent(image.originImageUrl(), image);
+		}
+		KtoPlaceImage representativeImage = representativeImage(item, awards.keySet());
+		List<KtoPlaceImage> detailImages = detailImages(
+			collectedImages,
+			awards.keySet(),
+			representativeImage == null ? null : representativeImage.originImageUrl());
+		if (awards.size() + (representativeImage == null ? 0 : 1) + detailImages.size() < 4) {
+			throw new IllegalStateException("Approved KTO place requires four distinct images: " + item.contentId());
+		}
+		jdbcTemplate.update(
+			"DELETE FROM place_images WHERE place_id = ? AND source_type IN ('KTO_DETAIL', 'KTO_PHOTO_AWARD')",
+			placeId);
+		int remaining = 4;
+		for (KtoPhotoAwardImage image : awards.values()) {
+			if (remaining <= 0) break;
+			remaining--;
+			jdbcTemplate.update("""
+				INSERT INTO place_images
+				    (place_id, image_url, thumbnail_image_url, image_url_sha256,
+				     source_type, source_priority, source_order, source_content_id,
+				     source_image_name, copyright_type)
+				VALUES (?, ?, ?, ?, 'KTO_PHOTO_AWARD', 300, ?, ?, ?, ?)
+				""", placeId, image.originImageUrl(), image.thumbnailImageUrl(),
+				sha256(image.originImageUrl()), image.sourceOrder(), image.contentId(),
+				optional(image.title(), 500, "award image title"),
+				optional(image.copyrightType(), 30, "award copyright type"));
+		}
+		if (remaining > 0 && representativeImage != null) {
+			remaining--;
+			insertKtoImage(placeId, item, representativeImage, 200);
+		}
+		for (KtoPlaceImage image : detailImages) {
+			if (remaining <= 0) break;
+			remaining--;
+			insertKtoImage(placeId, item, image, 100);
+		}
+	}
+
+	private void insertKtoImage(long placeId, KtoPlaceItem item, KtoPlaceImage image, int priority) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO place_images
+			    (place_id, image_url, thumbnail_image_url, image_url_sha256,
+			     source_type, source_priority, source_order, source_content_id,
+			     source_image_name, copyright_type)
+			VALUES (?, ?, ?, ?, 'KTO_DETAIL', ?, ?, ?, ?, ?)
+			""",
+			placeId,
+			image.originImageUrl(),
+			image.thumbnailImageUrl(),
+			sha256(image.originImageUrl()),
+			priority,
+			image.sourceOrder(),
+			item.contentId(),
+			optional(image.imageName(), 500, "image name"),
+			optional(image.copyrightType(), 30, "image copyright type"));
+	}
+
+	private KtoPlaceImage representativeImage(KtoPlaceItem item, java.util.Set<String> excludedUrls) {
+		if (item.primaryImageUrl() == null || item.primaryImageUrl().isBlank()
+			|| excludedUrls.contains(item.primaryImageUrl())) {
+			return null;
+		}
+		return new KtoPlaceImage(
+			item.primaryImageUrl(),
+			item.thumbnailImageUrl(),
+			item.title(),
+			item.copyrightType(),
+			1);
+	}
+
+	private List<KtoPlaceImage> detailImages(
+		List<KtoPlaceImage> collectedImages,
+		java.util.Set<String> excludedUrls,
+		String representativeImageUrl
+	) {
+		LinkedHashMap<String, KtoPlaceImage> unique = new LinkedHashMap<>();
+		for (KtoPlaceImage image : collectedImages == null ? List.<KtoPlaceImage>of() : collectedImages) {
+			if (!excludedUrls.contains(image.originImageUrl())
+				&& !image.originImageUrl().equals(representativeImageUrl)) {
+				unique.putIfAbsent(image.originImageUrl(), image);
+			}
+		}
+		return new ArrayList<>(unique.values()).stream().limit(4).toList();
 	}
 
 	private void upsertKoreanLocalization(
@@ -276,5 +403,14 @@ public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
 			return null;
 		}
 		return required(value, maxLength, field);
+	}
+
+	private String sha256(String value) {
+		try {
+			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+				.digest(value.getBytes(StandardCharsets.UTF_8)));
+		} catch (NoSuchAlgorithmException exception) {
+			throw new IllegalStateException("SHA-256 is unavailable", exception);
+		}
 	}
 }

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import org.testcontainers.mysql.MySQLContainer;
 import koready_backend.kto.application.port.KtoCuratedPlaceStore;
 import koready_backend.kto.domain.KtoPlaceDetail;
 import koready_backend.kto.domain.KtoPlaceItem;
+import koready_backend.kto.domain.KtoPlaceImage;
 import koready_backend.onboarding.domain.InitialCandidatePlace;
 import koready_backend.onboarding.domain.InitialCandidatePlaceCatalog;
 import koready_backend.place.domain.ServiceRegionCode;
@@ -95,7 +97,10 @@ class InitialCandidateSetBootstrapIntegrationTest {
 		Map<String, Long> result = new LinkedHashMap<>();
 		for (InitialCandidatePlace place : InitialCandidatePlaceCatalog.approved()) {
 			RegionCodes codes = regionCodes(place.serviceRegionCode());
-			long placeId = placeStore.upsert(place, detail(place, codes));
+			long placeId = placeStore.upsert(place, detail(place, codes), List.of(
+				new KtoPlaceImage("https://example.invalid/detail-" + place.displayOrder() + "-1.jpg", null, null, "Type1", 1),
+				new KtoPlaceImage("https://example.invalid/detail-" + place.displayOrder() + "-2.jpg", null, null, "Type1", 2),
+				new KtoPlaceImage("https://example.invalid/detail-" + place.displayOrder() + "-3.jpg", null, null, "Type1", 3)));
 			result.put(place.ktoContentId(), placeId);
 		}
 		return Map.copyOf(result);

@@ -21,4 +21,16 @@ class KtoRestClientConfiguration {
 			.requestFactory(requestFactory)
 			.build();
 	}
+
+	@Bean
+	@Qualifier("ktoPhotoAwardRestClient")
+	RestClient ktoPhotoAwardRestClient(KtoApiProperties properties) {
+		var requestFactory = new SimpleClientHttpRequestFactory();
+		requestFactory.setConnectTimeout(properties.connectTimeout());
+		requestFactory.setReadTimeout(properties.readTimeout());
+		return RestClient.builder()
+			.baseUrl("https://apis.data.go.kr/B551011/PhokoAwrdService")
+			.requestFactory(requestFactory)
+			.build();
+	}
 }

@@ -67,6 +67,7 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		    korean.title AS title_ko,
 		    english.title AS title_en,
 		    place.first_image_url,
+		    (SELECT COUNT(*) FROM place_images image WHERE image.place_id = place.id) AS image_count,
 		    place.service_region_code,
 		    region.name_ko AS service_region_name_ko,
 		    region.name_en AS service_region_name_en,
@@ -246,6 +247,7 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			    place.latitude,
 			    place.longitude,
 			    place.first_image_url,
+			    (SELECT COUNT(*) FROM place_images image WHERE image.place_id = place.id) AS image_count,
 			    place.service_region_code
 			FROM places place
 			LEFT JOIN place_localizations korean
@@ -371,6 +373,7 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			resultSet.getObject("latitude"),
 			resultSet.getObject("longitude"),
 			resultSet.getString("first_image_url"),
+			resultSet.getInt("image_count"),
 			resultSet.getString("service_region_code"));
 		String regionCode = resultSet.getString("service_region_code");
 		String travelStyle = resultSet.getString("travel_style");
@@ -402,6 +405,7 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			resultSet.getObject("latitude"),
 			resultSet.getObject("longitude"),
 			resultSet.getString("first_image_url"),
+			resultSet.getInt("image_count"),
 			resultSet.getString("service_region_code"));
 	}
 
@@ -429,6 +433,9 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		}
 		if (isBlank(place.imageUrl())) {
 			reasons.add("MISSING_IMAGE");
+		}
+		if (place.imageCount() != 4) {
+			reasons.add("IMAGE_COUNT_NOT_FOUR");
 		}
 		if (representativeImageId != null) {
 			reasons.add("IMAGE_NOT_OWNED_BY_PLACE");
@@ -484,6 +491,7 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		Object latitude,
 		Object longitude,
 		String imageUrl,
+		int imageCount,
 		String serviceRegionCode
 	) {
 	}

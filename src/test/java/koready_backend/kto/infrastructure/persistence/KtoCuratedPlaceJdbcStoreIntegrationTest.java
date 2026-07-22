@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -19,7 +21,9 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import koready_backend.kto.application.port.KtoCuratedPlaceStore;
 import koready_backend.kto.domain.KtoPlaceDetail;
+import koready_backend.kto.domain.KtoPlaceImage;
 import koready_backend.kto.domain.KtoPlaceItem;
+import koready_backend.kto.domain.KtoPhotoAwardImage;
 import koready_backend.onboarding.domain.InitialCandidatePlace;
 import koready_backend.onboarding.domain.InitialCandidatePlaceCatalog;
 
@@ -50,6 +54,7 @@ class KtoCuratedPlaceJdbcStoreIntegrationTest {
 		jdbcTemplate.update("DELETE FROM place_source_matches");
 		jdbcTemplate.update("DELETE FROM place_source_records");
 		jdbcTemplate.update("DELETE FROM place_style_mappings");
+		jdbcTemplate.update("DELETE FROM place_images");
 		jdbcTemplate.update("DELETE FROM place_localizations");
 		jdbcTemplate.update("DELETE FROM places");
 		jdbcTemplate.update("DELETE FROM open_api_raw_snapshots");
@@ -61,13 +66,17 @@ class KtoCuratedPlaceJdbcStoreIntegrationTest {
 		InitialCandidatePlace specification = InitialCandidatePlaceCatalog.approved().getFirst();
 		KtoPlaceDetail detail = detail(specification, "1", "11");
 
-		long firstId = store.upsert(specification, detail);
-		long replayId = store.upsert(specification, detail);
+		List<KtoPlaceImage> images = fourReadyImages();
+		long firstId = store.upsert(specification, detail, images);
+		long replayId = store.upsert(specification, detail, images);
 
 		assertEquals(firstId, replayId);
 		assertEquals(1, count("places"));
 		assertEquals(2, count("place_localizations"));
 		assertEquals(1, count("place_style_mappings"));
+		assertEquals(4, count("place_images"));
+		assertEquals(4, jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM place_images WHERE source_type = 'KTO_DETAIL'", Integer.class));
 		assertEquals("SEOUL", value("service_region_code", "places"));
 		assertEquals(Boolean.TRUE, value(Boolean.class, "active", "places"));
 		assertEquals(Boolean.TRUE, value(Boolean.class, "show_flag", "places"));
@@ -85,13 +94,13 @@ class KtoCuratedPlaceJdbcStoreIntegrationTest {
 	@Test
 	void makesTheApprovedStyleWinOverAnExistingAutomaticStyle() {
 		InitialCandidatePlace specification = InitialCandidatePlaceCatalog.approved().getFirst();
-		long placeId = store.upsert(specification, detail(specification, "1", "11"));
+		long placeId = store.upsert(specification, detail(specification, "1", "11"), fourReadyImages());
 		jdbcTemplate.update(
 			"INSERT INTO place_style_mappings (place_id, travel_style, source, confidence) "
 				+ "VALUES (?, 'NATURE', 'AI', 1.0000)",
 			placeId);
 
-		store.upsert(specification, detail(specification, "1", "11"));
+		store.upsert(specification, detail(specification, "1", "11"), fourReadyImages());
 
 		String selected = jdbcTemplate.queryForObject(
 			"SELECT travel_style FROM place_style_mappings WHERE place_id = ? "
@@ -152,6 +161,41 @@ class KtoCuratedPlaceJdbcStoreIntegrationTest {
 				"a".repeat(64)),
 			"경복궁 소개",
 			"https://www.royalpalace.go.kr");
+	}
+
+	@Test
+	void storesAnApprovedPhotoAwardFirstAndKeepsExactlyFourDistinctImages() {
+		InitialCandidatePlace specification = InitialCandidatePlaceCatalog.approved().getFirst();
+		var award = new KtoPhotoAwardImage(
+			"award-1", "https://example.invalid/award.jpg", null,
+			"Award", "Type1", true, 1);
+		List<KtoPlaceImage> details = List.of(
+			new KtoPlaceImage("https://example.invalid/award.jpg", null, "duplicate", "Type1", 1),
+			new KtoPlaceImage("https://example.invalid/detail-1.jpg", null, "Detail 1", "Type1", 2),
+			new KtoPlaceImage("https://example.invalid/detail-2.jpg", null, "Detail 2", "Type1", 3));
+
+		long placeId = store.upsert(
+			specification, detail(specification, "1", "11"), details, List.of(award));
+
+		assertEquals(4, count("place_images"));
+		assertEquals(List.of(
+			"https://example.invalid/award.jpg",
+			"https://example.invalid/gyeongbokgung.jpg",
+			"https://example.invalid/detail-1.jpg",
+			"https://example.invalid/detail-2.jpg"), jdbcTemplate.queryForList(
+			"SELECT image_url FROM place_images WHERE place_id = ? "
+				+ "ORDER BY source_priority DESC, source_order ASC, id ASC",
+			String.class, placeId));
+		assertEquals("KTO_PHOTO_AWARD", jdbcTemplate.queryForObject(
+			"SELECT source_type FROM place_images WHERE image_url = ?",
+			String.class, "https://example.invalid/award.jpg"));
+	}
+
+	private static List<KtoPlaceImage> fourReadyImages() {
+		return List.of(
+			new KtoPlaceImage("https://example.invalid/gallery-1.jpg", null, "Gallery 1", "Type1", 1),
+			new KtoPlaceImage("https://example.invalid/gallery-2.jpg", null, "Gallery 2", "Type1", 2),
+			new KtoPlaceImage("https://example.invalid/gallery-3.jpg", null, "Gallery 3", "Type1", 3));
 	}
 
 	private int count(String table) {

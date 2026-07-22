@@ -27,6 +27,7 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import koready_backend.place.application.port.PlaceQueryRepository;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceCursor;
+import koready_backend.place.application.port.PlaceQueryRepository.PlaceImageRow;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceListCriteria;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceRow;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceSearchCriteria;
@@ -178,6 +179,24 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 			visible));
 	}
 
+	@Test
+	void ordersAwardedThenRepresentativeThenKtoDetailImagesAndReturnsFour() {
+		long placeId = placeWithKorean("gallery", "80.00", "Gallery place");
+		insertImage(placeId, "https://example.invalid/representative.jpg", "KTO_DETAIL", 200, 1);
+		insertImage(placeId, "https://example.invalid/kto-1.jpg", "KTO_DETAIL", 100, 1);
+		insertImage(placeId, "https://example.invalid/kto-2.jpg", "KTO_DETAIL", 100, 2);
+		insertImage(placeId, "https://example.invalid/award.jpg", "KTO_PHOTO_AWARD", 300, 1);
+
+		List<PlaceImageRow> images = repository.findImages(placeId);
+
+		assertEquals(List.of(
+			"https://example.invalid/award.jpg",
+			"https://example.invalid/representative.jpg",
+			"https://example.invalid/kto-1.jpg",
+			"https://example.invalid/kto-2.jpg"),
+			images.stream().map(PlaceImageRow::imageUrl).toList());
+	}
+
 	private PlaceListCriteria criteria(PlaceSort sort, PlaceCursor cursor, int limit) {
 		return new PlaceListCriteria(
 			ServiceRegionCode.SEOUL,
@@ -264,5 +283,26 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 			endDate,
 			"event-" + placeId,
 			startDate.minusMonths(6));
+	}
+
+	private void insertImage(
+		long placeId,
+		String imageUrl,
+		String sourceType,
+		int sourcePriority,
+		int sourceOrder
+	) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO place_images
+			    (place_id, image_url, image_url_sha256, source_type, source_priority, source_order)
+			VALUES (?, ?, ?, ?, ?, ?)
+			""",
+			placeId,
+			imageUrl,
+			"a".repeat(63) + sourceOrder,
+			sourceType,
+			sourcePriority,
+			sourceOrder);
 	}
 }

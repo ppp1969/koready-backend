@@ -25,6 +25,18 @@ class GitHubActionsEbDeployRoleTemplateTest {
 	private static final String ENVIRONMENT_VERSION_PREFIX =
 		"resources/environments/${BeanstalkEnvironmentId}/_runtime/"
 			+ "_versions/${BeanstalkApplicationName}/*";
+	private static final String BEANSTALK_ADMIN_POLICY_ARN =
+		"arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess-AWSElasticBeanstalk";
+
+	@Test
+	void attachesTheAwsManagedElasticBeanstalkAdministratorPolicy() throws IOException {
+		Map<String, Object> properties = roleProperties();
+		List<Map<String, Object>> managedPolicyArns = list(properties.get("ManagedPolicyArns"));
+
+		assertEquals(List.of(BEANSTALK_ADMIN_POLICY_ARN), managedPolicyArns.stream()
+			.map(policy -> intrinsic(policy, "Fn::Sub"))
+			.toList());
+	}
 
 	@Test
 	void grantsOnlyTheRequiredReadsForBeanstalkRuntimeExtensions() throws IOException {
@@ -101,10 +113,7 @@ class GitHubActionsEbDeployRoleTemplateTest {
 	}
 
 	private List<Map<String, Object>> policyStatements(String policyName) throws IOException {
-		Map<String, Object> template = new Yaml().load(Files.readString(TEMPLATE));
-		Map<String, Object> resources = map(template.get("Resources"));
-		Map<String, Object> role = map(resources.get("GitHubActionsEbDeployRole"));
-		Map<String, Object> properties = map(role.get("Properties"));
+		Map<String, Object> properties = roleProperties();
 		List<Map<String, Object>> policies = list(properties.get("Policies"));
 		Map<String, Object> deploymentPolicy = policies.stream()
 			.filter(policy -> policyName.equals(policy.get("PolicyName")))
@@ -112,6 +121,13 @@ class GitHubActionsEbDeployRoleTemplateTest {
 			.orElseThrow();
 		Map<String, Object> policyDocument = map(deploymentPolicy.get("PolicyDocument"));
 		return list(policyDocument.get("Statement"));
+	}
+
+	private Map<String, Object> roleProperties() throws IOException {
+		Map<String, Object> template = new Yaml().load(Files.readString(TEMPLATE));
+		Map<String, Object> resources = map(template.get("Resources"));
+		Map<String, Object> role = map(resources.get("GitHubActionsEbDeployRole"));
+		return map(role.get("Properties"));
 	}
 
 	private Map<String, Object> statement(List<Map<String, Object>> statements, String sid) {

@@ -39,18 +39,15 @@ class GitHubActionsEbDeployRoleTemplateTest {
 				.map(resource -> intrinsic(resource, "Fn::Sub"))
 				.toList());
 
-		Map<String, Object> prefixAccess = statement(statements,
-			"EnvironmentEmbeddedExtensionsPrefix");
-		assertEquals(List.of("s3:ListBucket"), prefixAccess.get("Action"));
+		Map<String, Object> bucketList = statement(statements,
+			"BeanstalkManagedBucketList");
+		assertEquals(List.of("s3:ListBucket"), bucketList.get("Action"));
 		assertEquals(BUCKET_ARN,
-			intrinsic(prefixAccess.get("Resource"), "Fn::Sub"));
-		Map<String, Object> condition = map(prefixAccess.get("Condition"));
-		Map<String, Object> stringLike = map(condition.get("StringLike"));
-		List<Map<String, Object>> prefixes = list(stringLike.get("s3:prefix"));
-		assertEquals(List.of(ENVIRONMENT_EXTENSION_PREFIX, GLOBAL_EXTENSION_PREFIX),
-			prefixes.stream()
-				.map(prefix -> intrinsic(prefix, "Fn::Sub"))
-				.toList());
+			intrinsic(bucketList.get("Resource"), "Fn::Sub"));
+		assertEquals(false, bucketList.containsKey("Condition"));
+		assertEquals(1, statements.stream()
+			.filter(statement -> list(statement.get("Action")).contains("s3:ListBucket"))
+			.count());
 	}
 
 	@Test

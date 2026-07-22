@@ -82,6 +82,7 @@ Resources:
                 Effect: Allow
                 Action:
                   - s3:GetObject
+                  - s3:GetObjectVersion
                 Resource:
                   Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/resources/environments/${BeanstalkEnvironmentId}/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
               - Sid: EnvironmentEmbeddedExtensionsPrefix

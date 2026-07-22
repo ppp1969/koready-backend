@@ -32,6 +32,18 @@ class DockerDeploymentConfigurationTest {
 		assertTrue(workflow.contains("./scripts/smoke-docker.sh koready-backend:ci"));
 	}
 
+	@Test
+	void ebDeploymentWaitsForTheRequestedVersionAndSupportsWorkflowRetries() throws IOException {
+		String workflow = Files.readString(CI_WORKFLOW);
+
+		assertTrue(workflow.contains("${GITHUB_RUN_ATTEMPT}"));
+		assertTrue(workflow.contains("target_version="));
+		assertTrue(workflow.contains("current_version"));
+		assertTrue(workflow.contains("current_status"));
+		assertTrue(workflow.contains("$current_version\" == \"$target_version"));
+		assertTrue(workflow.contains("$current_status\" == \"Ready"));
+	}
+
 	private static Map<String, Object> yaml(Path path) throws IOException {
 		LoaderOptions options = new LoaderOptions();
 		options.setAllowDuplicateKeys(false);

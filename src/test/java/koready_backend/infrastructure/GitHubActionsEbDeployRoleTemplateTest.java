@@ -17,9 +17,11 @@ class GitHubActionsEbDeployRoleTemplateTest {
 		Path.of("infra", "aws", "github-actions-eb-deploy-role.yaml");
 	private static final String BUCKET_ARN =
 		"arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}";
-	private static final String EXTENSION_PREFIX =
+	private static final String ENVIRONMENT_EXTENSION_PREFIX =
 		"resources/environments/${BeanstalkEnvironmentId}/_runtime/"
 			+ "_embedded_extensions/${BeanstalkApplicationName}/*";
+	private static final String GLOBAL_EXTENSION_PREFIX =
+		"resources/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*";
 
 	@Test
 	void grantsOnlyTheRequiredReadsForBeanstalkRuntimeExtensions() throws IOException {
@@ -29,8 +31,13 @@ class GitHubActionsEbDeployRoleTemplateTest {
 			"EnvironmentEmbeddedExtensions");
 		assertEquals(List.of("s3:GetObject", "s3:GetObjectVersion"),
 			objectAccess.get("Action"));
-		assertEquals(BUCKET_ARN + "/" + EXTENSION_PREFIX,
-			intrinsic(objectAccess.get("Resource"), "Fn::Sub"));
+		List<Map<String, Object>> objectResources = list(objectAccess.get("Resource"));
+		assertEquals(List.of(
+			BUCKET_ARN + "/" + ENVIRONMENT_EXTENSION_PREFIX,
+			BUCKET_ARN + "/" + GLOBAL_EXTENSION_PREFIX),
+			objectResources.stream()
+				.map(resource -> intrinsic(resource, "Fn::Sub"))
+				.toList());
 
 		Map<String, Object> prefixAccess = statement(statements,
 			"EnvironmentEmbeddedExtensionsPrefix");
@@ -40,8 +47,10 @@ class GitHubActionsEbDeployRoleTemplateTest {
 		Map<String, Object> condition = map(prefixAccess.get("Condition"));
 		Map<String, Object> stringLike = map(condition.get("StringLike"));
 		List<Map<String, Object>> prefixes = list(stringLike.get("s3:prefix"));
-		assertEquals(EXTENSION_PREFIX,
-			intrinsic(prefixes.getFirst(), "Fn::Sub"));
+		assertEquals(List.of(ENVIRONMENT_EXTENSION_PREFIX, GLOBAL_EXTENSION_PREFIX),
+			prefixes.stream()
+				.map(prefix -> intrinsic(prefix, "Fn::Sub"))
+				.toList());
 	}
 
 	private List<Map<String, Object>> deploymentPolicyStatements() throws IOException {

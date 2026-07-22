@@ -11,6 +11,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import java.io.IOException;
 import java.net.URI;
+import java.time.Clock;
 import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
@@ -99,7 +100,9 @@ class KtoTourApiClientTest {
 		RestClient.Builder builder = RestClient.builder();
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		KtoTourApiClient client = client(builder.build(), properties(TEST_KEY, 1024));
-		server.expect(request -> { }).andRespond(withServerError());
+		for (int attempt = 0; attempt < 4; attempt++) {
+			server.expect(request -> { }).andRespond(withServerError());
+		}
 
 		KtoProviderException exception = assertThrows(KtoProviderException.class, () -> client.fetchPage(1));
 
@@ -112,8 +115,10 @@ class KtoTourApiClientTest {
 		RestClient.Builder builder = RestClient.builder();
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		KtoTourApiClient client = client(builder.build(), properties(TEST_KEY, 1024));
-		server.expect(request -> { })
-			.andRespond(withException(new IOException("failed uri contained " + TEST_KEY)));
+		for (int attempt = 0; attempt < 4; attempt++) {
+			server.expect(request -> { })
+				.andRespond(withException(new IOException("failed uri contained " + TEST_KEY)));
+		}
 
 		KtoTransportException exception = assertThrows(KtoTransportException.class, () -> client.fetchPage(1));
 
@@ -122,12 +127,60 @@ class KtoTourApiClientTest {
 		server.verify();
 	}
 
+	@Test
+	void retriesATransientTransportFailureBeforeReturningThePage() throws IOException {
+		byte[] payload = fixture("/fixtures/kto/area-based-sync-page.json");
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		KtoTourApiClient client = client(builder.build(), properties(TEST_KEY, 4 * 1024 * 1024));
+		server.expect(request -> { })
+			.andRespond(withException(new IOException("temporary connection reset")));
+		server.expect(request -> { })
+			.andRespond(withSuccess(payload, MediaType.APPLICATION_JSON));
+
+		KtoSyncPage page = client.fetchPage(3);
+
+		assertEquals(3, page.pageNumber());
+		server.verify();
+	}
+
+	@Test
+	void doesNotRetryANonTransientProviderRejection() {
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		KtoTourApiClient client = client(builder.build(), properties(TEST_KEY, 1024));
+		server.expect(request -> { }).andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+			.withBadRequest());
+
+		assertThrows(KtoProviderException.class, () -> client.fetchPage(1));
+		server.verify();
+	}
+
+	@Test
+	void retriesTheKtoRequestLimitCodeBeforeReturningThePage() throws IOException {
+		byte[] payload = fixture("/fixtures/kto/area-based-sync-page.json");
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		KtoTourApiClient client = client(builder.build(), properties(TEST_KEY, 4 * 1024 * 1024));
+		server.expect(request -> { }).andRespond(withSuccess(
+			"{\"response\":{\"header\":{\"resultCode\":\"22\",\"resultMsg\":\"limited\"}}}",
+			MediaType.APPLICATION_JSON));
+		server.expect(request -> { }).andRespond(withSuccess(payload, MediaType.APPLICATION_JSON));
+
+		KtoSyncPage page = client.fetchPage(3);
+
+		assertEquals(3, page.pageNumber());
+		server.verify();
+	}
+
 	private KtoTourApiClient client(RestClient restClient, KtoApiProperties properties) {
 		return new KtoTourApiClient(
 			restClient,
 			properties,
 			new KtoBatchProperties(200, 50, 1),
-			new KtoAreaBasedSyncResponseParser(JsonMapper.builder().build()));
+			new KtoAreaBasedSyncResponseParser(JsonMapper.builder().build()),
+			Clock.systemUTC(),
+			delayMillis -> { });
 	}
 
 	private KtoApiProperties properties(String serviceKey, int maxResponseBytes) {

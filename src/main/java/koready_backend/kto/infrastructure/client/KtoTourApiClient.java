@@ -31,12 +31,15 @@ public final class KtoTourApiClient implements KtoSyncPageClient, KtoDailySyncPa
 
 	private static final String OPERATION_PATH = "/areaBasedSyncList2";
 	private static final int READ_BUFFER_BYTES = 8 * 1024;
+	private static final int MAX_TRANSIENT_ATTEMPTS = 4;
+	private static final long INITIAL_RETRY_DELAY_MILLIS = 1_000;
 
 	private final RestClient restClient;
 	private final KtoApiProperties apiProperties;
 	private final KtoBatchProperties batchProperties;
 	private final KtoAreaBasedSyncResponseParser parser;
 	private final Clock clock;
+	private final RetrySleeper retrySleeper;
 
 	@Autowired
 	public KtoTourApiClient(
@@ -55,11 +58,23 @@ public final class KtoTourApiClient implements KtoSyncPageClient, KtoDailySyncPa
 		KtoAreaBasedSyncResponseParser parser,
 		Clock clock
 	) {
+		this(restClient, apiProperties, batchProperties, parser, clock, Thread::sleep);
+	}
+
+	KtoTourApiClient(
+		RestClient restClient,
+		KtoApiProperties apiProperties,
+		KtoBatchProperties batchProperties,
+		KtoAreaBasedSyncResponseParser parser,
+		Clock clock,
+		RetrySleeper retrySleeper
+	) {
 		this.restClient = restClient;
 		this.apiProperties = apiProperties;
 		this.batchProperties = batchProperties;
 		this.parser = parser;
 		this.clock = clock;
+		this.retrySleeper = retrySleeper;
 	}
 
 	@Override
@@ -75,7 +90,20 @@ public final class KtoTourApiClient implements KtoSyncPageClient, KtoDailySyncPa
 		if (apiProperties.serviceKey() == null || apiProperties.serviceKey().isBlank()) {
 			throw new KtoClientConfigurationException("KTO service key is not configured");
 		}
+		for (int attempt = 1; attempt <= MAX_TRANSIENT_ATTEMPTS; attempt++) {
+			try {
+				return fetchFetchedPageOnce(pageNumber);
+			} catch (KtoTransportException | KtoProviderException exception) {
+				if (!retryable(exception) || attempt == MAX_TRANSIENT_ATTEMPTS) {
+					throw exception;
+				}
+				pauseBeforeRetry(attempt);
+			}
+		}
+		throw new IllegalStateException("KTO retry attempts were exhausted");
+	}
 
+	private KtoFetchedSyncPage fetchFetchedPageOnce(int pageNumber) {
 		try {
 			Instant requestedAt = Instant.now(clock);
 			return restClient.get()
@@ -109,6 +137,31 @@ public final class KtoTourApiClient implements KtoSyncPageClient, KtoDailySyncPa
 		} catch (RestClientException exception) {
 			throw new KtoTransportException();
 		}
+	}
+
+	private boolean retryable(RuntimeException exception) {
+		if (exception instanceof KtoTransportException) {
+			return true;
+		}
+		if (exception instanceof KtoProviderException providerException) {
+			String code = providerException.providerCode();
+			return "22".equals(code) || "HTTP_429".equals(code) || code.matches("HTTP_5\\d\\d");
+		}
+		return false;
+	}
+
+	private void pauseBeforeRetry(int completedAttempt) {
+		try {
+			retrySleeper.sleep(INITIAL_RETRY_DELAY_MILLIS * (1L << (completedAttempt - 1)));
+		} catch (InterruptedException exception) {
+			Thread.currentThread().interrupt();
+			throw new KtoTransportException();
+		}
+	}
+
+	@FunctionalInterface
+	interface RetrySleeper {
+		void sleep(long delayMillis) throws InterruptedException;
 	}
 
 	private byte[] readBounded(InputStream input, int maxResponseBytes) throws IOException {

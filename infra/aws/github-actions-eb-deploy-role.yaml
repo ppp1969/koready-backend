@@ -34,6 +34,8 @@ Resources:
       RoleName: KoreadyGitHubActionsEbDeployRole
       Description: Deploys main branch builds from GitHub Actions to the KoReady EB staging environment.
       MaxSessionDuration: 3600
+      ManagedPolicyArns:
+        - Fn::Sub: 'arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess-AWSElasticBeanstalk'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:

@@ -53,6 +53,19 @@ class GitHubActionsEbDeployRoleTemplateTest {
 				.toList());
 	}
 
+	@Test
+	void grantsTemplateReadOnlyForTheTargetBeanstalkEnvironmentStack()
+		throws IOException {
+		Map<String, Object> stackAccess = statement(deploymentPolicyStatements(),
+			"EnvironmentStackTemplate");
+
+		assertEquals(List.of("cloudformation:GetTemplate"), stackAccess.get("Action"));
+		assertEquals(
+			"arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:"
+				+ "stack/awseb-${BeanstalkEnvironmentId}-stack/*",
+			intrinsic(stackAccess.get("Resource"), "Fn::Sub"));
+	}
+
 	private List<Map<String, Object>> deploymentPolicyStatements() throws IOException {
 		Map<String, Object> template = new Yaml().load(Files.readString(TEMPLATE));
 		Map<String, Object> resources = map(template.get("Resources"));

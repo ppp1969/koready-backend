@@ -97,6 +97,12 @@ Resources:
                     s3:prefix:
                       - Fn::Sub: 'resources/environments/${BeanstalkEnvironmentId}/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
                       - Fn::Sub: 'resources/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
+              - Sid: EnvironmentStackTemplate
+                Effect: Allow
+                Action:
+                  - cloudformation:GetTemplate
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/awseb-${BeanstalkEnvironmentId}-stack/*'
         - PolicyName: UpdateKoreadyBeanstalkEnvironment
           PolicyDocument:
             Version: '2012-10-17'

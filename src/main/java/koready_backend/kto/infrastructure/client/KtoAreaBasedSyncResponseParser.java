@@ -28,6 +28,10 @@ public final class KtoAreaBasedSyncResponseParser {
 	}
 
 	public KtoSyncPage parse(byte[] payload) {
+		return parse(payload, null);
+	}
+
+	KtoSyncPage parse(byte[] payload, Integer requestedPageSize) {
 		try {
 			JsonNode response = jsonMapper.readTree(payload).path("response");
 			if (!response.isObject()) {
@@ -44,9 +48,15 @@ public final class KtoAreaBasedSyncResponseParser {
 				throw new KtoResponseParseException("KTO response body is missing");
 			}
 
+			int responsePageSize = requiredInteger(body, "numOfRows");
+			int paginationPageSize = requestedPageSize == null ? responsePageSize : requestedPageSize;
+			if (paginationPageSize < responsePageSize) {
+				throw new KtoResponseParseException("KTO response page size exceeded the request");
+			}
+
 			return new KtoSyncPage(
 				requiredInteger(body, "pageNo"),
-				requiredInteger(body, "numOfRows"),
+				paginationPageSize,
 				requiredInteger(body, "totalCount"),
 				parseItems(body.path("items")),
 				payload.length,

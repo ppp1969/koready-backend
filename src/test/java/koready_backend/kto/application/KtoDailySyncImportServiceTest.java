@@ -1,8 +1,10 @@
 package koready_backend.kto.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
@@ -88,9 +90,44 @@ class KtoDailySyncImportServiceTest {
 		assertEquals(new KtoBatchExecutionReference(31L, 47L), command.getValue().batchExecution());
 	}
 
+	@Test
+	void stopsAfterTheFinalPartialPageUsingTheRequestedPaginationSize() throws Exception {
+		when(client.fetchFetchedPage(341)).thenReturn(fetchedPage(341, 200, 68_540));
+		when(client.fetchFetchedPage(342)).thenReturn(fetchedPage(342, 200, 68_540));
+		when(client.fetchFetchedPage(343)).thenReturn(fetchedPage(343, 200, 68_540));
+		when(snapshotStore.store(any())).thenReturn(new KtoStoredSnapshotMetadata(
+			"kto/kor/areaBasedSyncList2/test.json.gz", "a".repeat(64), 30,
+			Instant.parse("2026-07-20T00:00:02Z")));
+		when(pageStore.store(any()))
+			.thenReturn(new KtoStorePageResult(1L, 2L, 200, 200, 200, false))
+			.thenReturn(new KtoStorePageResult(3L, 4L, 200, 200, 200, false))
+			.thenReturn(new KtoStorePageResult(5L, 6L, 140, 140, 140, false));
+
+		var result = service().sync(new KtoDailySyncRequest(341, 20));
+
+		assertEquals(3, result.processedPages());
+		assertEquals(540, result.processedItems());
+		assertEquals(343, result.lastProcessedPage());
+		assertFalse(result.truncatedByPageLimit());
+		verify(client).fetchFetchedPage(341);
+		verify(client).fetchFetchedPage(342);
+		verify(client).fetchFetchedPage(343);
+		verifyNoMoreInteractions(client);
+	}
+
 	private KtoDailySyncImportService service() {
 		return new KtoDailySyncImportService(client, snapshotStore, pageStore, Clock.fixed(
 			Instant.parse("2026-07-20T00:00:02Z"), ZoneOffset.UTC));
+	}
+
+	private KtoFetchedSyncPage fetchedPage(int pageNumber, int pageSize, int totalCount) throws Exception {
+		byte[] raw = ("page-" + pageNumber).getBytes(StandardCharsets.UTF_8);
+		return new KtoFetchedSyncPage(
+			new KtoSyncPage(pageNumber, pageSize, totalCount, List.of(), raw.length, sha256(raw)),
+			new KtoSuccessfulCallMetadata(
+				Instant.parse("2026-07-20T00:00:00Z"),
+				Instant.parse("2026-07-20T00:00:01Z"), 1_000, 200),
+			raw);
 	}
 
 	private static String sha256(byte[] value) throws Exception {

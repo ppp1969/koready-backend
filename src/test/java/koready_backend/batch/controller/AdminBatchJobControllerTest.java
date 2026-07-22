@@ -150,6 +150,30 @@ class AdminBatchJobControllerTest {
 	}
 
 	@Test
+	void acceptsTheFullCatalogJobForAnOperator() throws Exception {
+		when(commandService.accept(any())).thenReturn(new BatchJobCommandService.JobAcceptance(
+			73L,
+			BatchJobType.KTO_FULL_CATALOG_SYNC,
+			BatchJobStatus.PENDING,
+			BatchTriggerSource.ADMIN_MANUAL,
+			null));
+
+		mockMvc.perform(post("/api/v1/admin/batch-jobs")
+				.contentType("application/json")
+				.content("""
+					{
+					  "jobType": "KTO_FULL_CATALOG_SYNC",
+					  "parameters": {},
+					  "reason": "Start the initial KTO catalog import"
+					}
+					""")
+				.with(user("operator").roles("OPERATOR")))
+			.andExpect(status().isAccepted())
+			.andExpect(jsonPath("$.data.jobType").value("KTO_FULL_CATALOG_SYNC"))
+			.andExpect(jsonPath("$.data.status").value("PENDING"));
+	}
+
+	@Test
 	void acceptsRetriesForOperatorsAndKeepsTheOriginalJobReference() throws Exception {
 		mockMvc.perform(post("/api/v1/admin/batch-jobs/7/retry")
 				.contentType("application/json")

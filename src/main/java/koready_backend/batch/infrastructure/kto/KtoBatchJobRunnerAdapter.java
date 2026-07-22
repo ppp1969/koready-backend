@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import koready_backend.batch.application.port.BatchJobExecutionRepository.ClaimedJob;
 import koready_backend.batch.application.port.KtoBatchJobRunner;
+import koready_backend.batch.application.model.BatchJobContinuation;
 import koready_backend.batch.domain.BatchJobType;
 import koready_backend.kto.application.KtoDailySyncImportService;
 import koready_backend.kto.application.KtoFestivalImportService;
@@ -36,6 +37,15 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 		if (job.jobType() == BatchJobType.KTO_DAILY_SYNC) {
 			var result = dailySyncService.sync(new KtoDailySyncRequest(startPage, maxPages), batchExecution);
 			return new RunResult(result.processedItems(), result.processedItems(), 0);
+		}
+		if (job.jobType() == BatchJobType.KTO_FULL_CATALOG_SYNC) {
+			var result = dailySyncService.sync(new KtoDailySyncRequest(startPage, maxPages), batchExecution);
+			var continuation = result.truncatedByPageLimit()
+				? new BatchJobContinuation(BatchJobType.KTO_FULL_CATALOG_SYNC, Map.of(
+					"startPage", result.lastProcessedPage() + 1,
+					"maxPages", maxPages))
+				: null;
+			return new RunResult(result.processedItems(), result.processedItems(), 0, continuation);
 		}
 		if (job.jobType() == BatchJobType.KTO_FESTIVAL_SYNC) {
 			var result = festivalImportService.importFestivals(new KtoFestivalImportRequest(

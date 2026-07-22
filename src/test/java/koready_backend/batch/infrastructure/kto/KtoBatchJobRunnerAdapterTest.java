@@ -1,6 +1,7 @@
 package koready_backend.batch.infrastructure.kto;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -64,6 +65,36 @@ class KtoBatchJobRunnerAdapterTest {
 		verify(festivalImportService).importFestivals(request.capture(), execution.capture());
 		assertEquals(LocalDate.of(2026, 7, 1), request.getValue().eventStartDate());
 		assertEquals(new KtoBatchExecutionReference(31L, 47L), execution.getValue());
+	}
+
+	@Test
+	void schedulesTheNextBoundedRangeWhenTheFullCatalogJobHasMorePages() {
+		when(dailySyncService.sync(any(), any())).thenReturn(new KtoDailySyncResult(
+			20, 4_000, 0, 68_524, 20, true));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_FULL_CATALOG_SYNC,
+			Map.of("startPage", 1, "maxPages", 20),
+			47L));
+
+		assertEquals(BatchJobType.KTO_FULL_CATALOG_SYNC, result.continuation().jobType());
+		assertEquals(21, result.continuation().parameters().get("startPage"));
+		assertEquals(20, result.continuation().parameters().get("maxPages"));
+	}
+
+	@Test
+	void endsTheFullCatalogJobWithoutAContinuationAtTheLastPage() {
+		when(dailySyncService.sync(any(), any())).thenReturn(new KtoDailySyncResult(
+			3, 524, 0, 68_524, 343, false));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_FULL_CATALOG_SYNC,
+			Map.of("startPage", 341, "maxPages", 20),
+			47L));
+
+		assertNull(result.continuation());
 	}
 
 	private KtoBatchJobRunnerAdapter adapter() {

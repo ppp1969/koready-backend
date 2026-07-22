@@ -43,7 +43,8 @@ public class BatchJobWorker {
 			try {
 				var result = runner.run(job);
 				repository.complete(job, new Completion(
-					result.processedCount(), result.successCount(), result.failureCount(), Instant.now(clock)));
+					result.processedCount(), result.successCount(), result.failureCount(), Instant.now(clock),
+					result.continuation()));
 			} catch (RuntimeException exception) {
 				repository.fail(job, Instant.now(clock));
 			}

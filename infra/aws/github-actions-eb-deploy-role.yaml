@@ -67,6 +67,12 @@ Resources:
                   - s3:ListBucket
                 Resource:
                   Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}'
+              - Sid: BeanstalkManagedObjectMetadata
+                Effect: Allow
+                Action:
+                  - s3:GetObjectAcl
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/*'
               - Sid: SourceBundleObject
                 Effect: Allow
                 Action:
@@ -83,10 +89,20 @@ Resources:
                 Resource:
                   - Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/resources/environments/${BeanstalkEnvironmentId}/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
                   - Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/resources/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*'
+              - Sid: EnvironmentApplicationVersions
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:DeleteObject
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:s3:::${BeanstalkArtifactBucketName}/resources/environments/${BeanstalkEnvironmentId}/_runtime/_versions/${BeanstalkApplicationName}/*'
               - Sid: EnvironmentStackTemplate
                 Effect: Allow
                 Action:
                   - cloudformation:GetTemplate
+                  - cloudformation:DescribeStackResource
                 Resource:
                   Fn::Sub: 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/awseb-${BeanstalkEnvironmentId}-stack/*'
         - PolicyName: UpdateKoreadyBeanstalkEnvironment
@@ -105,6 +121,11 @@ Resources:
                   - elasticbeanstalk:DescribeEnvironments
                   - elasticbeanstalk:DescribeEvents
                   - elasticbeanstalk:UpdateEnvironment
+                Resource: '*'
+              - Sid: InspectBeanstalkAutoScalingGroup
+                Effect: Allow
+                Action:
+                  - autoscaling:DescribeAutoScalingGroups
                 Resource: '*'
 
 Outputs:

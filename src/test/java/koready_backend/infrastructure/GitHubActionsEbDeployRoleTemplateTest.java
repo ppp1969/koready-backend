@@ -22,6 +22,9 @@ class GitHubActionsEbDeployRoleTemplateTest {
 			+ "_embedded_extensions/${BeanstalkApplicationName}/*";
 	private static final String GLOBAL_EXTENSION_PREFIX =
 		"resources/_runtime/_embedded_extensions/${BeanstalkApplicationName}/*";
+	private static final String ENVIRONMENT_VERSION_PREFIX =
+		"resources/environments/${BeanstalkEnvironmentId}/_runtime/"
+			+ "_versions/${BeanstalkApplicationName}/*";
 
 	@Test
 	void grantsOnlyTheRequiredReadsForBeanstalkRuntimeExtensions() throws IOException {
@@ -48,6 +51,19 @@ class GitHubActionsEbDeployRoleTemplateTest {
 		assertEquals(1, statements.stream()
 			.filter(statement -> list(statement.get("Action")).contains("s3:ListBucket"))
 			.count());
+
+		Map<String, Object> objectMetadata = statement(statements,
+			"BeanstalkManagedObjectMetadata");
+		assertEquals(List.of("s3:GetObjectAcl"), objectMetadata.get("Action"));
+		assertEquals(BUCKET_ARN + "/*",
+			intrinsic(objectMetadata.get("Resource"), "Fn::Sub"));
+
+		Map<String, Object> environmentVersions = statement(statements,
+			"EnvironmentApplicationVersions");
+		assertEquals(List.of("s3:GetObject", "s3:PutObject", "s3:PutObjectAcl", "s3:DeleteObject"),
+			environmentVersions.get("Action"));
+		assertEquals(BUCKET_ARN + "/" + ENVIRONMENT_VERSION_PREFIX,
+			intrinsic(environmentVersions.get("Resource"), "Fn::Sub"));
 	}
 
 	@Test
@@ -56,21 +72,42 @@ class GitHubActionsEbDeployRoleTemplateTest {
 		Map<String, Object> stackAccess = statement(deploymentPolicyStatements(),
 			"EnvironmentStackTemplate");
 
-		assertEquals(List.of("cloudformation:GetTemplate"), stackAccess.get("Action"));
+		assertEquals(List.of(
+			"cloudformation:GetTemplate",
+			"cloudformation:DescribeStackResource"),
+			stackAccess.get("Action"));
 		assertEquals(
 			"arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:"
 				+ "stack/awseb-${BeanstalkEnvironmentId}-stack/*",
 			intrinsic(stackAccess.get("Resource"), "Fn::Sub"));
 	}
 
+	@Test
+	void grantsOnlyReadAccessToTheBeanstalkAutoScalingGroup() throws IOException {
+		Map<String, Object> autoScalingAccess = statement(environmentPolicyStatements(),
+			"InspectBeanstalkAutoScalingGroup");
+
+		assertEquals(List.of("autoscaling:DescribeAutoScalingGroups"),
+			autoScalingAccess.get("Action"));
+		assertEquals("*", autoScalingAccess.get("Resource"));
+	}
+
 	private List<Map<String, Object>> deploymentPolicyStatements() throws IOException {
+		return policyStatements("UploadBeanstalkSourceBundle");
+	}
+
+	private List<Map<String, Object>> environmentPolicyStatements() throws IOException {
+		return policyStatements("UpdateKoreadyBeanstalkEnvironment");
+	}
+
+	private List<Map<String, Object>> policyStatements(String policyName) throws IOException {
 		Map<String, Object> template = new Yaml().load(Files.readString(TEMPLATE));
 		Map<String, Object> resources = map(template.get("Resources"));
 		Map<String, Object> role = map(resources.get("GitHubActionsEbDeployRole"));
 		Map<String, Object> properties = map(role.get("Properties"));
 		List<Map<String, Object>> policies = list(properties.get("Policies"));
 		Map<String, Object> deploymentPolicy = policies.stream()
-			.filter(policy -> "UploadBeanstalkSourceBundle".equals(policy.get("PolicyName")))
+			.filter(policy -> policyName.equals(policy.get("PolicyName")))
 			.findFirst()
 			.orElseThrow();
 		Map<String, Object> policyDocument = map(deploymentPolicy.get("PolicyDocument"));

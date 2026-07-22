@@ -61,6 +61,26 @@ class KtoTourApiClientTest {
 	}
 
 	@Test
+	void preservesTheRequestedPageSizeWhenKtoShrinksTheLastPageMetadata() {
+		String payload = """
+			{"response":{"header":{"resultCode":"0000","resultMsg":"OK"},"body":{
+			"items":"","numOfRows":140,"pageNo":343,"totalCount":68540}}}
+			""";
+		KtoApiProperties properties = properties(TEST_KEY, 4 * 1024 * 1024);
+		RestClient.Builder builder = RestClient.builder().baseUrl(properties.baseUrl());
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		KtoTourApiClient client = client(builder.build(), properties);
+		server.expect(request -> { }).andRespond(withSuccess(payload, MediaType.APPLICATION_JSON));
+
+		KtoSyncPage page = client.fetchPage(343);
+
+		assertEquals(200, page.pageSize());
+		assertEquals(343, page.pageNumber());
+		assertEquals(68_540, page.totalCount());
+		server.verify();
+	}
+
+	@Test
 	void stopsBeforeParsingWhenTheResponseExceedsTheConfiguredLimit() {
 		RestClient.Builder builder = RestClient.builder();
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();

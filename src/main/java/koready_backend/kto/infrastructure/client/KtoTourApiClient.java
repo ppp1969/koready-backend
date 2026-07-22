@@ -126,7 +126,7 @@ public final class KtoTourApiClient implements KtoSyncPageClient, KtoDailySyncPa
 						throw new KtoResponseTooLargeException(apiProperties.maxResponseBytes());
 					}
 					byte[] payload = readBounded(response.getBody(), apiProperties.maxResponseBytes());
-					KtoSyncPage page = parser.parse(payload);
+					KtoSyncPage page = parser.parse(payload, batchProperties.pageSize());
 					Instant receivedAt = Instant.now(clock);
 					return new KtoFetchedSyncPage(page, new KtoSuccessfulCallMetadata(
 						requestedAt, receivedAt, Duration.between(requestedAt, receivedAt).toMillis(),

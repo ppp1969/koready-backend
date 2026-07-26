@@ -306,7 +306,7 @@ public class KtoDetailJdbcStore implements KtoDetailStore {
 		int fallbackSequence = 0;
 		for (Map<String, String> item : operation.fetched().response().items()) {
 			fallbackSequence++;
-			int sequence = positiveInteger(item.get("serialnum"), fallbackSequence);
+			int sequence = fallbackSequence;
 			for (Map.Entry<String, String> field : item.entrySet()) {
 				if (IDENTITY_FIELDS.contains(field.getKey())
 					|| field.getValue() == null

@@ -105,6 +105,38 @@ class KtoDetailJdbcStoreIntegrationTest {
 	}
 
 	@Test
+	void storesRepeatedProviderSerialNumbersInResponseOrder() throws Exception {
+		long placeId = place("100", "12");
+		KtoStoreDetailCommand command = command(placeId, List.of(
+			Map.of(
+				"contentid", "100",
+				"contenttypeid", "12",
+				"serialnum", "1",
+				"infoname", "Admission",
+				"infotext", "Free"),
+			Map.of(
+				"contentid", "100",
+				"contenttypeid", "12",
+				"serialnum", "1",
+				"infoname", "Reservation",
+				"infotext", "Required")));
+
+		store.store(command);
+
+		assertEquals(List.of(1, 2), jdbcTemplate.queryForList(
+			"""
+			SELECT item_sequence
+			FROM place_detail_attributes
+			WHERE place_id = ?
+			  AND source_operation = 'detailInfo2'
+			  AND field_code = 'infoname'
+			ORDER BY item_sequence
+			""",
+			Integer.class,
+			placeId));
+	}
+
+	@Test
 	void findsTargetsInStablePlaceIdOrder() {
 		long first = place("101", "12");
 		long second = place("102", "32");
@@ -117,6 +149,19 @@ class KtoDetailJdbcStoreIntegrationTest {
 	}
 
 	private KtoStoreDetailCommand command(long placeId) throws Exception {
+		return command(placeId, List.of(Map.of(
+			"contentid", "100",
+			"contenttypeid", "12",
+			"serialnum", "1",
+			"fldgubun", "1",
+			"infoname", "Admission",
+			"infotext", "Free")));
+	}
+
+	private KtoStoreDetailCommand command(
+		long placeId,
+		List<Map<String, String>> infoItems
+	) throws Exception {
 		KtoDetailTarget target = new KtoDetailTarget(placeId, "100", "12");
 		return new KtoStoreDetailCommand(
 			target,
@@ -137,13 +182,7 @@ class KtoDetailJdbcStoreIntegrationTest {
 					"restdate", "Monday",
 					"parking", "Available",
 					"usefee", "Free"))),
-				operation(KtoDetailOperation.INFO, "info", List.of(Map.of(
-					"contentid", "100",
-					"contenttypeid", "12",
-					"serialnum", "1",
-					"fldgubun", "1",
-					"infoname", "Admission",
-					"infotext", "Free"))),
+				operation(KtoDetailOperation.INFO, "info", infoItems),
 				operation(KtoDetailOperation.IMAGE, "image", List.of(
 					Map.of(
 						"contentid", "100",

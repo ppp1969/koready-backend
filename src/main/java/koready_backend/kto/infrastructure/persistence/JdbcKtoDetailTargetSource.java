@@ -21,12 +21,18 @@ public class JdbcKtoDetailTargetSource implements KtoDetailTargetSource {
 	public List<KtoDetailTarget> findAfter(long placeId, int limit) {
 		return jdbcTemplate.query(
 			"""
-			SELECT id, kto_content_id, kto_content_type_id
-			FROM places
-			WHERE id > ?
-			  AND kto_content_id IS NOT NULL
-			  AND kto_content_type_id IS NOT NULL
-			ORDER BY id ASC
+			SELECT place.id, place.kto_content_id, place.kto_content_type_id
+			FROM places place
+			LEFT JOIN kto_place_detail_sync_status sync_status
+			  ON sync_status.place_id = place.id
+			WHERE place.id > ?
+			  AND place.kto_content_id IS NOT NULL
+			  AND place.kto_content_type_id IS NOT NULL
+			  AND (
+			      sync_status.place_id IS NULL
+			      OR sync_status.next_refresh_at <= CURRENT_TIMESTAMP(6)
+			  )
+			ORDER BY place.id ASC
 			LIMIT ?
 			""",
 			(resultSet, rowNumber) -> new KtoDetailTarget(
@@ -43,10 +49,16 @@ public class JdbcKtoDetailTargetSource implements KtoDetailTargetSource {
 			"""
 			SELECT EXISTS(
 			    SELECT 1
-			    FROM places
-			    WHERE id > ?
-			      AND kto_content_id IS NOT NULL
-			      AND kto_content_type_id IS NOT NULL
+			    FROM places place
+			    LEFT JOIN kto_place_detail_sync_status sync_status
+			      ON sync_status.place_id = place.id
+			    WHERE place.id > ?
+			      AND place.kto_content_id IS NOT NULL
+			      AND place.kto_content_type_id IS NOT NULL
+			      AND (
+			          sync_status.place_id IS NULL
+			          OR sync_status.next_refresh_at <= CURRENT_TIMESTAMP(6)
+			      )
 			)
 			""",
 			Integer.class,

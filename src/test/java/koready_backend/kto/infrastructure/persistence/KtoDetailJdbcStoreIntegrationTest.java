@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -137,6 +138,110 @@ class KtoDetailJdbcStoreIntegrationTest {
 	}
 
 	@Test
+	void storesDetailSyncCheckpointWithSnapshotLineage() throws Exception {
+		long placeId = place("100", "12");
+
+		store.store(command(placeId));
+
+		Map<String, Object> checkpoint = jdbcTemplate.queryForMap(
+			"""
+			SELECT common_snapshot_id, intro_snapshot_id, info_snapshot_id,
+			       image_snapshot_id, image_count, completed_at, next_refresh_at
+			FROM kto_place_detail_sync_status
+			WHERE place_id = ?
+			""",
+			placeId);
+		assertEquals(2, checkpoint.get("image_count"));
+		assertEquals(4, jdbcTemplate.queryForObject(
+			"""
+			SELECT COUNT(*)
+			FROM open_api_raw_snapshots
+			WHERE id IN (?, ?, ?, ?)
+			""",
+			Integer.class,
+			checkpoint.get("common_snapshot_id"),
+			checkpoint.get("intro_snapshot_id"),
+			checkpoint.get("info_snapshot_id"),
+			checkpoint.get("image_snapshot_id")));
+		assertEquals(
+			jdbcTemplate.queryForObject(
+				"SELECT DATE_ADD(completed_at, INTERVAL 30 DAY) FROM kto_place_detail_sync_status WHERE place_id = ?",
+				java.time.LocalDateTime.class,
+				placeId),
+			checkpoint.get("next_refresh_at"));
+	}
+
+	@Test
+	void storesCheckpointWhenProviderReturnsNoDetailImages() throws Exception {
+		long placeId = place("100", "12");
+
+		store.store(command(placeId, List.of(Map.of(
+			"contentid", "100",
+			"contenttypeid", "12",
+			"serialnum", "1",
+			"infoname", "Admission",
+			"infotext", "Free")), List.of()));
+
+		assertEquals(0, jdbcTemplate.queryForObject(
+			"SELECT image_count FROM kto_place_detail_sync_status WHERE place_id = ?",
+			Integer.class,
+			placeId));
+		assertFalse(targetSource.existsAfter(0));
+	}
+
+	@Test
+	void backfillsCheckpointOnlyFromCompleteSnapshotSet() throws Exception {
+		long placeId = place("100", "12");
+		store.store(command(placeId));
+		jdbcTemplate.update("DELETE FROM kto_place_detail_sync_status");
+		String migration = new ClassPathResource(
+			"db/migration/V26__add_kto_place_detail_sync_status.sql")
+			.getContentAsString(StandardCharsets.UTF_8);
+		String backfill = migration.substring(migration.indexOf(
+			"INSERT INTO kto_place_detail_sync_status"));
+
+		jdbcTemplate.execute(backfill);
+
+		assertEquals(1, jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM kto_place_detail_sync_status WHERE place_id = ?",
+			Integer.class,
+			placeId));
+		assertEquals(2, jdbcTemplate.queryForObject(
+			"SELECT image_count FROM kto_place_detail_sync_status WHERE place_id = ?",
+			Integer.class,
+			placeId));
+	}
+
+	@Test
+	void skipsFreshCheckpointAndSelectsItAgainAfterRefreshDeadline() throws Exception {
+		long completedPlaceId = place("100", "12");
+		long pendingPlaceId = place("102", "32");
+		store.store(command(completedPlaceId));
+
+		assertEquals(
+			List.of(pendingPlaceId),
+			targetSource.findAfter(0, 10).stream()
+				.map(KtoDetailTarget::placeId)
+				.toList());
+		assertTrue(targetSource.existsAfter(0));
+
+		jdbcTemplate.update(
+			"""
+			UPDATE kto_place_detail_sync_status
+			SET completed_at = DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 31 DAY),
+			    next_refresh_at = DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 1 DAY)
+			WHERE place_id = ?
+			""",
+			completedPlaceId);
+
+		assertEquals(
+			List.of(completedPlaceId, pendingPlaceId),
+			targetSource.findAfter(0, 10).stream()
+				.map(KtoDetailTarget::placeId)
+				.toList());
+	}
+
+	@Test
 	void findsTargetsInStablePlaceIdOrder() {
 		long first = place("101", "12");
 		long second = place("102", "32");
@@ -162,6 +267,23 @@ class KtoDetailJdbcStoreIntegrationTest {
 		long placeId,
 		List<Map<String, String>> infoItems
 	) throws Exception {
+		return command(placeId, infoItems, List.of(
+			Map.of(
+				"contentid", "100",
+				"serialnum", "1",
+				"originimgurl", "https://example.invalid/detail-1.jpg",
+				"smallimageurl", "https://example.invalid/detail-1-small.jpg"),
+			Map.of(
+				"contentid", "100",
+				"serialnum", "2",
+				"originimgurl", "https://example.invalid/detail-2.jpg")));
+	}
+
+	private KtoStoreDetailCommand command(
+		long placeId,
+		List<Map<String, String>> infoItems,
+		List<Map<String, String>> imageItems
+	) throws Exception {
 		KtoDetailTarget target = new KtoDetailTarget(placeId, "100", "12");
 		return new KtoStoreDetailCommand(
 			target,
@@ -183,16 +305,7 @@ class KtoDetailJdbcStoreIntegrationTest {
 					"parking", "Available",
 					"usefee", "Free"))),
 				operation(KtoDetailOperation.INFO, "info", infoItems),
-				operation(KtoDetailOperation.IMAGE, "image", List.of(
-					Map.of(
-						"contentid", "100",
-						"serialnum", "1",
-						"originimgurl", "https://example.invalid/detail-1.jpg",
-						"smallimageurl", "https://example.invalid/detail-1-small.jpg"),
-					Map.of(
-						"contentid", "100",
-						"serialnum", "2",
-						"originimgurl", "https://example.invalid/detail-2.jpg")))),
+				operation(KtoDetailOperation.IMAGE, "image", imageItems)),
 			null);
 	}
 

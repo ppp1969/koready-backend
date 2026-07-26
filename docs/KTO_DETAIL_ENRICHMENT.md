@@ -36,7 +36,8 @@ KTO 접근 키와 private S3 권한이 있는 EB 환경에서만 실행한다.
 }
 ```
 
-- `startAfterPlaceId`: 이 내부 장소 ID보다 큰 장소부터 처리한다. 기본값은 `0`이다.
+- `startAfterPlaceId`: 이 내부 장소 ID보다 크면서 상세 수집이 필요하거나 30일
+  갱신 기한이 지난 장소부터 처리한다. 기본값은 `0`이다.
 - `maxPlaces`: 한 작업의 장소 수다. 기본값 `10`, 최댓값 `50`이다.
 - `autoContinue`: 남은 장소의 다음 작업을 자동 등록한다. 기본값은 `false`다.
 
@@ -48,11 +49,19 @@ KTO 접근 키와 private S3 권한이 있는 EB 환경에서만 실행한다.
 
 - 네 응답의 압축 원문을 private S3에 각각 저장하고 hash와 메타데이터만 DB에 기록한다.
 - 한 장소의 네 응답을 모두 확보한 뒤 하나의 DB transaction으로 반영한다.
+- 성공한 장소는 네 snapshot ID, 이미지 수, 완료 시각, 다음 갱신 시각을
+  `kto_place_detail_sync_status`에 기록한다.
+- 완료 후 30일 동안은 같은 장소를 다시 선택하지 않는다. 따라서 제한 배치를
+  `startAfterPlaceId=0`으로 반복해도 다음 미완료 장소 구간으로 진행한다.
+- 30일이 지나면 변경된 운영 정보와 이미지를 다시 확인할 수 있도록 수집 대상에
+  자동으로 포함한다.
 - 같은 storage key와 같은 hash의 재실행은 성공한 멱등 재실행으로 처리한다.
 - 같은 storage key에 다른 hash가 들어오거나 네 응답 중 일부 snapshot만 존재하면
   불완전한 재실행으로 판단하고 중단한다.
 - 앞 장소의 성공 transaction은 뒤 장소 실패 때문에 되돌리지 않는다. 실패한 장소
   직전 cursor부터 새 작업으로 재개할 수 있다.
+- V26 migration은 기존 DB에서 상세 API 네 종류의 snapshot이 모두 확인되는 장소만
+  완료 상태로 backfill한다. 일부 snapshot만 있는 장소는 다시 수집한다.
 
 ## 장소 상세 API 반영
 

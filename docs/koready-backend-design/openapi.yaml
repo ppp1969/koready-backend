@@ -1810,7 +1810,8 @@ paths:
         KTO_DAILY_SYNC는 startPage와 maxPages를, KTO_FESTIVAL_SYNC는 eventStartDate와 startPage, maxPages를 사용합니다.
         KTO_DETAIL_ENRICHMENT는 startAfterPlaceId, maxPlaces, autoContinue를 사용합니다. 장소마다 detailCommon2,
         detailIntro2, detailInfo2, detailImage2를 순서대로 호출하므로 먼저 maxPlaces 10 이하와 autoContinue=false로
-        확인한 뒤 범위를 늘립니다. Render에서는 수집 worker를 켜지 않고 EB에서만 실행합니다.
+        확인한 뒤 범위를 늘립니다. 네 호출이 완료된 장소는 30일 동안 다시 선택하지 않으므로 startAfterPlaceId=0으로
+        제한 배치를 반복해도 다음 미완료 장소를 처리합니다. Render에서는 수집 worker를 켜지 않고 EB에서만 실행합니다.
         실행자, 사유, jobId와 안전한 실행 파라미터는 관리자 감사 로그에 남기므로 reason에는 키·토큰·개인 위치정보를 넣지 않습니다.
       x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN, OPERATOR]
@@ -6762,8 +6763,10 @@ components:
       description: |
         KTO_DAILY_SYNC는 startPage와 maxPages를 사용합니다.
         KTO_FESTIVAL_SYNC는 eventStartDate(YYYY-MM-DD)를 추가로 사용합니다.
-        KTO_DETAIL_ENRICHMENT는 startAfterPlaceId 이후 장소를 place ID 오름차순으로 maxPlaces개 처리합니다.
+        KTO_DETAIL_ENRICHMENT는 startAfterPlaceId 이후이면서 상세 수집이 필요하거나 30일 갱신 기한이 지난 장소를
+        place ID 오름차순으로 maxPlaces개 처리합니다.
         상세 보강은 장소마다 KTO detailCommon2, detailIntro2, detailInfo2, detailImage2를 호출하고 원본을 private S3에 저장합니다.
+        네 호출이 완료되면 장소별 checkpoint와 snapshot 근거를 저장하며, 유효한 checkpoint가 있는 장소는 건너뜁니다.
         autoContinue는 기본 false이며 true일 때만 다음 구간 작업을 자동 등록합니다.
         서버의 KTO pageSize와 동시성은 환경 설정으로 고정되어 있어 요청에서 바꾸지 않습니다.
       additionalProperties: false
@@ -6787,7 +6790,7 @@ components:
           format: int64
           minimum: 0
           default: 0
-          description: KTO_DETAIL_ENRICHMENT에서 이 place ID보다 큰 장소부터 처리하는 재개 cursor
+          description: KTO_DETAIL_ENRICHMENT에서 이 place ID보다 크고 상세 수집이 필요한 장소부터 처리하는 재개 cursor
         maxPlaces:
           type: integer
           minimum: 1

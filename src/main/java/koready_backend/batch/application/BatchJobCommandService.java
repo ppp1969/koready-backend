@@ -31,8 +31,11 @@ public class BatchJobCommandService {
 		BatchJobType.KTO_DAILY_SYNC,
 		BatchJobType.KTO_FULL_CATALOG_SYNC,
 		BatchJobType.KTO_FESTIVAL_SYNC,
+		BatchJobType.KTO_DETAIL_ENRICHMENT,
 		BatchJobType.KTO_EN_SYNC);
 	private static final int MAX_PAGES = 20;
+	private static final int DEFAULT_DETAIL_PLACES = 10;
+	private static final int MAX_DETAIL_PLACES = 50;
 
 	private final BatchJobCommandRepository repository;
 	private final Clock clock;
@@ -94,6 +97,9 @@ public class BatchJobCommandService {
 			throw new IllegalArgumentException("Batch job request is invalid");
 		}
 		Map<String, Object> input = command.parameters() == null ? Map.of() : command.parameters();
+		if (command.jobType() == BatchJobType.KTO_DETAIL_ENRICHMENT) {
+			return normalizeDetail(command, input);
+		}
 		int startPage = positive(input.get("startPage"), 1, 100_000, "startPage");
 		int defaultMaxPages = command.jobType() == BatchJobType.KTO_FULL_CATALOG_SYNC
 			|| command.jobType() == BatchJobType.KTO_EN_SYNC ? MAX_PAGES : 1;
@@ -108,6 +114,22 @@ public class BatchJobCommandService {
 			command.jobType(), Map.copyOf(parameters), command.reason().strip(), command.actorSubject().strip());
 	}
 
+	private NormalizedCommand normalizeDetail(CreateCommand command, Map<String, Object> input) {
+		LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+		parameters.put(
+			"startAfterPlaceId",
+			nonNegativeLong(input.get("startAfterPlaceId"), 0L, "startAfterPlaceId"));
+		parameters.put(
+			"maxPlaces",
+			positive(input.get("maxPlaces"), DEFAULT_DETAIL_PLACES, MAX_DETAIL_PLACES, "maxPlaces"));
+		parameters.put("autoContinue", booleanValue(input.get("autoContinue"), false, "autoContinue"));
+		return new NormalizedCommand(
+			command.jobType(),
+			Map.copyOf(parameters),
+			command.reason().strip(),
+			command.actorSubject().strip());
+	}
+
 	private static int positive(Object value, int fallback, int max, String name) {
 		if (value == null) {
 			return fallback;
@@ -117,6 +139,28 @@ public class BatchJobCommandService {
 			throw new IllegalArgumentException("Batch job " + name + " is invalid");
 		}
 		return number.intValue();
+	}
+
+	private static long nonNegativeLong(Object value, long fallback, String name) {
+		if (value == null) {
+			return fallback;
+		}
+		if (!(value instanceof Number number)
+			|| number.longValue() < 0
+			|| number.longValue() != number.doubleValue()) {
+			throw new IllegalArgumentException("Batch job " + name + " is invalid");
+		}
+		return number.longValue();
+	}
+
+	private static boolean booleanValue(Object value, boolean fallback, String name) {
+		if (value == null) {
+			return fallback;
+		}
+		if (!(value instanceof Boolean flag)) {
+			throw new IllegalArgumentException("Batch job " + name + " is invalid");
+		}
+		return flag;
 	}
 
 	private static String requiredDate(Object value) {

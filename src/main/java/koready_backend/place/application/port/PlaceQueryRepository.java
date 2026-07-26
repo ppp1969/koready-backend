@@ -18,6 +18,14 @@ public interface PlaceQueryRepository {
 
 	Optional<PlaceDetailRow> findDetail(long placeId, PlaceLanguage language);
 
+	default List<PlaceImageRow> findImages(long placeId) {
+		return List.of();
+	}
+
+	default PlaceDetailFacts findDetailFacts(long placeId) {
+		return PlaceDetailFacts.empty();
+	}
+
 	record PlaceListCriteria(
 		ServiceRegionCode serviceRegionCode,
 		List<TravelStyle> travelStyles,
@@ -80,5 +88,20 @@ public interface PlaceQueryRepository {
 		String overview,
 		String translationSource
 	) {
+	}
+
+	record PlaceImageRow(String imageUrl, String altText) {
+	}
+
+	record PlaceDetailFacts(
+		String operatingHours,
+		String operatingPeriod,
+		String closedDays,
+		String usageFee,
+		String parkingInfo
+	) {
+		public static PlaceDetailFacts empty() {
+			return new PlaceDetailFacts(null, null, null, null, null);
+		}
 	}
 }

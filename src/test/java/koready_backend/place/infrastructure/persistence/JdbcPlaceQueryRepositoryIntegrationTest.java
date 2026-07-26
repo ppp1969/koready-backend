@@ -27,6 +27,7 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import koready_backend.place.application.port.PlaceQueryRepository;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceCursor;
+import koready_backend.place.application.port.PlaceQueryRepository.PlaceImageRow;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceListCriteria;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceRow;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceSearchCriteria;
@@ -178,6 +179,44 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 			visible));
 	}
 
+	@Test
+	void ordersAwardedThenKtoDetailImagesAndMapsCollectedFacts() {
+		long placeId = placeWithKorean("gallery", "80.00", "Gallery place");
+		insertImage(
+			placeId,
+			"https://example.invalid/kto-1.jpg",
+			"KTO_DETAIL",
+			100,
+			1);
+		insertImage(
+			placeId,
+			"https://example.invalid/kto-2.jpg",
+			"KTO_DETAIL",
+			100,
+			2);
+		insertImage(
+			placeId,
+			"https://example.invalid/award.jpg",
+			"KTO_PHOTO_AWARD",
+			300,
+			1);
+		insertAttribute(placeId, "usetime", "09:00-18:00", 1);
+		insertAttribute(placeId, "restdate", "Monday", 1);
+		insertAttribute(placeId, "normalized_usagefee", "Free", 1);
+
+		List<PlaceImageRow> images = repository.findImages(placeId);
+		var facts = repository.findDetailFacts(placeId);
+
+		assertEquals(List.of(
+			"https://example.invalid/award.jpg",
+			"https://example.invalid/kto-1.jpg",
+			"https://example.invalid/kto-2.jpg"),
+			images.stream().map(PlaceImageRow::imageUrl).toList());
+		assertEquals("09:00-18:00", facts.operatingHours());
+		assertEquals("Monday", facts.closedDays());
+		assertEquals("Free", facts.usageFee());
+	}
+
 	private PlaceListCriteria criteria(PlaceSort sort, PlaceCursor cursor, int limit) {
 		return new PlaceListCriteria(
 			ServiceRegionCode.SEOUL,
@@ -264,5 +303,87 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 			endDate,
 			"event-" + placeId,
 			startDate.minusMonths(6));
+	}
+
+	private void insertImage(
+		long placeId,
+		String imageUrl,
+		String sourceType,
+		int sourcePriority,
+		int sourceOrder
+	) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO place_images
+				(place_id, image_url, image_url_sha256, source_type,
+				 source_priority, source_order)
+			VALUES (?, ?, ?, ?, ?, ?)
+			""",
+			placeId,
+			imageUrl,
+			"a".repeat(63) + sourceOrder,
+			sourceType,
+			sourcePriority,
+			sourceOrder);
+	}
+
+	private void insertAttribute(
+		long placeId,
+		String fieldCode,
+		String value,
+		int sequence
+	) {
+		long callId = callLog("detail-" + fieldCode);
+		long snapshotId = snapshot(callId, "detail-" + fieldCode);
+		jdbcTemplate.update(
+			"""
+			INSERT INTO place_detail_attributes
+				(place_id, source_operation, item_sequence, field_code,
+				 value_text, source_content_id, source_snapshot_id, source_hash)
+			VALUES (?, 'detailIntro2', ?, ?, ?, 'gallery', ?, ?)
+			""",
+			placeId,
+			sequence,
+			fieldCode,
+			value,
+			snapshotId,
+			"c".repeat(64));
+	}
+
+	private long callLog(String suffix) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO open_api_call_logs
+				(provider, api_name, operation, endpoint, request_started_at,
+				 success, request_params_masked)
+			VALUES ('KTO', 'KOR', 'detailIntro2', ?, UTC_TIMESTAMP(6),
+			        TRUE, JSON_OBJECT())
+			""",
+			"https://example.invalid/" + suffix);
+		return jdbcTemplate.queryForObject(
+			"SELECT MAX(id) FROM open_api_call_logs",
+			Long.class);
+	}
+
+	private long snapshot(long callId, String suffix) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO open_api_raw_snapshots
+				(call_log_id, provider, api_name, operation, storage_key,
+				 storage_format, content_type, raw_content_sha256,
+				 stored_object_sha256, byte_size, compressed_byte_size,
+				 item_count, captured_at, retention_class, immutable)
+			VALUES (?, 'KTO', 'KOR', 'detailIntro2', ?,
+			        'JSON_GZIP', 'application/json', ?, ?, 10, 10, 1,
+			        UTC_TIMESTAMP(6), 'DEBUG_TEMPORARY', TRUE)
+			""",
+			callId,
+			"kto/test/" + suffix,
+			"d".repeat(64),
+			"e".repeat(64));
+		return jdbcTemplate.queryForObject(
+			"SELECT id FROM open_api_raw_snapshots WHERE call_log_id = ?",
+			Long.class,
+			callId);
 	}
 }

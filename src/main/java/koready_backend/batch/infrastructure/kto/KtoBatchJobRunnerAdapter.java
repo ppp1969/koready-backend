@@ -10,10 +10,12 @@ import koready_backend.batch.application.port.KtoBatchJobRunner;
 import koready_backend.batch.application.model.BatchJobContinuation;
 import koready_backend.batch.domain.BatchJobType;
 import koready_backend.kto.application.KtoDailySyncImportService;
+import koready_backend.kto.application.KtoDetailEnrichmentService;
 import koready_backend.kto.application.KtoEnglishSyncImportService;
 import koready_backend.kto.application.KtoFestivalImportService;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDailySyncRequest;
+import koready_backend.kto.application.model.KtoDetailEnrichmentRequest;
 import koready_backend.kto.application.model.KtoEnglishSyncRequest;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
 
@@ -21,24 +23,50 @@ import koready_backend.kto.application.model.KtoFestivalImportRequest;
 public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 
 	private final KtoDailySyncImportService dailySyncService;
+	private final KtoDetailEnrichmentService detailEnrichmentService;
 	private final KtoEnglishSyncImportService englishSyncService;
 	private final KtoFestivalImportService festivalImportService;
 
 	public KtoBatchJobRunnerAdapter(
 		KtoDailySyncImportService dailySyncService,
+		KtoDetailEnrichmentService detailEnrichmentService,
 		KtoEnglishSyncImportService englishSyncService,
 		KtoFestivalImportService festivalImportService
 	) {
 		this.dailySyncService = dailySyncService;
+		this.detailEnrichmentService = detailEnrichmentService;
 		this.englishSyncService = englishSyncService;
 		this.festivalImportService = festivalImportService;
 	}
 
 	@Override
 	public RunResult run(ClaimedJob job) {
+		var batchExecution = new KtoBatchExecutionReference(job.id(), job.itemId());
+		if (job.jobType() == BatchJobType.KTO_DETAIL_ENRICHMENT) {
+			long startAfterPlaceId = longInteger(
+				job.parameters(), "startAfterPlaceId");
+			int maxPlaces = integer(job.parameters(), "maxPlaces");
+			boolean autoContinue = flag(job.parameters(), "autoContinue");
+			var result = detailEnrichmentService.enrich(
+				new KtoDetailEnrichmentRequest(
+					startAfterPlaceId, maxPlaces, autoContinue),
+				batchExecution);
+			var continuation = result.hasMore() && result.autoContinue()
+				? new BatchJobContinuation(
+					BatchJobType.KTO_DETAIL_ENRICHMENT,
+					Map.of(
+						"startAfterPlaceId", result.lastProcessedPlaceId(),
+						"maxPlaces", maxPlaces,
+						"autoContinue", true))
+				: null;
+			return new RunResult(
+				result.processedPlaces(),
+				result.processedPlaces(),
+				0,
+				continuation);
+		}
 		int startPage = integer(job.parameters(), "startPage");
 		int maxPages = integer(job.parameters(), "maxPages");
-		var batchExecution = new KtoBatchExecutionReference(job.id(), job.itemId());
 		if (job.jobType() == BatchJobType.KTO_DAILY_SYNC) {
 			var result = dailySyncService.sync(new KtoDailySyncRequest(startPage, maxPages), batchExecution);
 			return new RunResult(result.processedItems(), result.processedItems(), 0);
@@ -75,6 +103,22 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 			throw new IllegalArgumentException("Batch job parameter is invalid");
 		}
 		return number.intValue();
+	}
+
+	private static long longInteger(Map<String, Object> parameters, String name) {
+		Object value = parameters.get(name);
+		if (!(value instanceof Number number)) {
+			throw new IllegalArgumentException("Batch job parameter is invalid");
+		}
+		return number.longValue();
+	}
+
+	private static boolean flag(Map<String, Object> parameters, String name) {
+		Object value = parameters.get(name);
+		if (!(value instanceof Boolean flag)) {
+			throw new IllegalArgumentException("Batch job parameter is invalid");
+		}
+		return flag;
 	}
 
 	private static String string(Map<String, Object> parameters, String name) {

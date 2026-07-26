@@ -59,6 +59,12 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 	}
 
 	private static String targetId(EnqueueCommand command) {
+		if (command.jobType() == BatchJobType.KTO_DETAIL_ENRICHMENT) {
+			return "detail:*:"
+				+ command.parameters().getOrDefault("startAfterPlaceId", 0)
+				+ "+"
+				+ command.parameters().getOrDefault("maxPlaces", 10);
+		}
 		String operation = switch (command.jobType()) {
 			case KTO_FESTIVAL_SYNC -> "searchFestival2";
 			case KTO_EN_SYNC -> "ENG:areaBasedSyncList2";

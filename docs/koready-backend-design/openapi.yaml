@@ -869,6 +869,26 @@ paths:
                     code: ROUTE_EXPIRED
                     message: 경로 정보가 만료되었습니다. 출발 조건으로 경로를 다시 조회해 주세요.
                     traceId: trace-route-410-01
+  /profile-options:
+    get:
+      tags: [Buddy]
+      operationId: getProfileOptions
+      summary: 프로필 설정 선택지 조회
+      description: |
+        프로필 생성·수정 화면을 열 때 인증 없이 호출합니다.
+        프론트는 언어, 한국어 수준, 여행 스타일, Buddy 관심사, SNS 플랫폼을 자체 상수로
+        보관하지 않고 이 응답의 displayOrder 순서대로 보여줍니다.
+        availableLanguages는 사용자가 대화할 수 있는 언어이며 장소 콘텐츠 표시 언어와 다릅니다.
+        선택한 code를 그대로 PUT /users/me/buddy-profile에 전달합니다.
+      x-implementation-status: IMPLEMENTED
+      security: []
+      responses:
+        '200':
+          description: 프로필 선택지 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileOptionsEnvelope'
   /users/me/buddy-profile:
     get:
       tags: [Buddy]
@@ -3014,6 +3034,10 @@ components:
       type: string
       description: KO=한국어, EN=English
       enum: [KO, EN]
+    ProfileLanguageCode:
+      type: string
+      description: 프로필에서 사용자가 대화할 수 있다고 선택하는 언어 코드. 콘텐츠 표시 언어와 별개
+      enum: [KO, EN, ZH, JA, VI, TH, MN, RU, ID, ES, FR, DE, AR]
     SavedPlaceSource:
       type: string
       description: 사용자가 저장 버튼을 누른 화면. 추천 품질과 화면 사용성 분석에 사용
@@ -3628,7 +3652,7 @@ components:
           description: true이면 expiresAt 전까지 GET /routes/{routeId} 상세 조회 가능
     BuddyProfileRequest:
       type: object
-      required: [nickname, availableLanguages, koreanLevel, buddyStyles, profilePublic, snsPublic, allowsMessages]
+      required: [nickname, availableLanguages, koreanLevel, travelStyles, buddyStyles, profilePublic, snsPublic, allowsMessages]
       properties:
         profileImageUrl:
           type: string
@@ -3647,12 +3671,20 @@ components:
         availableLanguages:
           type: array
           minItems: 1
-          maxItems: 2
+          maxItems: 5
           uniqueItems: true
           items:
-            $ref: '#/components/schemas/LanguageCode'
+            $ref: '#/components/schemas/ProfileLanguageCode'
         koreanLevel:
           $ref: '#/components/schemas/KoreanLevel'
+        travelStyles:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          description: 추천에 사용하는 여행 스타일. 온보딩에서 고른 기존 값을 전체 교체
+          items:
+            $ref: '#/components/schemas/TravelStyle'
         bio:
           type: string
           maxLength: 500
@@ -4766,6 +4798,54 @@ components:
           type: integer
           minimum: 1
           nullable: true
+    ProfileOptionsEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ProfileOptions'
+    ProfileOptions:
+      type: object
+      required: [languages, koreanLevels, travelStyles, buddyStyles, socialPlatforms]
+      properties:
+        languages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileOption'
+        koreanLevels:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileOption'
+        travelStyles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileOption'
+        buddyStyles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileOption'
+        socialPlatforms:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileOption'
+    ProfileOption:
+      type: object
+      required: [code, labelKo, labelEn, displayOrder]
+      properties:
+        code:
+          type: string
+          example: VI
+        labelKo:
+          type: string
+          example: 베트남어
+        labelEn:
+          type: string
+          example: Vietnamese
+        displayOrder:
+          type: integer
+          minimum: 1
+          example: 5
     MyBuddyProfileEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'
@@ -4794,7 +4874,7 @@ components:
               $ref: '#/components/schemas/BuddyProfile'
     BuddyProfile:
       type: object
-      required: [profileId, nickname, availableLanguages, koreanLevel, buddyStyles, socialLinks, profilePublic, snsPublic, allowsMessages, canMessage, blockedByMe, updatedAt]
+      required: [profileId, nickname, availableLanguages, koreanLevel, travelStyles, buddyStyles, socialLinks, profilePublic, snsPublic, allowsMessages, canMessage, blockedByMe, updatedAt]
       properties:
         profileId:
           type: integer
@@ -4815,9 +4895,16 @@ components:
           type: array
           uniqueItems: true
           items:
-            $ref: '#/components/schemas/LanguageCode'
+            $ref: '#/components/schemas/ProfileLanguageCode'
         koreanLevel:
           $ref: '#/components/schemas/KoreanLevel'
+        travelStyles:
+          type: array
+          maxItems: 4
+          uniqueItems: true
+          description: 추천에 사용하는 현재 여행 스타일. 기존 데이터에 아직 값이 없으면 빈 배열
+          items:
+            $ref: '#/components/schemas/TravelStyle'
         bio:
           type: string
           nullable: true
@@ -6213,6 +6300,7 @@ components:
           type: string
           minLength: 1
           maxLength: 200
+          description: SNS 프로필 URL이 아니라 사용자가 입력한 계정 ID 또는 핸들
           example: '@emma.travels'
     BatchJobParameters:
       type: object

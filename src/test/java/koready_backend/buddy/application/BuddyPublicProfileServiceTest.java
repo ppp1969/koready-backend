@@ -26,7 +26,7 @@ import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.KoreanLevel;
 import koready_backend.buddy.domain.SocialLinkType;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.buddy.domain.ProfileLanguage;
 
 class BuddyPublicProfileServiceTest {
 
@@ -184,7 +184,7 @@ class BuddyPublicProfileServiceTest {
 			"https://cdn.example.com/target.jpg",
 			"Target",
 			"France",
-			List.of(PlaceLanguage.EN, PlaceLanguage.KO),
+			List.of(ProfileLanguage.EN, ProfileLanguage.KO),
 			KoreanLevel.BEGINNER,
 			"Local food fan",
 			List.of(BuddyStyle.FOODIE),
@@ -199,7 +199,7 @@ class BuddyPublicProfileServiceTest {
 			null,
 			"Viewer",
 			null,
-			List.of(PlaceLanguage.EN),
+			List.of(ProfileLanguage.EN),
 			KoreanLevel.INTERMEDIATE,
 			null,
 			List.of(),

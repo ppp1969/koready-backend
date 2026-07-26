@@ -29,7 +29,8 @@ import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.KoreanLevel;
 import koready_backend.buddy.domain.SocialLinkType;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.buddy.domain.ProfileLanguage;
+import koready_backend.place.domain.TravelStyle;
 
 class BuddyProfileServiceTest {
 
@@ -57,7 +58,7 @@ class BuddyProfileServiceTest {
 			"https://cdn.example.com/emma.jpg",
 			"Emma",
 			"France",
-			List.of(PlaceLanguage.EN, PlaceLanguage.KO),
+			List.of(ProfileLanguage.EN, ProfileLanguage.KO),
 			KoreanLevel.BEGINNER,
 			"Local food fan",
 			List.of(BuddyStyle.FOODIE),
@@ -93,8 +94,9 @@ class BuddyProfileServiceTest {
 				null,
 				"  Emma  ",
 				"  France  ",
-				List.of(PlaceLanguage.EN, PlaceLanguage.KO),
+				List.of(ProfileLanguage.EN, ProfileLanguage.KO),
 				KoreanLevel.INTERMEDIATE,
+				List.of(TravelStyle.LOCAL_FOOD, TravelStyle.CULTURE_EXPERIENCE),
 				"  Hello Korea  ",
 				List.of(BuddyStyle.FOODIE, BuddyStyle.PHOTOGRAPHY),
 				List.of(new BuddySocialLink(SocialLinkType.INSTAGRAM, "  @emma  ")),
@@ -108,6 +110,9 @@ class BuddyProfileServiceTest {
 		assertEquals("Emma", draft.getValue().nickname());
 		assertEquals("France", draft.getValue().nationality());
 		assertEquals("Hello Korea", draft.getValue().bio());
+		assertEquals(
+			List.of(TravelStyle.LOCAL_FOOD, TravelStyle.CULTURE_EXPERIENCE),
+			draft.getValue().travelStyles());
 		assertEquals("@emma", draft.getValue().socialLinks().getFirst().value());
 		assertEquals(51L, result.profileId());
 		assertFalse(result.canMessage());
@@ -121,13 +126,36 @@ class BuddyProfileServiceTest {
 		assertThrows(IllegalArgumentException.class, () -> service.upsertMyProfile(
 			"usr_emma",
 			command(
-				List.of(PlaceLanguage.EN, PlaceLanguage.EN),
+				List.of(ProfileLanguage.EN, ProfileLanguage.EN),
 				List.of(BuddyStyle.FOODIE))));
 		assertThrows(IllegalArgumentException.class, () -> service.upsertMyProfile(
 			"usr_emma",
 			command(
-				List.of(PlaceLanguage.EN),
+				List.of(ProfileLanguage.EN),
 				List.of(BuddyStyle.FOODIE, BuddyStyle.FOODIE))));
+	}
+
+	@Test
+	void rejectsDuplicateSocialPlatforms() {
+		when(repository.findActiveUserIdForUpdate("usr_emma"))
+			.thenReturn(Optional.of(7L));
+
+		assertThrows(IllegalArgumentException.class, () -> service.upsertMyProfile(
+			"usr_emma",
+			new BuddyProfileService.UpsertCommand(
+				null,
+				"Emma",
+				null,
+				List.of(ProfileLanguage.EN),
+				KoreanLevel.BEGINNER,
+				null,
+				List.of(),
+				List.of(
+					new BuddySocialLink(SocialLinkType.INSTAGRAM, "@emma"),
+					new BuddySocialLink(SocialLinkType.INSTAGRAM, "@emma2")),
+				true,
+				true,
+				true)));
 	}
 
 	@Test
@@ -156,11 +184,11 @@ class BuddyProfileServiceTest {
 			() -> service.getMyProfile("usr_missing"));
 		assertThrows(BuddyUserUnavailableException.class,
 			() -> service.upsertMyProfile("usr_missing",
-				command(List.of(PlaceLanguage.EN), List.of())));
+				command(List.of(ProfileLanguage.EN), List.of())));
 	}
 
 	private static BuddyProfileService.UpsertCommand command(
-		List<PlaceLanguage> languages,
+		List<ProfileLanguage> languages,
 		List<BuddyStyle> styles
 	) {
 		return new BuddyProfileService.UpsertCommand(
@@ -170,7 +198,7 @@ class BuddyProfileServiceTest {
 
 	private static BuddyProfileService.UpsertCommand imageCommand(String imageUrl) {
 		return new BuddyProfileService.UpsertCommand(
-			imageUrl, "Emma", null, List.of(PlaceLanguage.EN), KoreanLevel.BEGINNER,
+			imageUrl, "Emma", null, List.of(ProfileLanguage.EN), KoreanLevel.BEGINNER,
 			null, List.of(), List.of(), true, false, true);
 	}
 }

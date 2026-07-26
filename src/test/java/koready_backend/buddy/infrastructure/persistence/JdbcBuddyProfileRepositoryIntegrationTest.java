@@ -27,7 +27,8 @@ import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.KoreanLevel;
 import koready_backend.buddy.domain.SocialLinkType;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.buddy.domain.ProfileLanguage;
+import koready_backend.place.domain.TravelStyle;
 
 @Tag("integration")
 @SpringBootTest
@@ -61,7 +62,10 @@ class JdbcBuddyProfileRepositoryIntegrationTest {
 		assertEquals(FIRST, updated.createdAt());
 		assertEquals(SECOND, updated.updatedAt());
 		assertEquals("Emma Updated", updated.profile().nickname());
-		assertEquals(List.of(PlaceLanguage.KO), updated.profile().availableLanguages());
+		assertEquals(List.of(ProfileLanguage.KO), updated.profile().availableLanguages());
+		assertEquals(
+			List.of(TravelStyle.NATURE),
+			updated.profile().travelStyles());
 		assertEquals(List.of(BuddyStyle.QUIET_TRAVEL), updated.profile().buddyStyles());
 		assertEquals(
 			List.of(new BuddySocialLink(SocialLinkType.THREADS, "@emma_new")),
@@ -87,8 +91,11 @@ class JdbcBuddyProfileRepositoryIntegrationTest {
 
 		BuddyProfileRecord loaded = repository.findByUserId(active).orElseThrow();
 		assertEquals(loaded, repository.findActiveById(loaded.profileId()).orElseThrow());
-		assertEquals(List.of(PlaceLanguage.EN, PlaceLanguage.KO),
+		assertEquals(List.of(ProfileLanguage.VI, ProfileLanguage.KO),
 			loaded.profile().availableLanguages());
+		assertEquals(
+			List.of(TravelStyle.LOCAL_FOOD, TravelStyle.CULTURE_EXPERIENCE),
+			loaded.profile().travelStyles());
 		assertEquals(List.of(BuddyStyle.FOODIE, BuddyStyle.PHOTOGRAPHY),
 			loaded.profile().buddyStyles());
 		assertFalse(loaded.profile().snsPublic());
@@ -101,8 +108,9 @@ class JdbcBuddyProfileRepositoryIntegrationTest {
 			"https://cdn.example.com/emma.jpg",
 			"Emma",
 			"France",
-			List.of(PlaceLanguage.EN, PlaceLanguage.KO),
+			List.of(ProfileLanguage.VI, ProfileLanguage.KO),
 			KoreanLevel.BEGINNER,
+			List.of(TravelStyle.LOCAL_FOOD, TravelStyle.CULTURE_EXPERIENCE),
 			"Local food fan",
 			List.of(BuddyStyle.FOODIE, BuddyStyle.PHOTOGRAPHY),
 			List.of(
@@ -118,8 +126,9 @@ class JdbcBuddyProfileRepositoryIntegrationTest {
 			null,
 			"Emma Updated",
 			null,
-			List.of(PlaceLanguage.KO),
+			List.of(ProfileLanguage.KO),
 			KoreanLevel.ADVANCED,
+			List.of(TravelStyle.NATURE),
 			null,
 			List.of(BuddyStyle.QUIET_TRAVEL),
 			List.of(new BuddySocialLink(SocialLinkType.THREADS, "@emma_new")),

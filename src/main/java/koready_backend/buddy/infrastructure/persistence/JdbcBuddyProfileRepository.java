@@ -15,8 +15,9 @@ import koready_backend.buddy.domain.BuddyProfileDraft;
 import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.KoreanLevel;
+import koready_backend.buddy.domain.ProfileLanguage;
 import koready_backend.buddy.domain.SocialLinkType;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.place.domain.TravelStyle;
 
 @Repository
 public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
@@ -80,6 +81,7 @@ public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
 			row.nationality(),
 			languages(row.id()),
 			row.koreanLevel(),
+			travelStyles(row.userId()),
 			row.bio(),
 			styles(row.id()),
 			socialLinks(row.id()),
@@ -131,6 +133,7 @@ public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
 		replaceLanguages(profileId, profile.availableLanguages());
 		replaceStyles(profileId, profile.buddyStyles());
 		replaceSocialLinks(profileId, profile.socialLinks());
+		replaceTravelStyles(userId, profile.travelStyles(), updatedAt);
 		return findByUserId(userId).orElseThrow();
 	}
 
@@ -141,7 +144,7 @@ public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
 			publicId).stream().findFirst();
 	}
 
-	private List<PlaceLanguage> languages(long profileId) {
+	private List<ProfileLanguage> languages(long profileId) {
 		return jdbcTemplate.query(
 			"""
 			SELECT language_code
@@ -150,8 +153,21 @@ public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
 			ORDER BY display_order
 			""",
 			(resultSet, rowNumber) ->
-				PlaceLanguage.valueOf(resultSet.getString("language_code")),
+				ProfileLanguage.valueOf(resultSet.getString("language_code")),
 			profileId);
+	}
+
+	private List<TravelStyle> travelStyles(long userId) {
+		return jdbcTemplate.query(
+			"""
+			SELECT travel_style
+			FROM user_travel_styles
+			WHERE user_id = ?
+			ORDER BY display_order
+			""",
+			(resultSet, rowNumber) ->
+				TravelStyle.valueOf(resultSet.getString("travel_style")),
+			userId);
 	}
 
 	private List<BuddyStyle> styles(long profileId) {
@@ -181,7 +197,7 @@ public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
 			profileId);
 	}
 
-	private void replaceLanguages(long profileId, List<PlaceLanguage> languages) {
+	private void replaceLanguages(long profileId, List<ProfileLanguage> languages) {
 		jdbcTemplate.update(
 			"DELETE FROM buddy_profile_languages WHERE profile_id = ?", profileId);
 		if (languages.isEmpty()) {
@@ -193,6 +209,34 @@ public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
 			VALUES (?, ?, ?)
 			""",
 			indexed(languages.stream().map(Enum::name).toList(), profileId));
+	}
+
+	private void replaceTravelStyles(
+		long userId,
+		List<TravelStyle> travelStyles,
+		Instant updatedAt
+	) {
+		jdbcTemplate.update(
+			"DELETE FROM user_travel_styles WHERE user_id = ?", userId);
+		if (travelStyles.isEmpty()) {
+			return;
+		}
+		List<Object[]> rows = java.util.stream.IntStream.range(
+				0, travelStyles.size())
+			.mapToObj(index -> new Object[] {
+				userId,
+				travelStyles.get(index).name(),
+				index + 1,
+				Timestamp.from(updatedAt)
+			})
+			.toList();
+		jdbcTemplate.batchUpdate(
+			"""
+			INSERT INTO user_travel_styles
+			    (user_id, travel_style, display_order, created_at)
+			VALUES (?, ?, ?, ?)
+			""",
+			rows);
 	}
 
 	private void replaceStyles(long profileId, List<BuddyStyle> styles) {

@@ -43,6 +43,8 @@ public class SecurityConfig {
 				.permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/v1/monthly-recommendations")
 				.permitAll()
+				.requestMatchers(HttpMethod.GET, "/api/v1/profile-options")
+				.permitAll()
 				.anyRequest().authenticated());
 
 		localDevAuthenticationFilter.ifAvailable(filter ->

@@ -28,7 +28,8 @@ import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.KoreanLevel;
 import koready_backend.buddy.domain.SocialLinkType;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.buddy.domain.ProfileLanguage;
+import koready_backend.place.domain.TravelStyle;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -82,8 +83,9 @@ class BuddyProfileControllerTest {
 			.andExpect(jsonPath("$.code").value("BUDDY_PROFILE_SAVED"))
 			.andExpect(jsonPath("$.data.profileId").value(51))
 			.andExpect(jsonPath("$.data.nickname").value("Emma"))
-			.andExpect(jsonPath("$.data.availableLanguages[0]").value("EN"))
+			.andExpect(jsonPath("$.data.availableLanguages[0]").value("VI"))
 			.andExpect(jsonPath("$.data.koreanLevel").value("BEGINNER"))
+			.andExpect(jsonPath("$.data.travelStyles[0]").value("LOCAL_FOOD"))
 			.andExpect(jsonPath("$.data.buddyStyles[0]").value("FOODIE"))
 			.andExpect(jsonPath("$.data.socialLinks[0].type").value("INSTAGRAM"))
 			.andExpect(jsonPath("$.data.socialLinks[0].displayValue").value("@emma"))
@@ -134,8 +136,9 @@ class BuddyProfileControllerTest {
 			"https://cdn.example.com/emma.jpg",
 			"Emma",
 			"France",
-			List.of(PlaceLanguage.EN, PlaceLanguage.KO),
+			List.of(ProfileLanguage.VI, ProfileLanguage.KO),
 			KoreanLevel.BEGINNER,
+			List.of(TravelStyle.LOCAL_FOOD, TravelStyle.CULTURE_EXPERIENCE),
 			"Local food fan",
 			List.of(BuddyStyle.FOODIE),
 			List.of(new BuddySocialLink(SocialLinkType.INSTAGRAM, "@emma")),
@@ -153,8 +156,9 @@ class BuddyProfileControllerTest {
 			  "profileImageUrl": "https://cdn.example.com/emma.jpg",
 			  "nickname": "Emma",
 			  "nationality": "France",
-			  "availableLanguages": ["EN", "KO"],
+			  "availableLanguages": ["VI", "KO"],
 			  "koreanLevel": "BEGINNER",
+			  "travelStyles": ["LOCAL_FOOD", "CULTURE_EXPERIENCE"],
 			  "bio": "Local food fan",
 			  "buddyStyles": ["FOODIE"],
 			  "socialLinks": [{"type":"INSTAGRAM","value":"@emma"}],

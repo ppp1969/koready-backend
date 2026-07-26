@@ -80,6 +80,9 @@ class OpenApiContractTests {
 		"POST /admin/evidence-bundles",
 		"GET /admin/evidence-bundles/{bundleId}",
 		"POST /admin/evidence-bundles/{bundleId}/download-url",
+		"GET /admin/kto/english-match-reviews",
+		"GET /admin/kto/english-match-reviews/{sourceRecordId}",
+		"PUT /admin/kto/english-match-reviews/{sourceRecordId}/decision",
 		"GET /admin/batch-jobs",
 		"POST /admin/batch-jobs",
 		"GET /admin/batch-jobs/{jobId}",
@@ -140,7 +143,7 @@ class OpenApiContractTests {
 			}
 		}
 
-		assertEquals(72, operationCount, "Unexpected API operation count");
+		assertEquals(75, operationCount, "Unexpected API operation count");
 		collectReferences(contract, references);
 		for (String reference : references) {
 			assertLocalReferenceResolves(contract, reference);

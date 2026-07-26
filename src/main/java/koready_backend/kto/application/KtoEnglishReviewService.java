@@ -36,7 +36,6 @@ public class KtoEnglishReviewService {
 
 	private static final int MAX_PAGE_SIZE = 100;
 	private static final int MAX_CURSOR_LENGTH = 512;
-	private static final int QUALITY_SCAN_SIZE = 100;
 	private static final KtoEnglishSourceQualityClassifier QUALITY_CLASSIFIER =
 		new KtoEnglishSourceQualityClassifier();
 
@@ -56,47 +55,20 @@ public class KtoEnglishReviewService {
 		validate(query);
 		String fingerprint = fingerprint(
 			name(query.status()),
-			name(query.quality()),
 			normalizedSearch(query.search()),
 			String.valueOf(query.size()));
-		Long scanBeforeId = decodeCursor(query.cursor(), fingerprint);
-		List<ReviewSummaryView> matched = new ArrayList<>(query.size() + 1);
-		boolean exhausted = false;
-		while (matched.size() <= query.size() && !exhausted) {
-			int fetchSize = query.quality() == null
-				? query.size() + 1
-				: QUALITY_SCAN_SIZE;
-			List<ReviewSummaryRecord> rows = repository.findPage(new ReviewCriteria(
-				query.status(),
-				normalizedSearch(query.search()),
-				scanBeforeId,
-				fetchSize));
-			if (rows.isEmpty()) {
-				break;
-			}
-			Map<Long, KtoEnglishPlaceItem> sources = readSources(rows);
-			for (ReviewSummaryRecord row : rows) {
-				ReviewSummaryView item = summary(
-					row, sources.get(row.sourceRecordId()));
-				if (query.quality() == null
-					|| query.quality() == item.sourceQuality()) {
-					matched.add(item);
-					if (matched.size() > query.size()) {
-						break;
-					}
-				}
-			}
-			exhausted = rows.size() < fetchSize;
-			scanBeforeId = rows.getLast().sourceRecordId();
-			if (query.quality() == null) {
-				break;
-			}
-		}
-		boolean hasMore = matched.size() > query.size();
-		List<ReviewSummaryView> items =
-			matched.subList(0, Math.min(query.size(), matched.size()));
-		String nextCursor = hasMore && !items.isEmpty()
-			? encodeCursor(fingerprint, items.getLast().sourceRecordId())
+		Long beforeId = decodeCursor(query.cursor(), fingerprint);
+		List<ReviewSummaryRecord> rows = repository.findPage(new ReviewCriteria(
+			query.status(), normalizedSearch(query.search()), beforeId, query.size() + 1));
+		boolean hasMore = rows.size() > query.size();
+		List<ReviewSummaryRecord> visible =
+			rows.subList(0, Math.min(query.size(), rows.size()));
+		Map<Long, KtoEnglishPlaceItem> sources = readSources(visible);
+		List<ReviewSummaryView> items = visible.stream()
+			.map(row -> summary(row, sources.get(row.sourceRecordId())))
+			.toList();
+		String nextCursor = hasMore && !visible.isEmpty()
+			? encodeCursor(fingerprint, visible.getLast().sourceRecordId())
 			: null;
 		return new ReviewPage(items, nextCursor, hasMore);
 	}
@@ -345,19 +317,10 @@ public class KtoEnglishReviewService {
 
 	public record ReviewQuery(
 		KtoEnglishReviewStatus status,
-		KtoEnglishSourceQuality quality,
 		String search,
 		String cursor,
 		int size
 	) {
-		public ReviewQuery(
-			KtoEnglishReviewStatus status,
-			String search,
-			String cursor,
-			int size
-		) {
-			this(status, null, search, cursor, size);
-		}
 	}
 
 	public record ReviewPage(

@@ -67,7 +67,7 @@ class KtoEnglishReviewServiceTest {
 	}
 
 	@Test
-	void filtersReviewsByComputedSourceQuality() {
+	void classifiesSourcesWithoutScanningPastTheRequestedPage() {
 		ReviewSummaryRecord russian = summary(32L, "eng-2");
 		ReviewSummaryRecord english = summary(31L, "eng-1");
 		when(repository.findPage(any())).thenReturn(List.of(russian, english));
@@ -77,13 +77,16 @@ class KtoEnglishReviewServiceTest {
 				"eng-1", source("eng-1", "Gyeongbokgung Palace")));
 
 		var page = service.list(new KtoEnglishReviewService.ReviewQuery(
-			null, KtoEnglishSourceQuality.USABLE, null, null, 20));
+			null, null, null, 20));
 
-		assertEquals(1, page.items().size());
-		assertEquals("eng-1", page.items().getFirst().sourceContentId());
+		assertEquals(2, page.items().size());
+		assertEquals(
+			KtoEnglishSourceQuality.NON_ENGLISH_SUSPECTED,
+			page.items().getFirst().sourceQuality());
 		assertEquals(
 			KtoEnglishSourceQuality.USABLE,
-			page.items().getFirst().sourceQuality());
+			page.items().getLast().sourceQuality());
+		verify(repository).findPage(any());
 	}
 
 	@Test

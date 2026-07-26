@@ -15,7 +15,8 @@ import koready_backend.buddy.domain.BuddyProfileDraft;
 import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.KoreanLevel;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.buddy.domain.ProfileLanguage;
+import koready_backend.place.domain.TravelStyle;
 
 @Service
 public class BuddyProfileService {
@@ -54,6 +55,7 @@ public class BuddyProfileService {
 			command.nationality(),
 			command.availableLanguages(),
 			command.koreanLevel(),
+			command.travelStyles(),
 			command.bio(),
 			command.buddyStyles(),
 			command.socialLinks(),
@@ -68,8 +70,9 @@ public class BuddyProfileService {
 		String profileImageUrl,
 		String nickname,
 		String nationality,
-		List<PlaceLanguage> availableLanguages,
+		List<ProfileLanguage> availableLanguages,
 		KoreanLevel koreanLevel,
+		List<TravelStyle> travelStyles,
 		String bio,
 		List<BuddyStyle> buddyStyles,
 		List<BuddySocialLink> socialLinks,
@@ -77,6 +80,34 @@ public class BuddyProfileService {
 		boolean snsPublic,
 		boolean allowsMessages
 	) {
+
+		public UpsertCommand(
+			String profileImageUrl,
+			String nickname,
+			String nationality,
+			List<ProfileLanguage> availableLanguages,
+			KoreanLevel koreanLevel,
+			String bio,
+			List<BuddyStyle> buddyStyles,
+			List<BuddySocialLink> socialLinks,
+			boolean profilePublic,
+			boolean snsPublic,
+			boolean allowsMessages
+		) {
+			this(
+				profileImageUrl,
+				nickname,
+				nationality,
+				availableLanguages,
+				koreanLevel,
+				List.of(),
+				bio,
+				buddyStyles,
+				socialLinks,
+				profilePublic,
+				snsPublic,
+				allowsMessages);
+		}
 	}
 
 	public record MyProfileResult(

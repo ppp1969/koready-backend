@@ -25,7 +25,7 @@ import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.KoreanLevel;
 import koready_backend.buddy.domain.SocialLinkType;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.buddy.domain.ProfileLanguage;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -98,7 +98,7 @@ class BuddyPublicProfileControllerTest {
 			"https://cdn.example.com/target.jpg",
 			"Target",
 			"France",
-			List.of(PlaceLanguage.EN, PlaceLanguage.KO),
+			List.of(ProfileLanguage.EN, ProfileLanguage.KO),
 			KoreanLevel.BEGINNER,
 			"Local food fan",
 			List.of(BuddyStyle.FOODIE),

@@ -7,14 +7,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.place.domain.TravelStyle;
 
 public record BuddyProfileDraft(
 	String profileImageUrl,
 	String nickname,
 	String nationality,
-	List<PlaceLanguage> availableLanguages,
+	List<ProfileLanguage> availableLanguages,
 	KoreanLevel koreanLevel,
+	List<TravelStyle> travelStyles,
 	String bio,
 	List<BuddyStyle> buddyStyles,
 	List<BuddySocialLink> socialLinks,
@@ -29,10 +30,52 @@ public record BuddyProfileDraft(
 		nationality = optional(nationality, 100, "Nationality");
 		availableLanguages = copyDistinct(
 			availableLanguages, true, "Available languages");
+		if (availableLanguages.size() > 5) {
+			throw new IllegalArgumentException(
+				"Available languages must not contain more than 5 values");
+		}
 		koreanLevel = Objects.requireNonNull(koreanLevel, "Korean level is required");
+		travelStyles = copyDistinct(travelStyles, false, "Travel styles");
+		if (travelStyles.size() > 4) {
+			throw new IllegalArgumentException(
+				"Travel styles must not contain more than 4 values");
+		}
 		bio = optional(bio, 500, "Bio");
 		buddyStyles = copyDistinct(buddyStyles, false, "Buddy styles");
 		socialLinks = copy(socialLinks, "Social links");
+		if (socialLinks.stream().map(BuddySocialLink::type).distinct().count()
+			!= socialLinks.size()) {
+			throw new IllegalArgumentException(
+				"Social links must not contain duplicate platforms");
+		}
+	}
+
+	public BuddyProfileDraft(
+		String profileImageUrl,
+		String nickname,
+		String nationality,
+		List<ProfileLanguage> availableLanguages,
+		KoreanLevel koreanLevel,
+		String bio,
+		List<BuddyStyle> buddyStyles,
+		List<BuddySocialLink> socialLinks,
+		boolean profilePublic,
+		boolean snsPublic,
+		boolean allowsMessages
+	) {
+		this(
+			profileImageUrl,
+			nickname,
+			nationality,
+			availableLanguages,
+			koreanLevel,
+			List.of(),
+			bio,
+			buddyStyles,
+			socialLinks,
+			profilePublic,
+			snsPublic,
+			allowsMessages);
 	}
 
 	private static String required(String value, int maxLength, String field) {

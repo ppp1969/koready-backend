@@ -41,6 +41,7 @@ final class BuddyProfileViews {
 			profile.nationality(),
 			profile.availableLanguages(),
 			profile.koreanLevel(),
+			profile.travelStyles(),
 			profile.bio(),
 			profile.buddyStyles(),
 			socialLinks,

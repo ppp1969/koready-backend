@@ -28,7 +28,8 @@ import koready_backend.buddy.application.port.BuddyMateRepository.MateRow;
 import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.SocialLinkType;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.buddy.domain.ProfileLanguage;
+import koready_backend.place.domain.TravelStyle;
 
 @Tag("integration")
 @SpringBootTest
@@ -112,8 +113,11 @@ class JdbcBuddyMateRepositoryIntegrationTest {
 
 		assertEquals(List.of(recentProfile, olderProfile),
 			rows.stream().map(row -> row.profile().profileId()).toList());
-		assertEquals(List.of(PlaceLanguage.EN, PlaceLanguage.KO),
+		assertEquals(List.of(ProfileLanguage.EN, ProfileLanguage.KO),
 			rows.getFirst().profile().profile().availableLanguages());
+		assertEquals(
+			List.of(TravelStyle.LOCAL_FOOD),
+			rows.getFirst().profile().profile().travelStyles());
 		assertEquals(List.of(BuddyStyle.FOODIE, BuddyStyle.PHOTOGRAPHY),
 			rows.getFirst().profile().profile().buddyStyles());
 		assertEquals(List.of(
@@ -170,6 +174,13 @@ class JdbcBuddyMateRepositoryIntegrationTest {
 			""",
 			profileId,
 			profileId);
+		jdbcTemplate.update(
+			"""
+			INSERT INTO user_travel_styles
+			    (user_id, travel_style, display_order, created_at)
+			VALUES (?, 'LOCAL_FOOD', 1, NOW(6))
+			""",
+			userId);
 		jdbcTemplate.update(
 			"""
 			INSERT INTO buddy_profile_styles (profile_id, buddy_style, display_order)

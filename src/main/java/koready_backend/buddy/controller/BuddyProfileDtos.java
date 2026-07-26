@@ -12,8 +12,9 @@ import koready_backend.buddy.application.model.BuddyProfileView;
 import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.KoreanLevel;
+import koready_backend.buddy.domain.ProfileLanguage;
 import koready_backend.buddy.domain.SocialLinkType;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.place.domain.TravelStyle;
 
 final class BuddyProfileDtos {
 
@@ -34,6 +35,7 @@ final class BuddyProfileDtos {
 			profile.nationality(),
 			profile.availableLanguages(),
 			profile.koreanLevel(),
+			profile.travelStyles(),
 			profile.bio(),
 			profile.buddyStyles(),
 			profile.socialLinks().stream()
@@ -51,9 +53,11 @@ final class BuddyProfileDtos {
 		@Size(max = 2048) String profileImageUrl,
 		@NotBlank @Size(max = 30) String nickname,
 		@Size(max = 100) String nationality,
-		@NotNull @Size(min = 1, max = 2)
-		List<@NotNull PlaceLanguage> availableLanguages,
+		@NotNull @Size(min = 1, max = 5)
+		List<@NotNull ProfileLanguage> availableLanguages,
 		@NotNull KoreanLevel koreanLevel,
+		@NotNull @Size(min = 1, max = 4)
+		List<@NotNull TravelStyle> travelStyles,
 		@Size(max = 500) String bio,
 		@NotNull @Size(max = 6) List<@NotNull BuddyStyle> buddyStyles,
 		@Size(max = 20) List<@NotNull @Valid SocialLinkInput> socialLinks,
@@ -71,6 +75,7 @@ final class BuddyProfileDtos {
 				nationality,
 				availableLanguages,
 				koreanLevel,
+				travelStyles,
 				bio,
 				buddyStyles,
 				links,
@@ -100,8 +105,9 @@ final class BuddyProfileDtos {
 		String profileImageUrl,
 		String nickname,
 		String nationality,
-		List<PlaceLanguage> availableLanguages,
+		List<ProfileLanguage> availableLanguages,
 		KoreanLevel koreanLevel,
+		List<TravelStyle> travelStyles,
 		String bio,
 		List<BuddyStyle> buddyStyles,
 		List<SocialLinkResponse> socialLinks,

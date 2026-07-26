@@ -21,8 +21,9 @@ import koready_backend.buddy.domain.BuddyProfileDraft;
 import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.KoreanLevel;
+import koready_backend.buddy.domain.ProfileLanguage;
 import koready_backend.buddy.domain.SocialLinkType;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.place.domain.TravelStyle;
 
 @Repository
 public class JdbcBuddyMateRepository implements BuddyMateRepository {
@@ -128,7 +129,9 @@ public class JdbcBuddyMateRepository implements BuddyMateRepository {
 			return List.of();
 		}
 		List<Long> profileIds = rows.stream().map(ProfileBaseRow::profileId).toList();
-		Map<Long, List<PlaceLanguage>> languages = languages(profileIds);
+		List<Long> userIds = rows.stream().map(ProfileBaseRow::userId).toList();
+		Map<Long, List<ProfileLanguage>> languages = languages(profileIds);
+		Map<Long, List<TravelStyle>> travelStyles = travelStyles(userIds);
 		Map<Long, List<BuddyStyle>> styles = styles(profileIds);
 		Map<Long, List<BuddySocialLink>> socialLinks = socialLinks(profileIds);
 
@@ -139,6 +142,7 @@ public class JdbcBuddyMateRepository implements BuddyMateRepository {
 				row.nationality(),
 				languages.getOrDefault(row.profileId(), List.of()),
 				row.koreanLevel(),
+				travelStyles.getOrDefault(row.userId(), List.of()),
 				row.bio(),
 				styles.getOrDefault(row.profileId(), List.of()),
 				socialLinks.getOrDefault(row.profileId(), List.of()),
@@ -155,8 +159,8 @@ public class JdbcBuddyMateRepository implements BuddyMateRepository {
 		}).toList();
 	}
 
-	private Map<Long, List<PlaceLanguage>> languages(List<Long> profileIds) {
-		Map<Long, List<PlaceLanguage>> values = new HashMap<>();
+	private Map<Long, List<ProfileLanguage>> languages(List<Long> profileIds) {
+		Map<Long, List<ProfileLanguage>> values = new HashMap<>();
 		namedJdbcTemplate.query(
 			"""
 			SELECT profile_id, language_code
@@ -167,7 +171,24 @@ public class JdbcBuddyMateRepository implements BuddyMateRepository {
 			ids(profileIds),
 			(RowCallbackHandler) resultSet -> values
 				.computeIfAbsent(resultSet.getLong("profile_id"), ignored -> new ArrayList<>())
-				.add(PlaceLanguage.valueOf(resultSet.getString("language_code"))));
+				.add(ProfileLanguage.valueOf(resultSet.getString("language_code"))));
+		return values;
+	}
+
+	private Map<Long, List<TravelStyle>> travelStyles(List<Long> userIds) {
+		Map<Long, List<TravelStyle>> values = new HashMap<>();
+		namedJdbcTemplate.query(
+			"""
+			SELECT user_id, travel_style
+			FROM user_travel_styles
+			WHERE user_id IN (:userIds)
+			ORDER BY user_id, display_order
+			""",
+			new MapSqlParameterSource().addValue("userIds", userIds),
+			(RowCallbackHandler) resultSet -> values
+				.computeIfAbsent(
+					resultSet.getLong("user_id"), ignored -> new ArrayList<>())
+				.add(TravelStyle.valueOf(resultSet.getString("travel_style"))));
 		return values;
 	}
 

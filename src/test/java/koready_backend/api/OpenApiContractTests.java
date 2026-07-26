@@ -39,6 +39,7 @@ class OpenApiContractTests {
 		"GET /places",
 		"GET /places/search",
 		"GET /places/{placeId}",
+		"GET /profile-options",
 		"GET /users/me/saved-places",
 		"PUT /users/me/saved-places/{placeId}",
 		"DELETE /users/me/saved-places/{placeId}",
@@ -89,7 +90,8 @@ class OpenApiContractTests {
 		"GET /monthly-recommendations",
 		"GET /places",
 		"GET /places/search",
-		"GET /places/{placeId}");
+		"GET /places/{placeId}",
+		"GET /profile-options");
 
 	@Test
 	void frontendContractIsCompleteAndInternallyConsistent() throws IOException {
@@ -138,7 +140,7 @@ class OpenApiContractTests {
 			}
 		}
 
-		assertEquals(71, operationCount, "Unexpected API operation count");
+		assertEquals(72, operationCount, "Unexpected API operation count");
 		collectReferences(contract, references);
 		for (String reference : references) {
 			assertLocalReferenceResolves(contract, reference);
@@ -798,8 +800,13 @@ class OpenApiContractTests {
 		Map<String, Object> languages = asMap(
 			properties.get("availableLanguages"), "availableLanguages");
 		assertEquals(1, languages.get("minItems"));
-		assertEquals(2, languages.get("maxItems"));
+		assertEquals(5, languages.get("maxItems"));
 		assertEquals(true, languages.get("uniqueItems"));
+		Map<String, Object> travelStyles = asMap(
+			properties.get("travelStyles"), "travelStyles");
+		assertEquals(1, travelStyles.get("minItems"));
+		assertEquals(4, travelStyles.get("maxItems"));
+		assertEquals(true, travelStyles.get("uniqueItems"));
 		Map<String, Object> styles = asMap(properties.get("buddyStyles"), "buddyStyles");
 		assertEquals(6, styles.get("maxItems"));
 		assertEquals(true, styles.get("uniqueItems"));

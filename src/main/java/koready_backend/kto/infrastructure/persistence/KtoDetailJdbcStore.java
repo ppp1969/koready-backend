@@ -56,6 +56,14 @@ public class KtoDetailJdbcStore implements KtoDetailStore {
 				throw new KtoSnapshotConflictException();
 			}
 			verifyReplay(command, existing);
+			upsertCheckpoint(
+				command.target().placeId(),
+				existing.entrySet().stream().collect(
+					java.util.stream.Collectors.toMap(
+						Map.Entry::getKey,
+						entry -> entry.getValue().id())),
+				storedDetailImageCount(command.target().placeId()),
+				latestCapturedAt(command));
 			return;
 		}
 
@@ -76,10 +84,15 @@ public class KtoDetailJdbcStore implements KtoDetailStore {
 			command.target(),
 			operation(command, KtoDetailOperation.INFO),
 			snapshotIds.get(KtoDetailOperation.INFO));
-		replaceImages(
+		int imageCount = replaceImages(
 			command.target(),
 			operation(command, KtoDetailOperation.IMAGE));
 		advanceCursors(command.target().placeId(), command.operations());
+		upsertCheckpoint(
+			command.target().placeId(),
+			snapshotIds,
+			imageCount,
+			latestCapturedAt(command));
 	}
 
 	private Map<KtoDetailOperation, ExistingSnapshot> existing(
@@ -362,7 +375,7 @@ public class KtoDetailJdbcStore implements KtoDetailStore {
 			});
 	}
 
-	private void replaceImages(
+	private int replaceImages(
 		KtoDetailTarget target,
 		KtoStoredDetailOperation operation
 	) {
@@ -386,7 +399,7 @@ public class KtoDetailJdbcStore implements KtoDetailStore {
 				optional(item.get("cpyrhtDivCd"), 30)));
 		}
 		if (rows.isEmpty()) {
-			return;
+			return 0;
 		}
 		jdbcTemplate.batchUpdate(
 			"""
@@ -408,6 +421,69 @@ public class KtoDetailJdbcStore implements KtoDetailStore {
 				statement.setString(7, row.imageName());
 				statement.setString(8, row.copyrightType());
 			});
+		return rows.size();
+	}
+
+	private int storedDetailImageCount(long placeId) {
+		Integer count = jdbcTemplate.queryForObject(
+			"""
+			SELECT COUNT(*)
+			FROM place_images
+			WHERE place_id = ? AND source_type = 'KTO_DETAIL'
+			""",
+			Integer.class,
+			placeId);
+		return count == null ? 0 : count;
+	}
+
+	private Instant latestCapturedAt(KtoStoreDetailCommand command) {
+		return command.operations().stream()
+			.map(operation -> operation.snapshot().capturedAt())
+			.max(Instant::compareTo)
+			.orElseThrow();
+	}
+
+	private void upsertCheckpoint(
+		long placeId,
+		Map<KtoDetailOperation, Long> snapshotIds,
+		int imageCount,
+		Instant completedAt
+	) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO kto_place_detail_sync_status
+				(place_id, common_snapshot_id, intro_snapshot_id,
+				 info_snapshot_id, image_snapshot_id, image_count,
+				 completed_at, next_refresh_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, DATE_ADD(?, INTERVAL 30 DAY))
+			ON DUPLICATE KEY UPDATE
+				common_snapshot_id = VALUES(common_snapshot_id),
+				intro_snapshot_id = VALUES(intro_snapshot_id),
+				info_snapshot_id = VALUES(info_snapshot_id),
+				image_snapshot_id = VALUES(image_snapshot_id),
+				image_count = VALUES(image_count),
+				completed_at = VALUES(completed_at),
+				next_refresh_at = VALUES(next_refresh_at)
+			""",
+			placeId,
+			requiredSnapshotId(snapshotIds, KtoDetailOperation.COMMON),
+			requiredSnapshotId(snapshotIds, KtoDetailOperation.INTRO),
+			requiredSnapshotId(snapshotIds, KtoDetailOperation.INFO),
+			requiredSnapshotId(snapshotIds, KtoDetailOperation.IMAGE),
+			imageCount,
+			Timestamp.from(completedAt),
+			Timestamp.from(completedAt));
+	}
+
+	private long requiredSnapshotId(
+		Map<KtoDetailOperation, Long> snapshotIds,
+		KtoDetailOperation operation
+	) {
+		Long snapshotId = snapshotIds.get(operation);
+		if (snapshotId == null || snapshotId <= 0) {
+			throw new IllegalStateException("KTO detail snapshot ID is missing");
+		}
+		return snapshotId;
 	}
 
 	private void advanceCursors(

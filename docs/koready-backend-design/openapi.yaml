@@ -3126,7 +3126,7 @@ components:
     BatchJobType:
       type: string
       description: 현재 수동 실행을 허용하는 KTO 작업 유형
-      enum: [KTO_DAILY_SYNC, KTO_FESTIVAL_SYNC, KTO_DETAIL_ENRICHMENT, KTO_EN_SYNC, AI_TRANSLATION, IMAGE_ENRICHMENT]
+      enum: [KTO_DAILY_SYNC, KTO_FULL_CATALOG_SYNC, KTO_FESTIVAL_SYNC, KTO_DETAIL_ENRICHMENT, KTO_EN_SYNC, AI_TRANSLATION, IMAGE_ENRICHMENT]
     SocialLoginRequest:
       type: object
       required: [provider, deviceId]

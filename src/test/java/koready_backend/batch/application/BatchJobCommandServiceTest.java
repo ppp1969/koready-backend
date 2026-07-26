@@ -77,6 +77,23 @@ class BatchJobCommandServiceTest {
 	}
 
 	@Test
+	void acceptsAnEnglishCatalogJobWithTheDefaultPageWindow() {
+		when(repository.enqueue(any())).thenReturn(94L);
+		BatchJobCommandService service = service();
+
+		var accepted = service.accept(new BatchJobCommandService.CreateCommand(
+			BatchJobType.KTO_EN_SYNC,
+			Map.of(),
+			"Start the English KTO catalog import", "operator-7"));
+
+		ArgumentCaptor<EnqueueCommand> captor = ArgumentCaptor.forClass(EnqueueCommand.class);
+		verify(repository).enqueue(captor.capture());
+		assertEquals(BatchJobType.KTO_EN_SYNC, accepted.jobType());
+		assertEquals(1, captor.getValue().parameters().get("startPage"));
+		assertEquals(20, captor.getValue().parameters().get("maxPages"));
+	}
+
+	@Test
 	void retriesOnlyFailedJobsWithANewLinkedJob() {
 		when(repository.findRetrySourceForUpdate(7L)).thenReturn(Optional.of(new RetrySource(
 			7L, BatchJobType.KTO_DAILY_SYNC, BatchJobStatus.FAILED, Map.of("startPage", 1, "maxPages", 1))));

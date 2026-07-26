@@ -18,9 +18,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import koready_backend.batch.application.port.BatchJobExecutionRepository.ClaimedJob;
 import koready_backend.batch.domain.BatchJobType;
 import koready_backend.kto.application.KtoDailySyncImportService;
+import koready_backend.kto.application.KtoEnglishSyncImportService;
 import koready_backend.kto.application.KtoFestivalImportService;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDailySyncResult;
+import koready_backend.kto.application.model.KtoEnglishSyncResult;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
 import koready_backend.kto.application.model.KtoFestivalImportResult;
 
@@ -29,6 +31,9 @@ class KtoBatchJobRunnerAdapterTest {
 
 	@Mock
 	KtoDailySyncImportService dailySyncService;
+
+	@Mock
+	KtoEnglishSyncImportService englishSyncService;
 
 	@Mock
 	KtoFestivalImportService festivalImportService;
@@ -97,7 +102,38 @@ class KtoBatchJobRunnerAdapterTest {
 		assertNull(result.continuation());
 	}
 
+	@Test
+	void schedulesTheNextBoundedRangeWhenTheEnglishCatalogHasMorePages() {
+		when(englishSyncService.sync(any(), any())).thenReturn(new KtoEnglishSyncResult(
+			20, 4_000, 3_100, 120, 780, 3_100, 0, 25_348, 40, true));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_EN_SYNC,
+			Map.of("startPage", 21, "maxPages", 20),
+			47L));
+
+		assertEquals(BatchJobType.KTO_EN_SYNC, result.continuation().jobType());
+		assertEquals(41, result.continuation().parameters().get("startPage"));
+		assertEquals(20, result.continuation().parameters().get("maxPages"));
+		assertEquals(4_000, result.successCount());
+	}
+
+	@Test
+	void endsTheEnglishCatalogJobAtTheLastPage() {
+		when(englishSyncService.sync(any(), any())).thenReturn(new KtoEnglishSyncResult(
+			7, 1_348, 1_000, 48, 300, 1_000, 0, 25_348, 127, false));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_EN_SYNC,
+			Map.of("startPage", 121, "maxPages", 20),
+			47L));
+
+		assertNull(result.continuation());
+	}
+
 	private KtoBatchJobRunnerAdapter adapter() {
-		return new KtoBatchJobRunnerAdapter(dailySyncService, festivalImportService);
+		return new KtoBatchJobRunnerAdapter(dailySyncService, englishSyncService, festivalImportService);
 	}
 }

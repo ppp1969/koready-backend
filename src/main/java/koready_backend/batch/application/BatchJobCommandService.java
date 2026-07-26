@@ -28,7 +28,10 @@ import koready_backend.batch.domain.BatchTriggerSource;
 public class BatchJobCommandService {
 
 	private static final Set<BatchJobType> MANUAL_TYPES = Set.of(
-		BatchJobType.KTO_DAILY_SYNC, BatchJobType.KTO_FULL_CATALOG_SYNC, BatchJobType.KTO_FESTIVAL_SYNC);
+		BatchJobType.KTO_DAILY_SYNC,
+		BatchJobType.KTO_FULL_CATALOG_SYNC,
+		BatchJobType.KTO_FESTIVAL_SYNC,
+		BatchJobType.KTO_EN_SYNC);
 	private static final int MAX_PAGES = 20;
 
 	private final BatchJobCommandRepository repository;
@@ -92,7 +95,8 @@ public class BatchJobCommandService {
 		}
 		Map<String, Object> input = command.parameters() == null ? Map.of() : command.parameters();
 		int startPage = positive(input.get("startPage"), 1, 100_000, "startPage");
-		int defaultMaxPages = command.jobType() == BatchJobType.KTO_FULL_CATALOG_SYNC ? MAX_PAGES : 1;
+		int defaultMaxPages = command.jobType() == BatchJobType.KTO_FULL_CATALOG_SYNC
+			|| command.jobType() == BatchJobType.KTO_EN_SYNC ? MAX_PAGES : 1;
 		int maxPages = positive(input.get("maxPages"), defaultMaxPages, MAX_PAGES, "maxPages");
 		LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
 		parameters.put("startPage", startPage);

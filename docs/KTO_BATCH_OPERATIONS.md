@@ -249,7 +249,8 @@ snapshot 저장소를 사용했으므로 통제된 부하 시험은 아니다. �
 
 ## 관리자 수동 배치 운영 (구현)
 
-- `POST /api/v1/admin/batch-jobs`는 `KTO_FULL_CATALOG_SYNC`, `KTO_DAILY_SYNC`, `KTO_FESTIVAL_SYNC`를 대기열에 넣는다. `KTO_FULL_CATALOG_SYNC`는 `maxPages`를 생략하면 한 job에서 20페이지를 처리하고, 성공한 경우에만 다음 페이지 범위 job을 자동으로 연결한다. `202 Accepted`는 실행 완료가 아니므로 반환된 `jobId`를 조회한다.
+- `POST /api/v1/admin/batch-jobs`는 `KTO_FULL_CATALOG_SYNC`, `KTO_EN_SYNC`, `KTO_DAILY_SYNC`, `KTO_FESTIVAL_SYNC`를 대기열에 넣는다. `KTO_FULL_CATALOG_SYNC`와 `KTO_EN_SYNC`는 `maxPages`를 생략하면 한 job에서 20페이지를 처리하고, 성공한 경우에만 다음 페이지 범위 job을 자동으로 연결한다. `202 Accepted`는 실행 완료가 아니므로 반환된 `jobId`를 조회한다.
+- `KTO_EN_SYNC` 원본은 `kto/eng/areaBasedSyncList2/...` S3 경로에 변경 불가능한 압축 스냅샷으로 저장한다. 국문 장소와 영문 항목은 대표 이미지 경로를 우선 비교하고, 이미지로 결정할 수 없을 때만 좌표(소수점 6자리)와 관광 유형을 함께 비교한다. 후보가 여러 개이거나 두 기준이 충돌하면 자동 반영하지 않고 검토 대상으로 남긴다.
 - 일일 동기화는 `startPage`(기본 1, 최대 100000)와 `maxPages`(기본 1, 최대 20)를 받는다. 축제 수집은 같은 범위에 `eventStartDate`를 추가로 받는다.
 - DB의 단일 실행 슬롯으로 `PENDING` 또는 `RUNNING` 작업을 전 서버에서 하나만 허용한다. 중복 접수는 `409 BATCH_JOB_ALREADY_ACTIVE`다.
 - 실패 또는 부분 실패 작업만 `POST /api/v1/admin/batch-jobs/{jobId}/retry`에서 `scope=FAILED_ITEMS`로 새 job을 만들 수 있다. 원본 job은 변경하지 않으며 새 job은 `parentJobId`로 연결한다. 전체 목록 수집이 중단된 경우에는 실패한 페이지 범위만 재시도하며, 이미 저장된 이전 페이지는 immutable snapshot과 KTO contentId 기준 upsert로 안전하게 재실행한다.

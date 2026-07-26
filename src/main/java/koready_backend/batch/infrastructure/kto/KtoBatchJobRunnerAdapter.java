@@ -10,22 +10,27 @@ import koready_backend.batch.application.port.KtoBatchJobRunner;
 import koready_backend.batch.application.model.BatchJobContinuation;
 import koready_backend.batch.domain.BatchJobType;
 import koready_backend.kto.application.KtoDailySyncImportService;
+import koready_backend.kto.application.KtoEnglishSyncImportService;
 import koready_backend.kto.application.KtoFestivalImportService;
-import koready_backend.kto.application.model.KtoDailySyncRequest;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
+import koready_backend.kto.application.model.KtoDailySyncRequest;
+import koready_backend.kto.application.model.KtoEnglishSyncRequest;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
 
 @Component
 public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 
 	private final KtoDailySyncImportService dailySyncService;
+	private final KtoEnglishSyncImportService englishSyncService;
 	private final KtoFestivalImportService festivalImportService;
 
 	public KtoBatchJobRunnerAdapter(
 		KtoDailySyncImportService dailySyncService,
+		KtoEnglishSyncImportService englishSyncService,
 		KtoFestivalImportService festivalImportService
 	) {
 		this.dailySyncService = dailySyncService;
+		this.englishSyncService = englishSyncService;
 		this.festivalImportService = festivalImportService;
 	}
 
@@ -42,6 +47,15 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 			var result = dailySyncService.sync(new KtoDailySyncRequest(startPage, maxPages), batchExecution);
 			var continuation = result.truncatedByPageLimit()
 				? new BatchJobContinuation(BatchJobType.KTO_FULL_CATALOG_SYNC, Map.of(
+					"startPage", result.lastProcessedPage() + 1,
+					"maxPages", maxPages))
+				: null;
+			return new RunResult(result.processedItems(), result.processedItems(), 0, continuation);
+		}
+		if (job.jobType() == BatchJobType.KTO_EN_SYNC) {
+			var result = englishSyncService.sync(new KtoEnglishSyncRequest(startPage, maxPages), batchExecution);
+			var continuation = result.truncatedByPageLimit()
+				? new BatchJobContinuation(BatchJobType.KTO_EN_SYNC, Map.of(
 					"startPage", result.lastProcessedPage() + 1,
 					"maxPages", maxPages))
 				: null;

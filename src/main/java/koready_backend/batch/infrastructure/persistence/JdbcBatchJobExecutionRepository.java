@@ -111,15 +111,19 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 		jdbcTemplate.update("""
 			INSERT INTO admin_audit_logs
 				(actor_subject, action, resource_type, resource_id, reason, after_snapshot, created_at)
-			VALUES ('SYSTEM:KTO_FULL_CATALOG_SYNC', 'BATCH_JOB_CONTINUED', 'BATCH_JOB', ?,
-				'Continue KTO full catalog import.', CAST(? AS JSON), ?)
-			""", Long.toString(jobId), json(continuation.parameters()), Timestamp.from(createdAt));
+			VALUES (?, 'BATCH_JOB_CONTINUED', 'BATCH_JOB', ?,
+				'Continue bounded KTO catalog import.', CAST(? AS JSON), ?)
+			""",
+			"SYSTEM:" + continuation.jobType().name(), Long.toString(jobId),
+			json(continuation.parameters()), Timestamp.from(createdAt));
 	}
 
 	private static String targetId(BatchJobContinuation continuation) {
-		String operation = continuation.jobType() == BatchJobType.KTO_FESTIVAL_SYNC
-			? "searchFestival2"
-			: "areaBasedSyncList2";
+		String operation = switch (continuation.jobType()) {
+			case KTO_FESTIVAL_SYNC -> "searchFestival2";
+			case KTO_EN_SYNC -> "ENG:areaBasedSyncList2";
+			default -> "areaBasedSyncList2";
+		};
 		return operation + ":" + continuation.parameters().getOrDefault("startPage", 1)
 			+ "+" + continuation.parameters().getOrDefault("maxPages", 1);
 	}

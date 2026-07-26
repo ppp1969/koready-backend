@@ -5,6 +5,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -123,6 +124,32 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		  AND COALESCE(requested.id, korean.id) IS NOT NULL
 		""";
 
+	private static final String PLACE_IMAGES = """
+		SELECT
+		    image.image_url,
+		    COALESCE(
+		        NULLIF(TRIM(image.source_image_name), ''),
+		        localized.title
+		    ) AS alt_text
+		FROM place_images image
+		JOIN place_localizations localized
+		    ON localized.place_id = image.place_id
+		   AND localized.language = 'KO'
+		WHERE image.place_id = :placeId
+		ORDER BY
+		    image.source_priority DESC,
+		    image.source_order ASC,
+		    image.id ASC
+		LIMIT 4
+		""";
+
+	private static final String PLACE_DETAIL_FACTS = """
+		SELECT field_code, value_text
+		FROM place_detail_attributes
+		WHERE place_id = :placeId
+		ORDER BY source_operation ASC, item_sequence ASC, id ASC
+		""";
+
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 
 	public JdbcPlaceQueryRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -179,6 +206,49 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		return jdbcTemplate.query(PLACE_DETAIL, parameters, this::mapDetail)
 			.stream()
 			.findFirst();
+	}
+
+	@Override
+	public List<PlaceImageRow> findImages(long placeId) {
+		return jdbcTemplate.query(
+			PLACE_IMAGES,
+			new MapSqlParameterSource("placeId", placeId),
+			(resultSet, rowNumber) -> new PlaceImageRow(
+				resultSet.getString("image_url"),
+				resultSet.getString("alt_text")));
+	}
+
+	@Override
+	public PlaceDetailFacts findDetailFacts(long placeId) {
+		Map<String, String> facts = new LinkedHashMap<>();
+		List<Map.Entry<String, String>> rows = jdbcTemplate.query(
+			PLACE_DETAIL_FACTS,
+			new MapSqlParameterSource("placeId", placeId),
+			(resultSet, rowNumber) -> Map.entry(
+				resultSet.getString("field_code"),
+				resultSet.getString("value_text")));
+		for (Map.Entry<String, String> row : rows) {
+			facts.putIfAbsent(row.getKey(), row.getValue());
+		}
+		return new PlaceDetailFacts(
+			first(facts, "usetime", "opentimefood", "usetimeculture",
+				"usetimeleports", "checkintime"),
+			first(facts, "useseason", "opendate", "eventstartdate"),
+			first(facts, "restdate", "restdatefood", "restdateculture",
+				"restdateleports", "restdateaccom"),
+			first(facts, "usefee", "usefeefood", "normalized_usagefee"),
+			first(facts, "parking", "parkingfood", "parkingculture",
+				"parkingleports", "parkinglodging"));
+	}
+
+	private static String first(Map<String, String> facts, String... keys) {
+		for (String key : keys) {
+			String value = facts.get(key);
+			if (value != null && !value.isBlank()) {
+				return value;
+			}
+		}
+		return null;
 	}
 
 	private List<PlaceRow> queryPlaces(

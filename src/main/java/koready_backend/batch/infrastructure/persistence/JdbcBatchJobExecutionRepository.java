@@ -119,6 +119,12 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 	}
 
 	private static String targetId(BatchJobContinuation continuation) {
+		if (continuation.jobType() == BatchJobType.KTO_DETAIL_ENRICHMENT) {
+			return "detail:*:"
+				+ continuation.parameters().getOrDefault("startAfterPlaceId", 0)
+				+ "+"
+				+ continuation.parameters().getOrDefault("maxPlaces", 10);
+		}
 		String operation = switch (continuation.jobType()) {
 			case KTO_FESTIVAL_SYNC -> "searchFestival2";
 			case KTO_EN_SYNC -> "ENG:areaBasedSyncList2";

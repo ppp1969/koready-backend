@@ -165,6 +165,43 @@ class PlaceQueryServiceTest {
 	}
 
 	@Test
+	void returnsFourOrderedGalleryImagesAndCollectedFacts() {
+		when(repository.findDetail(10L, PlaceLanguage.KO)).thenReturn(Optional.of(
+			new PlaceDetailRow(
+				10L, "Place", ServiceRegionCode.SEOUL, "Seoul", "Address",
+				null, null, "https://example.invalid/primary.jpg",
+				"Overview", "KTO_KO")));
+		when(repository.findImages(10L)).thenReturn(List.of(
+			new PlaceQueryRepository.PlaceImageRow(
+				"https://example.invalid/first.jpg", "Place 1"),
+			new PlaceQueryRepository.PlaceImageRow(
+				"https://example.invalid/second.jpg", "Place 2"),
+			new PlaceQueryRepository.PlaceImageRow(
+				"https://example.invalid/third.jpg", "Place 3"),
+			new PlaceQueryRepository.PlaceImageRow(
+				"https://example.invalid/fourth.jpg", "Place 4")));
+		when(repository.findDetailFacts(10L)).thenReturn(
+			new PlaceQueryRepository.PlaceDetailFacts(
+				"09:00-18:00", "All year", "Monday", "Free", "Available"));
+
+		PlaceQueryService.PlaceDetail detail =
+			service.getPlace(10L, PlaceLanguage.KO);
+
+		assertEquals(List.of(
+			"https://example.invalid/first.jpg",
+			"https://example.invalid/second.jpg",
+			"https://example.invalid/third.jpg",
+			"https://example.invalid/fourth.jpg"),
+			detail.images().stream()
+				.map(PlaceQueryService.PlaceImage::imageUrl)
+				.toList());
+		assertEquals("09:00-18:00", detail.operatingHours());
+		assertEquals("Monday", detail.closedDays());
+		assertEquals("Free", detail.usageFee());
+		assertEquals("Available", detail.parkingInfo());
+	}
+
+	@Test
 	void reportsMissingPlace() {
 		when(repository.findDetail(404L, PlaceLanguage.EN)).thenReturn(Optional.empty());
 

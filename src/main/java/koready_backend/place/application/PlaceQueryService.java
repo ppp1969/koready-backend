@@ -103,9 +103,10 @@ public class PlaceQueryService {
 		PlaceDetailRow row = repository.findDetail(placeId, language)
 			.orElseThrow(() -> new PlaceNotFoundException(placeId));
 		PlaceDescription description = description(row);
-		List<PlaceImage> images = row.imageUrl() == null
-			? List.of()
-			: List.of(new PlaceImage(row.imageUrl(), 1, row.title()));
+		List<PlaceImage> images = images(placeId, row);
+		PlaceQueryRepository.PlaceDetailFacts facts = java.util.Optional
+			.ofNullable(repository.findDetailFacts(placeId))
+			.orElseGet(PlaceQueryRepository.PlaceDetailFacts::empty);
 		List<String> availableTabs = description == null
 			? List.of("MATES")
 			: List.of("DESCRIPTION", "MATES");
@@ -118,17 +119,38 @@ public class PlaceQueryService {
 			row.address(),
 			row.latitude(),
 			row.longitude(),
-			null,
-			null,
-			null,
-			null,
-			null,
+			facts.operatingHours(),
+			facts.operatingPeriod(),
+			facts.closedDays(),
+			facts.usageFee(),
+			facts.parkingInfo(),
 			images,
 			List.of(),
 			false,
 			description,
 			List.of(),
 			availableTabs);
+	}
+
+	private List<PlaceImage> images(long placeId, PlaceDetailRow row) {
+		List<PlaceQueryRepository.PlaceImageRow> stored =
+			repository.findImages(placeId);
+		List<PlaceQueryRepository.PlaceImageRow> gallery =
+			(stored == null ? List.<PlaceQueryRepository.PlaceImageRow>of() : stored)
+				.stream()
+				.limit(4)
+				.toList();
+		if (!gallery.isEmpty()) {
+			return java.util.stream.IntStream.range(0, gallery.size())
+				.mapToObj(index -> new PlaceImage(
+					gallery.get(index).imageUrl(),
+					index + 1,
+					gallery.get(index).altText()))
+				.toList();
+		}
+		return row.imageUrl() == null
+			? List.of()
+			: List.of(new PlaceImage(row.imageUrl(), 1, row.title()));
 	}
 
 	private PlacePage page(

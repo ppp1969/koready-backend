@@ -18,10 +18,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import koready_backend.batch.application.port.BatchJobExecutionRepository.ClaimedJob;
 import koready_backend.batch.domain.BatchJobType;
 import koready_backend.kto.application.KtoDailySyncImportService;
+import koready_backend.kto.application.KtoDetailEnrichmentService;
 import koready_backend.kto.application.KtoEnglishSyncImportService;
 import koready_backend.kto.application.KtoFestivalImportService;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDailySyncResult;
+import koready_backend.kto.application.model.KtoDetailEnrichmentResult;
 import koready_backend.kto.application.model.KtoEnglishSyncResult;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
 import koready_backend.kto.application.model.KtoFestivalImportResult;
@@ -34,6 +36,9 @@ class KtoBatchJobRunnerAdapterTest {
 
 	@Mock
 	KtoEnglishSyncImportService englishSyncService;
+
+	@Mock
+	KtoDetailEnrichmentService detailEnrichmentService;
 
 	@Mock
 	KtoFestivalImportService festivalImportService;
@@ -133,7 +138,51 @@ class KtoBatchJobRunnerAdapterTest {
 		assertNull(result.continuation());
 	}
 
+	@Test
+	void schedulesTheNextDetailPlaceRangeOnlyWhenExplicitlyEnabled() {
+		when(detailEnrichmentService.enrich(any(), any()))
+			.thenReturn(new KtoDetailEnrichmentResult(10, 40, 140L, true, true));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_DETAIL_ENRICHMENT,
+			Map.of(
+				"startAfterPlaceId", 120L,
+				"maxPlaces", 10,
+				"autoContinue", true),
+			47L));
+
+		assertEquals(10, result.successCount());
+		assertEquals(
+			BatchJobType.KTO_DETAIL_ENRICHMENT,
+			result.continuation().jobType());
+		assertEquals(
+			140L,
+			result.continuation().parameters().get("startAfterPlaceId"));
+	}
+
+	@Test
+	void stopsTheDetailRangeWhenAutomaticContinuationIsDisabled() {
+		when(detailEnrichmentService.enrich(any(), any()))
+			.thenReturn(new KtoDetailEnrichmentResult(10, 40, 140L, true, false));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_DETAIL_ENRICHMENT,
+			Map.of(
+				"startAfterPlaceId", 120L,
+				"maxPlaces", 10,
+				"autoContinue", false),
+			47L));
+
+		assertNull(result.continuation());
+	}
+
 	private KtoBatchJobRunnerAdapter adapter() {
-		return new KtoBatchJobRunnerAdapter(dailySyncService, englishSyncService, festivalImportService);
+		return new KtoBatchJobRunnerAdapter(
+			dailySyncService,
+			detailEnrichmentService,
+			englishSyncService,
+			festivalImportService);
 	}
 }

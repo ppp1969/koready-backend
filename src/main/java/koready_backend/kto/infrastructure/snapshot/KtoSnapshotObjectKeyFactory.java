@@ -16,7 +16,8 @@ final class KtoSnapshotObjectKeyFactory {
 
 	static String create(KtoRawSnapshot snapshot) {
 		LocalDate capturedDate = LocalDate.ofInstant(snapshot.capturedAt(), SEOUL_ZONE);
-		return "kto/kor/%s/%s/event-start-%s-page-%d-%s.json.gz".formatted(
+		return "kto/%s/%s/%s/event-start-%s-page-%d-%s.json.gz".formatted(
+			snapshot.service(),
 			snapshot.operation(),
 			DATE.format(capturedDate),
 			DATE.format(snapshot.eventStartDate()),

@@ -59,9 +59,11 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 	}
 
 	private static String targetId(EnqueueCommand command) {
-		String operation = command.jobType() == BatchJobType.KTO_FESTIVAL_SYNC
-			? "searchFestival2"
-			: "areaBasedSyncList2";
+		String operation = switch (command.jobType()) {
+			case KTO_FESTIVAL_SYNC -> "searchFestival2";
+			case KTO_EN_SYNC -> "ENG:areaBasedSyncList2";
+			default -> "areaBasedSyncList2";
+		};
 		Object startPage = command.parameters().getOrDefault("startPage", 1);
 		Object maxPages = command.parameters().getOrDefault("maxPages", 1);
 		return operation + ":" + startPage + "+" + maxPages;

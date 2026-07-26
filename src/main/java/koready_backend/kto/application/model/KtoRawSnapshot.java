@@ -8,6 +8,7 @@ import java.util.HexFormat;
 import java.util.Objects;
 
 public record KtoRawSnapshot(
+	String service,
 	String operation,
 	LocalDate eventStartDate,
 	int pageNumber,
@@ -16,12 +17,27 @@ public record KtoRawSnapshot(
 	Instant capturedAt
 ) {
 
+	public KtoRawSnapshot(
+		String operation,
+		LocalDate eventStartDate,
+		int pageNumber,
+		String rawContentSha256,
+		byte[] payload,
+		Instant capturedAt
+	) {
+		this("kor", operation, eventStartDate, pageNumber, rawContentSha256, payload, capturedAt);
+	}
+
 	public KtoRawSnapshot {
+		Objects.requireNonNull(service, "KTO snapshot service is required");
 		Objects.requireNonNull(operation, "KTO snapshot operation is required");
 		Objects.requireNonNull(eventStartDate, "KTO snapshot event start date is required");
 		Objects.requireNonNull(rawContentSha256, "KTO snapshot raw hash is required");
 		Objects.requireNonNull(payload, "KTO snapshot payload is required");
 		Objects.requireNonNull(capturedAt, "KTO snapshot capture time is required");
+		if (!service.matches("kor|eng")) {
+			throw new IllegalArgumentException("KTO snapshot service is invalid");
+		}
 		if (!operation.matches("[A-Za-z0-9]{1,100}")) {
 			throw new IllegalArgumentException("KTO snapshot operation is invalid");
 		}

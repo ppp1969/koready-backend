@@ -52,6 +52,7 @@ public class AdminBatchJobController {
 	@Operation(
 		summary = "KTO 수집 작업 접수",
 		description = "KTO_FULL_CATALOG_SYNC는 KTO 전체 장소 목록을 수집합니다. "
+			+ "KTO_EN_SYNC는 KTO 영문 전체 목록과 국문 장소 매칭을 수집합니다. "
 			+ "한 작업은 최대 20페이지를 처리하고, 성공한 경우에만 다음 페이지 범위를 자동으로 대기열에 넣습니다. "
 			+ "KTO_DAILY_SYNC와 KTO_FESTIVAL_SYNC는 기존처럼 범위를 지정해 수동으로 실행합니다."
 	)

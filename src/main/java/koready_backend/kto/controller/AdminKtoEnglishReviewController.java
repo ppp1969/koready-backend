@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -22,6 +23,7 @@ import koready_backend.common.controller.ApiEnvelope;
 import koready_backend.common.controller.TraceIdFilter;
 import koready_backend.kto.application.KtoEnglishReviewService;
 import koready_backend.kto.domain.KtoEnglishReviewStatus;
+import koready_backend.kto.domain.KtoEnglishSourceQuality;
 
 @Validated
 @RestController
@@ -47,13 +49,17 @@ public class AdminKtoEnglishReviewController {
 	)
 	public ApiEnvelope<KtoEnglishReviewDtos.ReviewListResponse> list(
 		@RequestParam(required = false) KtoEnglishReviewStatus status,
+		@RequestParam(required = false)
+		@Parameter(
+			description = "KTO 원본 제목의 계산된 품질 상태. 생략하면 품질과 무관하게 조회합니다.")
+		KtoEnglishSourceQuality quality,
 		@RequestParam(required = false) @Size(max = 100) String search,
 		@RequestParam(required = false) @Size(max = 512) String cursor,
 		@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
 		HttpServletRequest request
 	) {
 		var page = service.list(new KtoEnglishReviewService.ReviewQuery(
-			status, search, cursor, size));
+			status, quality, search, cursor, size));
 		return ApiEnvelope.success(
 			"KTO_ENGLISH_REVIEW_LIST_OK",
 			KtoEnglishReviewDtos.from(page),

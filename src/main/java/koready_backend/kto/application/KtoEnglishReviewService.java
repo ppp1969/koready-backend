@@ -12,6 +12,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,12 +27,18 @@ import koready_backend.kto.application.port.KtoEnglishReviewSourceReader;
 import koready_backend.kto.domain.KtoEnglishPlaceItem;
 import koready_backend.kto.domain.KtoEnglishReviewDecision;
 import koready_backend.kto.domain.KtoEnglishReviewStatus;
+import koready_backend.kto.domain.KtoEnglishSourceQuality;
+import koready_backend.kto.domain.KtoEnglishSourceQualityClassifier;
+import koready_backend.kto.domain.KtoEnglishSourceQualityWarning;
 
 @Service
 public class KtoEnglishReviewService {
 
 	private static final int MAX_PAGE_SIZE = 100;
 	private static final int MAX_CURSOR_LENGTH = 512;
+	private static final int QUALITY_SCAN_SIZE = 100;
+	private static final KtoEnglishSourceQualityClassifier QUALITY_CLASSIFIER =
+		new KtoEnglishSourceQualityClassifier();
 
 	private final KtoEnglishReviewRepository repository;
 	private final KtoEnglishReviewSourceReader sourceReader;
@@ -48,19 +55,48 @@ public class KtoEnglishReviewService {
 	public ReviewPage list(ReviewQuery query) {
 		validate(query);
 		String fingerprint = fingerprint(
-			name(query.status()), normalizedSearch(query.search()), String.valueOf(query.size()));
-		Long beforeId = decodeCursor(query.cursor(), fingerprint);
-		List<ReviewSummaryRecord> rows = repository.findPage(new ReviewCriteria(
-			query.status(), normalizedSearch(query.search()), beforeId, query.size() + 1));
-		boolean hasMore = rows.size() > query.size();
-		List<ReviewSummaryRecord> visible =
-			rows.subList(0, Math.min(query.size(), rows.size()));
-		Map<Long, KtoEnglishPlaceItem> sources = readSources(visible);
-		List<ReviewSummaryView> items = visible.stream()
-			.map(row -> summary(row, sources.get(row.sourceRecordId())))
-			.toList();
-		String nextCursor = hasMore && !visible.isEmpty()
-			? encodeCursor(fingerprint, visible.getLast().sourceRecordId())
+			name(query.status()),
+			name(query.quality()),
+			normalizedSearch(query.search()),
+			String.valueOf(query.size()));
+		Long scanBeforeId = decodeCursor(query.cursor(), fingerprint);
+		List<ReviewSummaryView> matched = new ArrayList<>(query.size() + 1);
+		boolean exhausted = false;
+		while (matched.size() <= query.size() && !exhausted) {
+			int fetchSize = query.quality() == null
+				? query.size() + 1
+				: QUALITY_SCAN_SIZE;
+			List<ReviewSummaryRecord> rows = repository.findPage(new ReviewCriteria(
+				query.status(),
+				normalizedSearch(query.search()),
+				scanBeforeId,
+				fetchSize));
+			if (rows.isEmpty()) {
+				break;
+			}
+			Map<Long, KtoEnglishPlaceItem> sources = readSources(rows);
+			for (ReviewSummaryRecord row : rows) {
+				ReviewSummaryView item = summary(
+					row, sources.get(row.sourceRecordId()));
+				if (query.quality() == null
+					|| query.quality() == item.sourceQuality()) {
+					matched.add(item);
+					if (matched.size() > query.size()) {
+						break;
+					}
+				}
+			}
+			exhausted = rows.size() < fetchSize;
+			scanBeforeId = rows.getLast().sourceRecordId();
+			if (query.quality() == null) {
+				break;
+			}
+		}
+		boolean hasMore = matched.size() > query.size();
+		List<ReviewSummaryView> items =
+			matched.subList(0, Math.min(query.size(), matched.size()));
+		String nextCursor = hasMore && !items.isEmpty()
+			? encodeCursor(fingerprint, items.getLast().sourceRecordId())
 			: null;
 		return new ReviewPage(items, nextCursor, hasMore);
 	}
@@ -164,6 +200,8 @@ public class KtoEnglishReviewService {
 		ReviewSummaryRecord row,
 		KtoEnglishPlaceItem source
 	) {
+		KtoEnglishSourceQualityClassifier.Result sourceQuality =
+			sourceQuality(source);
 		return new ReviewSummaryView(
 			row.sourceRecordId(),
 			row.sourceContentId(),
@@ -171,12 +209,26 @@ public class KtoEnglishReviewService {
 			source == null ? null : joinAddress(source.address1(), source.address2()),
 			source == null ? null : source.primaryImageUrl(),
 			source != null,
+			sourceQuality.quality(),
+			sourceQuality.warnings(),
 			row.status(),
 			row.candidateCount(),
 			row.decisionVersion(),
 			row.selectedPlaceId(),
 			row.capturedAt(),
 			row.decidedAt());
+	}
+
+	private static KtoEnglishSourceQualityClassifier.Result sourceQuality(
+		KtoEnglishPlaceItem source
+	) {
+		if (source == null) {
+			return new KtoEnglishSourceQualityClassifier.Result(
+				KtoEnglishSourceQuality.MIXED_OR_UNKNOWN,
+				Set.of(KtoEnglishSourceQualityWarning.SOURCE_UNAVAILABLE));
+		}
+		return QUALITY_CLASSIFIER.classify(
+			source.title(), joinAddress(source.address1(), source.address2()));
 	}
 
 	private static ReviewDetailView detail(
@@ -293,10 +345,19 @@ public class KtoEnglishReviewService {
 
 	public record ReviewQuery(
 		KtoEnglishReviewStatus status,
+		KtoEnglishSourceQuality quality,
 		String search,
 		String cursor,
 		int size
 	) {
+		public ReviewQuery(
+			KtoEnglishReviewStatus status,
+			String search,
+			String cursor,
+			int size
+		) {
+			this(status, null, search, cursor, size);
+		}
 	}
 
 	public record ReviewPage(
@@ -313,6 +374,8 @@ public class KtoEnglishReviewService {
 		String addressEn,
 		String primaryImageUrl,
 		boolean sourceAvailable,
+		KtoEnglishSourceQuality sourceQuality,
+		Set<KtoEnglishSourceQualityWarning> qualityWarnings,
 		KtoEnglishReviewStatus status,
 		int candidateCount,
 		int decisionVersion,

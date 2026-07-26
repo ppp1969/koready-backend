@@ -45,3 +45,14 @@ AI 번역이나 자동 매칭 기준 완화는 이 범위에 포함하지 않는
 - `503 KTO_ENGLISH_REVIEW_SOURCE_UNAVAILABLE`: S3 원본을 일시적으로 읽지 못함
 
 Swagger의 `Admin KTO English Review` 태그에는 각 요청·응답 필드와 확정·거절 예시가 포함돼 있다.
+
+## 원본 언어 품질 확인
+
+- 목록과 상세의 `summary.sourceQuality`은 KTO 원본 제목의 문자 구성을 규칙으로 판정한 값이다.
+- `USABLE`은 뚜렷한 문자 이상이 없다는 뜻이며 번역 정확성이나 장소 연결 정확성을 보장하지 않는다.
+- `NON_ENGLISH_SUSPECTED`는 영어 API 응답이지만 제목이 비라틴 문자로만 구성된 경우다.
+- `ENCODING_SUSPECTED`는 `Ã`, `Â`, 대체 문자 등 대표적인 문자 깨짐 표식이 발견된 경우다.
+- `MIXED_OR_UNKNOWN`은 문자 체계가 섞였거나 판정할 텍스트가 부족한 경우다.
+- `qualityWarnings`는 판정 이유를 enum 목록으로 제공한다.
+- 목록에서 `quality` 쿼리 파라미터로 상태별 검토 대상을 조회할 수 있다.
+- 이 기능은 원문을 수정하거나 번역하거나 자동 확정하지 않는다.

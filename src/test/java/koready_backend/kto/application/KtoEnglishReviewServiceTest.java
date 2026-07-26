@@ -26,6 +26,7 @@ import koready_backend.kto.application.port.KtoEnglishReviewSourceReader;
 import koready_backend.kto.domain.KtoEnglishPlaceItem;
 import koready_backend.kto.domain.KtoEnglishReviewDecision;
 import koready_backend.kto.domain.KtoEnglishReviewStatus;
+import koready_backend.kto.domain.KtoEnglishSourceQuality;
 
 @ExtendWith(MockitoExtension.class)
 class KtoEnglishReviewServiceTest {
@@ -63,6 +64,26 @@ class KtoEnglishReviewServiceTest {
 		assertFalse(page.hasMore());
 		verify(sourceReader).findAll(
 			"kto/eng/page-1.json.gz", List.of("eng-2", "eng-1"));
+	}
+
+	@Test
+	void filtersReviewsByComputedSourceQuality() {
+		ReviewSummaryRecord russian = summary(32L, "eng-2");
+		ReviewSummaryRecord english = summary(31L, "eng-1");
+		when(repository.findPage(any())).thenReturn(List.of(russian, english));
+		when(sourceReader.findAll("kto/eng/page-1.json.gz", List.of("eng-2", "eng-1")))
+			.thenReturn(Map.of(
+				"eng-2", source("eng-2", "Детский музей Самсунг"),
+				"eng-1", source("eng-1", "Gyeongbokgung Palace")));
+
+		var page = service.list(new KtoEnglishReviewService.ReviewQuery(
+			null, KtoEnglishSourceQuality.USABLE, null, null, 20));
+
+		assertEquals(1, page.items().size());
+		assertEquals("eng-1", page.items().getFirst().sourceContentId());
+		assertEquals(
+			KtoEnglishSourceQuality.USABLE,
+			page.items().getFirst().sourceQuality());
 	}
 
 	@Test

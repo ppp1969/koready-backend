@@ -2,6 +2,7 @@ package koready_backend.kto.controller;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -11,6 +12,8 @@ import jakarta.validation.constraints.Size;
 import koready_backend.kto.application.KtoEnglishReviewService;
 import koready_backend.kto.domain.KtoEnglishReviewDecision;
 import koready_backend.kto.domain.KtoEnglishReviewStatus;
+import koready_backend.kto.domain.KtoEnglishSourceQuality;
+import koready_backend.kto.domain.KtoEnglishSourceQualityWarning;
 
 final class KtoEnglishReviewDtos {
 
@@ -88,6 +91,8 @@ final class KtoEnglishReviewDtos {
 			item.addressEn(),
 			item.primaryImageUrl(),
 			item.sourceAvailable(),
+			item.sourceQuality(),
+			item.qualityWarnings(),
 			item.status(),
 			item.candidateCount(),
 			item.decisionVersion(),
@@ -110,6 +115,8 @@ final class KtoEnglishReviewDtos {
 		String addressEn,
 		String primaryImageUrl,
 		boolean sourceAvailable,
+		KtoEnglishSourceQuality sourceQuality,
+		Set<KtoEnglishSourceQualityWarning> qualityWarnings,
 		KtoEnglishReviewStatus status,
 		int candidateCount,
 		int decisionVersion,

@@ -2,6 +2,7 @@ package koready_backend.kto.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -11,9 +12,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -25,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import koready_backend.kto.application.KtoEnglishReviewService;
 import koready_backend.kto.application.exception.KtoEnglishReviewCandidateRequiredException;
 import koready_backend.kto.domain.KtoEnglishReviewStatus;
+import koready_backend.kto.domain.KtoEnglishSourceQuality;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -67,9 +71,27 @@ class AdminKtoEnglishReviewControllerTest {
 				.andExpect(jsonPath("$.code").value("KTO_ENGLISH_REVIEW_LIST_OK"))
 				.andExpect(jsonPath("$.data.items[0].titleEn")
 					.value("Gwangjang Market"))
+				.andExpect(jsonPath("$.data.items[0].sourceQuality")
+					.value("USABLE"))
+				.andExpect(jsonPath("$.data.items[0].qualityWarnings").isEmpty())
 				.andExpect(jsonPath("$.data.items[0].candidateCount").value(2))
 				.andExpect(jsonPath("$.data.nextCursor").value("next-cursor"));
 		}
+	}
+
+	@Test
+	void acceptsAComputedQualityFilter() throws Exception {
+		mockMvc.perform(get("/api/v1/admin/kto/english-match-reviews")
+				.queryParam("quality", "NON_ENGLISH_SUSPECTED")
+				.with(user("auditor").roles("AUDITOR")))
+			.andExpect(status().isOk());
+
+		ArgumentCaptor<KtoEnglishReviewService.ReviewQuery> captor =
+			ArgumentCaptor.forClass(KtoEnglishReviewService.ReviewQuery.class);
+		verify(service).list(captor.capture());
+		org.junit.jupiter.api.Assertions.assertEquals(
+			KtoEnglishSourceQuality.NON_ENGLISH_SUSPECTED,
+			captor.getValue().quality());
 	}
 
 	@Test
@@ -154,6 +176,8 @@ class AdminKtoEnglishReviewControllerTest {
 			"88 Changgyeonggung-ro, Jongno-gu, Seoul",
 			"https://example.com/market.jpg",
 			true,
+			KtoEnglishSourceQuality.USABLE,
+			Set.of(),
 			KtoEnglishReviewStatus.REVIEW_REQUIRED,
 			2,
 			0,

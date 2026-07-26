@@ -2,7 +2,6 @@ package koready_backend.kto.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -16,7 +15,6 @@ import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -80,18 +78,11 @@ class AdminKtoEnglishReviewControllerTest {
 	}
 
 	@Test
-	void acceptsAComputedQualityFilter() throws Exception {
+	void rejectsTheUnindexedQualityFilterWithoutScanningSources() throws Exception {
 		mockMvc.perform(get("/api/v1/admin/kto/english-match-reviews")
 				.queryParam("quality", "NON_ENGLISH_SUSPECTED")
 				.with(user("auditor").roles("AUDITOR")))
-			.andExpect(status().isOk());
-
-		ArgumentCaptor<KtoEnglishReviewService.ReviewQuery> captor =
-			ArgumentCaptor.forClass(KtoEnglishReviewService.ReviewQuery.class);
-		verify(service).list(captor.capture());
-		org.junit.jupiter.api.Assertions.assertEquals(
-			KtoEnglishSourceQuality.NON_ENGLISH_SUSPECTED,
-			captor.getValue().quality());
+			.andExpect(status().isBadRequest());
 	}
 
 	@Test

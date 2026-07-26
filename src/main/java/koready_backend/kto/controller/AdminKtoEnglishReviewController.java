@@ -50,16 +50,19 @@ public class AdminKtoEnglishReviewController {
 	public ApiEnvelope<KtoEnglishReviewDtos.ReviewListResponse> list(
 		@RequestParam(required = false) KtoEnglishReviewStatus status,
 		@RequestParam(required = false)
-		@Parameter(
-			description = "KTO 원본 제목의 계산된 품질 상태. 생략하면 품질과 무관하게 조회합니다.")
+		@Parameter(hidden = true)
 		KtoEnglishSourceQuality quality,
 		@RequestParam(required = false) @Size(max = 100) String search,
 		@RequestParam(required = false) @Size(max = 512) String cursor,
 		@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
 		HttpServletRequest request
 	) {
+		if (quality != null) {
+			throw new IllegalArgumentException(
+				"KTO English quality filter requires indexed source quality");
+		}
 		var page = service.list(new KtoEnglishReviewService.ReviewQuery(
-			status, quality, search, cursor, size));
+			status, search, cursor, size));
 		return ApiEnvelope.success(
 			"KTO_ENGLISH_REVIEW_LIST_OK",
 			KtoEnglishReviewDtos.from(page),

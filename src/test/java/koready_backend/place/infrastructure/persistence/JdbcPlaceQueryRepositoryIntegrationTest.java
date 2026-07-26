@@ -200,6 +200,12 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 			"KTO_PHOTO_AWARD",
 			300,
 			1);
+		insertImage(
+			placeId,
+			"https://example.invalid/award.jpg",
+			"KTO_DETAIL",
+			100,
+			3);
 		insertAttribute(placeId, "usetime", "09:00-18:00", 1);
 		insertAttribute(placeId, "restdate", "Monday", 1);
 		insertAttribute(placeId, "normalized_usagefee", "Free", 1);

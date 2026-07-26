@@ -50,6 +50,8 @@ tags:
     description: 수집 배치와 동기화 cursor
   - name: Admin KTO English Review
     description: KTO 영문 장소와 국문 장소 후보의 검토·확정·거절
+  - name: Admin KTO Detail
+    description: KTO 장소 상세 수집 진행률과 사진 커버리지
   - name: Admin Evidence
     description: 관광공모전 증빙 번들
   - name: Admin Audit
@@ -2147,6 +2149,36 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '200':
           $ref: '#/components/responses/KtoEnglishReviewListSuccess'
+  /admin/kto/detail-coverage:
+    get:
+      tags: [Admin KTO Detail]
+      operationId: getKtoDetailCoverage
+      summary: KTO 상세 수집과 사진 커버리지 조회
+      description: |
+        **호출 시점:** KTO 상세 수집 운영 화면 진입, 제한 배치 완료 후 또는 운영자의 새로고침 동작에서 한 번 호출합니다.
+        자동 polling은 필요하지 않으며 이 API 자체는 KTO나 S3를 호출하지 않고 현재 DB 집계만 읽습니다.
+
+        `catalog.totalPlaces`는 KTO content ID와 content type ID가 모두 있어 상세 수집 대상이 되는 장소 수입니다.
+        `completedPlaces`는 detailCommon2, detailIntro2, detailInfo2, detailImage2 네 호출의 snapshot checkpoint가 모두 있는 장소 수입니다.
+        `pendingPlaces`는 아직 checkpoint가 없는 수이고 `dueForRefreshPlaces`는 완료됐지만 30일 갱신 기한이 지난 수입니다.
+        `completionRate`는 completedPlaces / totalPlaces를 백분율로 계산해 소수 둘째 자리까지 반환합니다.
+
+        `ktoDetailImages`는 KTO detailImage2가 실제 반환한 고유 이미지 수를 기준으로 완료 장소만 0, 1, 2, 3, 4장 이상 bucket에 넣습니다.
+        `effectiveGalleryImages`는 관광사진 수상작, 관리자 이미지, KTO 상세 이미지의 URL 중복을 제거한 실제 상세 gallery 기준입니다.
+        gallery 행이 없고 KTO 대표 이미지인 firstImage만 있으면 사용자 API의 fallback 동작과 동일하게 1장으로 계산합니다.
+        두 이미지 집계의 `sampleSize`는 완료 장소 수와 같고 `lessThanFour`는 zero부터 three까지의 합입니다.
+        `lessThanFourRate`는 lessThanFour / sampleSize의 백분율이며, 표본이 0이면 0입니다.
+
+        응답에는 이미지 URL, 원본 payload, secret, 사용자 데이터가 포함되지 않습니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '200':
+          $ref: '#/components/responses/KtoDetailCoverageSuccess'
   /admin/kto/english-match-reviews/{sourceRecordId}:
     get:
       tags: [Admin KTO English Review]
@@ -2881,6 +2913,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/KtoEnglishReviewListEnvelope'
+    KtoDetailCoverageSuccess:
+      description: KTO 상세 수집 진행률과 이미지 수 분포
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/KtoDetailCoverageEnvelope'
     KtoEnglishReviewSuccess:
       description: KTO 영문 원본, 국문 후보와 감사 이력
       content:
@@ -6586,6 +6624,99 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/DataQualityResponse'
+    KtoDetailCoverageEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/KtoDetailCoverageResponse'
+    KtoDetailCoverageResponse:
+      type: object
+      required: [generatedAt, catalog, ktoDetailImages, effectiveGalleryImages]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+          description: 서버가 현재 DB 집계를 생성한 UTC 시각
+        catalog:
+          $ref: '#/components/schemas/KtoDetailCatalogCoverage'
+        ktoDetailImages:
+          allOf:
+            - $ref: '#/components/schemas/KtoDetailImageCoverage'
+          description: KTO detailImage2가 반환한 이미지 수 기준 분포
+        effectiveGalleryImages:
+          allOf:
+            - $ref: '#/components/schemas/KtoDetailImageCoverage'
+          description: 우선순위와 대표 이미지 fallback을 반영한 실제 상세 화면 기준 분포
+    KtoDetailCatalogCoverage:
+      type: object
+      required: [totalPlaces, completedPlaces, pendingPlaces, dueForRefreshPlaces, completionRate]
+      properties:
+        totalPlaces:
+          type: integer
+          format: int64
+          minimum: 0
+        completedPlaces:
+          type: integer
+          format: int64
+          minimum: 0
+        pendingPlaces:
+          type: integer
+          format: int64
+          minimum: 0
+          description: checkpoint가 아직 없는 장소 수
+        dueForRefreshPlaces:
+          type: integer
+          format: int64
+          minimum: 0
+          description: 완료 상태지만 30일 갱신 기한이 지난 장소 수
+        completionRate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          description: completedPlaces / totalPlaces 백분율
+    KtoDetailImageCoverage:
+      type: object
+      required: [sampleSize, zero, one, two, three, fourOrMore, lessThanFour, lessThanFourRate]
+      properties:
+        sampleSize:
+          type: integer
+          format: int64
+          minimum: 0
+          description: 이미지 분포의 분모이며 상세 수집 완료 장소 수와 같음
+        zero:
+          type: integer
+          format: int64
+          minimum: 0
+        one:
+          type: integer
+          format: int64
+          minimum: 0
+        two:
+          type: integer
+          format: int64
+          minimum: 0
+        three:
+          type: integer
+          format: int64
+          minimum: 0
+        fourOrMore:
+          type: integer
+          format: int64
+          minimum: 0
+        lessThanFour:
+          type: integer
+          format: int64
+          minimum: 0
+          description: zero + one + two + three
+        lessThanFourRate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          description: lessThanFour / sampleSize 백분율
     DataQualityResponse:
       type: object
       description: 저장된 관광지와 현지화 데이터의 조회 시점 집계

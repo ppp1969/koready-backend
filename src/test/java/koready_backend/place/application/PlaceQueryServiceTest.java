@@ -202,6 +202,37 @@ class PlaceQueryServiceTest {
 	}
 
 	@Test
+	void returnsThreeConfirmedRelatedPlacesInProviderRankOrder() {
+		when(repository.findDetail(10L, PlaceLanguage.KO)).thenReturn(Optional.of(
+			new PlaceDetailRow(
+				10L, "기준 장소", ServiceRegionCode.SEOUL, "서울", "주소",
+				null, null, null, "설명", "KTO_KO")));
+		when(repository.findRelatedPlaces(10L, PlaceLanguage.KO, 3))
+			.thenReturn(List.of(
+				new PlaceQueryRepository.RelatedPlaceRow(
+					21L, "첫 번째 장소",
+					"https://example.invalid/first.jpg", "첫 번째 설명"),
+				new PlaceQueryRepository.RelatedPlaceRow(
+					22L, "두 번째 장소",
+					"https://example.invalid/second.jpg", "두 번째 설명"),
+				new PlaceQueryRepository.RelatedPlaceRow(
+					23L, "세 번째 장소",
+					null, null)));
+
+		PlaceQueryService.PlaceDetail detail =
+			service.getPlace(10L, PlaceLanguage.KO);
+
+		assertEquals(
+			List.of(21L, 22L, 23L),
+			detail.relatedPlaces().stream()
+				.map(PlaceQueryService.RelatedPlace::placeId)
+				.toList());
+		assertEquals(
+			"첫 번째 설명",
+			detail.relatedPlaces().getFirst().shortDescription());
+	}
+
+	@Test
 	void reportsMissingPlace() {
 		when(repository.findDetail(404L, PlaceLanguage.EN)).thenReturn(Optional.empty());
 

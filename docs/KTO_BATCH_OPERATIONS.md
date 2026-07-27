@@ -53,6 +53,19 @@ page만 요청한다. 응답의
 시 자동 연결하지 않으며, 운영자가 관리자 API에서 장소와 이용 근거를 승인한
 사진만 `KTO_PHOTO_GALLERY` 우선순위 250으로 `place_images`에 반영한다.
 
+연관 관광지는 `KTO_RELATED_TOUR_SYNC` 수동 배치로 `TarRlteTarService1/areaBasedList1`을
+행정구역별로 수집한다. 요청은 `baseYearMonth`, 마지막 완료 지역
+`startAfterRegionKey`, 작업당 지역 수 `maxRegions`, 지역당 페이지 상한
+`maxPagesPerRegion`, 자동 재개 여부 `autoContinue`로 구성한다. 기본값은 이전 달,
+2개 지역, 지역당 10페이지, 자동 재개 끔이다. 운영 전체 수집은 작은 작업을 연속
+등록하도록 `autoContinue=true`를 사용한다.
+
+연관 관광지 전용 코드는 TourAPI `contentid`가 아니다. 따라서 이름과 행정구역이
+각각 단 하나의 장소와 일치할 때만 자동 확정하고, 동명·불명확 항목은 관리자 검수
+목록에 남긴다. 확정된 관계만 장소 상세의 `relatedPlaces`에 KTO 순위대로 최대
+3개 노출한다. 수집 중에는 한 지역의 한 페이지만 메모리에 유지하며, 지역 페이지가
+설정 상한을 넘으면 일부 지역을 완료 처리하지 않고 작업을 실패시킨다.
+
 온보딩 대표 관광지 초기 등록도 개발자 PC의
 `scripts/bootstrap-curated-onboarding.ps1`에서만 실행한다. 승인된 KTO
 `contentId` 10개를 코드 카탈로그에 고정하고, 각 장소마다 `searchKeyword2` 1회와

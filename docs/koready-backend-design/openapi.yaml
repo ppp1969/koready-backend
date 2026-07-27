@@ -56,6 +56,8 @@ tags:
     description: KTO 사진공모전 수상작 수집 결과와 운영자 승인 장소 연결
   - name: Admin KTO Photo Gallery
     description: KTO 관광사진 수집 결과와 저작권·장소 검수 후 승인 연결
+  - name: Admin KTO Related Tour
+    description: KTO 연관 관광지 수집 결과, 자동 매칭 상태와 운영자 확정 연결
   - name: Admin Evidence
     description: 관광공모전 증빙 번들
   - name: Admin Audit
@@ -1998,6 +2000,123 @@ paths:
           $ref: '#/components/responses/NotFound'
         '204':
           description: 연결과 공개 장소 이미지 제거 완료
+  /admin/kto/related-tours:
+    get:
+      tags: [Admin KTO Related Tour]
+      operationId: getKtoRelatedTours
+      summary: KTO 연관 관광지 수집 결과 조회
+      description: |
+        `KTO_RELATED_TOUR_SYNC` 배치가 `areaBasedList1`에서 수집한 원본 관광지와
+        연관 관광지의 쌍, KTO 추천 순위, KoReady 장소 연결 상태를 조회합니다.
+        `query`는 원본 또는 연관 관광지 이름을 검색합니다. `matchStatus`는
+        `UNMATCHED`, `AUTO_CONFIRMED`, `MANUAL_CONFIRMED` 중 하나입니다.
+
+        KTO 연관 관광지 코드는 TourAPI `contentid`가 아닌 별도 식별자입니다.
+        따라서 한국어 이름과 행정구역이 각각 정확히 하나의 KoReady 장소와
+        일치한 경우에만 자동 확정합니다. 동명이거나 지역이 불분명한 항목은
+        `UNMATCHED`로 남고 사용자 장소 상세에는 노출되지 않습니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: matchStatus
+          in: query
+          schema:
+            type: string
+            enum: [UNMATCHED, AUTO_CONFIRMED, MANUAL_CONFIRMED]
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size100'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '200':
+          description: 연관 관광지 후보와 연결 상태
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/KtoRelatedTourListResponse'
+  /admin/kto/related-tours/{recordId}/mapping:
+    put:
+      tags: [Admin KTO Related Tour]
+      operationId: confirmKtoRelatedTourMapping
+      summary: KTO 연관 관광지 장소 연결 확정
+      description: |
+        자동 연결되지 않았거나 잘못 연결된 KTO 레코드를 운영자가 직접 확정합니다.
+        `sourcePlaceId`는 출발 관광지, `relatedPlaceId`는 함께 가기 좋은 관광지의
+        KoReady 장소 ID입니다. 두 ID는 서로 달라야 하며 실제 장소로 존재해야 합니다.
+        확정된 관계만 장소 상세 API의 `relatedPlaces`에 KTO 순위대로 최대 3개 노출됩니다.
+        `reason`에는 이름, 주소, 행정구역 등 확인 근거를 기록합니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN, OPERATOR]
+      parameters:
+        - $ref: '#/components/parameters/KtoRelatedTourRecordId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmKtoRelatedTourMappingRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '200':
+          description: 확정된 KTO 연관 관광지 연결
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/KtoRelatedTour'
+    delete:
+      tags: [Admin KTO Related Tour]
+      operationId: removeKtoRelatedTourMapping
+      summary: KTO 연관 관광지 장소 연결 해제
+      description: |
+        잘못 확정된 장소 관계를 해제해 장소 상세의 `relatedPlaces`에서 제외합니다.
+        KTO 원본 레코드는 재검토와 다음 수집 비교를 위해 유지하고 해제 사유를 감사 로그에 남깁니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN, OPERATOR]
+      parameters:
+        - $ref: '#/components/parameters/KtoRelatedTourRecordId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveKtoRelatedTourMappingRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '204':
+          description: 연관 관광지 장소 연결 해제 완료
   /admin/batch-jobs:
     get:
       tags: [Admin Batch]
@@ -2762,6 +2881,15 @@ components:
         type: string
         minLength: 1
         maxLength: 100
+    KtoRelatedTourRecordId:
+      name: recordId
+      in: path
+      required: true
+      description: KTO 연관 관광지 수집 레코드의 내부 ID
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
     JobId:
       name: jobId
       in: path
@@ -3635,7 +3763,7 @@ components:
     BatchJobType:
       type: string
       description: 현재 수동 실행을 허용하는 KTO 작업 유형
-      enum: [KTO_DAILY_SYNC, KTO_FULL_CATALOG_SYNC, KTO_FESTIVAL_SYNC, KTO_DETAIL_ENRICHMENT, KTO_EN_SYNC, KTO_EN_QUALITY_BACKFILL, KTO_PHOTO_AWARD_SYNC, KTO_PHOTO_GALLERY_SYNC, AI_TRANSLATION, IMAGE_ENRICHMENT]
+      enum: [KTO_DAILY_SYNC, KTO_FULL_CATALOG_SYNC, KTO_FESTIVAL_SYNC, KTO_DETAIL_ENRICHMENT, KTO_EN_SYNC, KTO_EN_QUALITY_BACKFILL, KTO_PHOTO_AWARD_SYNC, KTO_PHOTO_GALLERY_SYNC, KTO_RELATED_TOUR_SYNC, AI_TRANSLATION, IMAGE_ENRICHMENT]
     SocialLoginRequest:
       type: object
       required: [provider, deviceId]
@@ -7423,6 +7551,132 @@ components:
           type: string
           minLength: 1
           maxLength: 500
+    KtoRelatedTourListResponse:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/KtoRelatedTour'
+        nextCursor:
+          type: string
+          nullable: true
+          description: 다음 페이지 요청에 그대로 전달할 cursor
+        hasMore:
+          type: boolean
+    KtoRelatedTour:
+      type: object
+      required:
+        - id
+        - baseYearMonth
+        - sourceTourCode
+        - sourceName
+        - relatedTourCode
+        - relatedName
+        - rank
+        - matchStatus
+        - sourceCapturedAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        baseYearMonth:
+          type: string
+          pattern: '^\d{6}$'
+          example: '202606'
+          description: 반복 행사와 월별 결과를 섞지 않기 위한 KTO 조회 기준월
+        sourceTourCode:
+          type: string
+          description: KTO 연관 관광지 전용 원본 관광지 코드. TourAPI contentid가 아님
+        sourceName:
+          type: string
+        sourceRegionName:
+          type: string
+          nullable: true
+        sourceSignguName:
+          type: string
+          nullable: true
+        relatedTourCode:
+          type: string
+          description: KTO 연관 관광지 전용 추천 관광지 코드. TourAPI contentid가 아님
+        relatedName:
+          type: string
+        relatedRegionName:
+          type: string
+          nullable: true
+        relatedSignguName:
+          type: string
+          nullable: true
+        categoryLarge:
+          type: string
+          nullable: true
+        categoryMedium:
+          type: string
+          nullable: true
+        categorySmall:
+          type: string
+          nullable: true
+        rank:
+          type: integer
+          minimum: 1
+          maximum: 50
+          description: KTO가 제공한 연관 관광지 추천 순서
+        matchStatus:
+          type: string
+          enum: [UNMATCHED, AUTO_CONFIRMED, MANUAL_CONFIRMED]
+        sourcePlaceId:
+          type: integer
+          format: int64
+          nullable: true
+        sourcePlaceTitle:
+          type: string
+          nullable: true
+        relatedPlaceId:
+          type: integer
+          format: int64
+          nullable: true
+        relatedPlaceTitle:
+          type: string
+          nullable: true
+        confirmedBySubject:
+          type: string
+          nullable: true
+        confirmationReason:
+          type: string
+          nullable: true
+        confirmedAt:
+          type: string
+          format: date-time
+          nullable: true
+        sourceCapturedAt:
+          type: string
+          format: date-time
+    ConfirmKtoRelatedTourMappingRequest:
+      type: object
+      required: [sourcePlaceId, relatedPlaceId, reason]
+      properties:
+        sourcePlaceId:
+          type: integer
+          format: int64
+          minimum: 1
+        relatedPlaceId:
+          type: integer
+          format: int64
+          minimum: 1
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: 이름, 주소와 행정구역 등 두 장소를 확인한 근거
+    RemoveKtoRelatedTourMappingRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
     BatchJobParameters:
       type: object
       description: |
@@ -7439,6 +7693,9 @@ components:
         96건 전체 후보 저장만 수행하며 장소 연결은 운영자 승인 mapping API에서 별도로 처리합니다.
         KTO_PHOTO_GALLERY_SYNC는 관광사진 API `galleryList1`을 페이지 단위로 수집합니다.
         후보는 PROVIDER_RESTRICTED 원본과 함께 저장되며 운영자가 장소·이용 근거를 확인하기 전에는 공개되지 않습니다.
+        KTO_RELATED_TOUR_SYNC는 KTO 연관 관광지 API를 현재 KoReady 장소의 행정구역별로 순차 수집합니다.
+        baseYearMonth(YYYYMM), startAfterRegionKey, maxRegions, maxPagesPerRegion, autoContinue를 사용합니다.
+        한 작업은 최대 10개 지역과 지역당 최대 20페이지로 제한하며 한 번에 한 페이지만 메모리에 유지합니다.
         서버의 KTO pageSize와 동시성은 환경 설정으로 고정되어 있어 요청에서 바꾸지 않습니다.
       additionalProperties: false
       properties:
@@ -7480,6 +7737,25 @@ components:
           maximum: 200
           default: 50
           description: KTO_EN_QUALITY_BACKFILL 한 작업에서 판정할 최신 영문 source record 상한
+        baseYearMonth:
+          type: string
+          pattern: '^\d{6}$'
+          description: KTO_RELATED_TOUR_SYNC 조회 기준월. 생략하면 현재 UTC 기준 이전 달
+        startAfterRegionKey:
+          type: string
+          pattern: '^$|^\d{2,10}:\d{2,10}$'
+          default: ''
+          description: 마지막 완료 지역의 areaCd:signguCd. 최초 작업은 빈 문자열
+        maxRegions:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 2
+        maxPagesPerRegion:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 10
         autoContinue:
           type: boolean
           default: false

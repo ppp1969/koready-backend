@@ -16,6 +16,7 @@ import koready_backend.kto.application.KtoEnglishQualityBackfillService;
 import koready_backend.kto.application.KtoFestivalImportService;
 import koready_backend.kto.application.KtoPhotoAwardImportService;
 import koready_backend.kto.application.KtoPhotoGalleryImportService;
+import koready_backend.kto.application.KtoRelatedTourImportService;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDailySyncRequest;
 import koready_backend.kto.application.model.KtoDetailEnrichmentRequest;
@@ -24,6 +25,7 @@ import koready_backend.kto.application.model.KtoEnglishQualityBackfillRequest;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
 import koready_backend.kto.application.model.KtoPhotoAwardImportRequest;
 import koready_backend.kto.application.model.KtoPhotoGalleryImportRequest;
+import koready_backend.kto.application.model.KtoRelatedTourImportRequest;
 
 @Component
 public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
@@ -35,6 +37,7 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 	private final KtoFestivalImportService festivalImportService;
 	private final KtoPhotoAwardImportService photoAwardImportService;
 	private final KtoPhotoGalleryImportService photoGalleryImportService;
+	private final KtoRelatedTourImportService relatedTourImportService;
 
 	public KtoBatchJobRunnerAdapter(
 		KtoDailySyncImportService dailySyncService,
@@ -43,7 +46,8 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 		KtoEnglishQualityBackfillService englishQualityBackfillService,
 		KtoFestivalImportService festivalImportService,
 		KtoPhotoAwardImportService photoAwardImportService,
-		KtoPhotoGalleryImportService photoGalleryImportService
+		KtoPhotoGalleryImportService photoGalleryImportService,
+		KtoRelatedTourImportService relatedTourImportService
 	) {
 		this.dailySyncService = dailySyncService;
 		this.detailEnrichmentService = detailEnrichmentService;
@@ -52,6 +56,7 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 		this.festivalImportService = festivalImportService;
 		this.photoAwardImportService = photoAwardImportService;
 		this.photoGalleryImportService = photoGalleryImportService;
+		this.relatedTourImportService = relatedTourImportService;
 	}
 
 	@Override
@@ -100,6 +105,43 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 			return new RunResult(
 				result.processedRecords(),
 				result.processedRecords(),
+				0,
+				continuation);
+		}
+		if (job.jobType() == BatchJobType.KTO_RELATED_TOUR_SYNC) {
+			String baseYearMonth = string(
+				job.parameters(), "baseYearMonth");
+			String startAfterRegionKey = optionalString(
+				job.parameters(), "startAfterRegionKey");
+			int maxRegions = integer(job.parameters(), "maxRegions");
+			int maxPagesPerRegion = integer(
+				job.parameters(), "maxPagesPerRegion");
+			boolean autoContinue = flag(
+				job.parameters(), "autoContinue");
+			var result = relatedTourImportService.importRelatedTours(
+				new KtoRelatedTourImportRequest(
+					baseYearMonth,
+					startAfterRegionKey,
+					maxRegions,
+					maxPagesPerRegion,
+					autoContinue),
+				batchExecution);
+			var continuation = result.hasMore()
+				&& result.autoContinue()
+				? new BatchJobContinuation(
+					BatchJobType.KTO_RELATED_TOUR_SYNC,
+					Map.of(
+						"baseYearMonth", baseYearMonth,
+						"startAfterRegionKey",
+						result.lastProcessedRegionKey(),
+						"maxRegions", maxRegions,
+						"maxPagesPerRegion",
+						maxPagesPerRegion,
+						"autoContinue", true))
+				: null;
+			return new RunResult(
+				result.processedItems(),
+				result.processedItems(),
 				0,
 				continuation);
 		}
@@ -199,6 +241,18 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 		Object value = parameters.get(name);
 		if (!(value instanceof String text) || text.isBlank()) {
 			throw new IllegalArgumentException("Batch job parameter is invalid");
+		}
+		return text;
+	}
+
+	private static String optionalString(
+		Map<String, Object> parameters,
+		String name
+	) {
+		Object value = parameters.get(name);
+		if (!(value instanceof String text)) {
+			throw new IllegalArgumentException(
+				"Batch job parameter is invalid");
 		}
 		return text;
 	}

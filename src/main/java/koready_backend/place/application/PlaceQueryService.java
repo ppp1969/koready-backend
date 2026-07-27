@@ -107,6 +107,15 @@ public class PlaceQueryService {
 		PlaceQueryRepository.PlaceDetailFacts facts = java.util.Optional
 			.ofNullable(repository.findDetailFacts(placeId))
 			.orElseGet(PlaceQueryRepository.PlaceDetailFacts::empty);
+		List<RelatedPlace> relatedPlaces = repository.findRelatedPlaces(
+				placeId, language, 3)
+			.stream()
+			.map(related -> new RelatedPlace(
+				related.placeId(),
+				related.title(),
+				related.imageUrl(),
+				related.shortDescription()))
+			.toList();
 		List<String> availableTabs = description == null
 			? List.of("MATES")
 			: List.of("DESCRIPTION", "MATES");
@@ -128,7 +137,7 @@ public class PlaceQueryService {
 			List.of(),
 			false,
 			description,
-			List.of(),
+			relatedPlaces,
 			availableTabs);
 	}
 

@@ -26,6 +26,14 @@ public interface PlaceQueryRepository {
 		return PlaceDetailFacts.empty();
 	}
 
+	default List<RelatedPlaceRow> findRelatedPlaces(
+		long placeId,
+		PlaceLanguage language,
+		int limit
+	) {
+		return List.of();
+	}
+
 	record PlaceListCriteria(
 		ServiceRegionCode serviceRegionCode,
 		List<TravelStyle> travelStyles,
@@ -91,6 +99,14 @@ public interface PlaceQueryRepository {
 	}
 
 	record PlaceImageRow(String imageUrl, String altText) {
+	}
+
+	record RelatedPlaceRow(
+		long placeId,
+		String title,
+		String imageUrl,
+		String shortDescription
+	) {
 	}
 
 	record PlaceDetailFacts(

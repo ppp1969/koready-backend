@@ -24,6 +24,7 @@ import koready_backend.kto.application.KtoEnglishQualityBackfillService;
 import koready_backend.kto.application.KtoFestivalImportService;
 import koready_backend.kto.application.KtoPhotoAwardImportService;
 import koready_backend.kto.application.KtoPhotoGalleryImportService;
+import koready_backend.kto.application.KtoRelatedTourImportService;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDailySyncResult;
 import koready_backend.kto.application.model.KtoDetailEnrichmentResult;
@@ -33,6 +34,7 @@ import koready_backend.kto.application.model.KtoFestivalImportRequest;
 import koready_backend.kto.application.model.KtoFestivalImportResult;
 import koready_backend.kto.application.model.KtoPhotoAwardImportResult;
 import koready_backend.kto.application.model.KtoPhotoGalleryImportResult;
+import koready_backend.kto.application.model.KtoRelatedTourImportResult;
 
 @ExtendWith(MockitoExtension.class)
 class KtoBatchJobRunnerAdapterTest {
@@ -57,6 +59,9 @@ class KtoBatchJobRunnerAdapterTest {
 
 	@Mock
 	KtoPhotoGalleryImportService photoGalleryImportService;
+
+	@Mock
+	KtoRelatedTourImportService relatedTourImportService;
 
 	@Test
 	void forwardsTheClaimedDailyJobAndItemIdsToTheKtoImport() {
@@ -131,6 +136,35 @@ class KtoBatchJobRunnerAdapterTest {
 			result.continuation().jobType());
 		assertEquals(
 			2, result.continuation().parameters().get("startPage"));
+	}
+
+	@Test
+	void continuesRelatedTourCollectionFromTheLastCompletedRegion() {
+		when(relatedTourImportService.importRelatedTours(any(), any()))
+			.thenReturn(new KtoRelatedTourImportResult(
+				2, 4, 500, 0, "26:26110", true, true));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_RELATED_TOUR_SYNC,
+			Map.of(
+				"baseYearMonth", "202606",
+				"startAfterRegionKey", "11:11530",
+				"maxRegions", 2,
+				"maxPagesPerRegion", 10,
+				"autoContinue", true),
+			47L));
+
+		verify(relatedTourImportService)
+			.importRelatedTours(any(), any());
+		assertEquals(500, result.successCount());
+		assertEquals(
+			BatchJobType.KTO_RELATED_TOUR_SYNC,
+			result.continuation().jobType());
+		assertEquals(
+			"26:26110",
+			result.continuation().parameters().get(
+				"startAfterRegionKey"));
 	}
 
 	@Test
@@ -266,6 +300,7 @@ class KtoBatchJobRunnerAdapterTest {
 			englishQualityBackfillService,
 			festivalImportService,
 			photoAwardImportService,
-			photoGalleryImportService);
+			photoGalleryImportService,
+			relatedTourImportService);
 	}
 }

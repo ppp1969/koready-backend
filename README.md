@@ -163,6 +163,22 @@ URL은 한 번만 사용합니다. 10곳이 전부 준비된 후에만
 snapshot은 `PROVIDER_RESTRICTED`로 보존하며 운영자 승인 전에는 사용자 API에
 노출하지 않습니다.
 
+### KTO 연관 관광지 수집과 장소 연결
+
+KTO 연관 관광지 API는 관리자 배치 `KTO_RELATED_TOUR_SYNC`로 수집합니다.
+이 API의 관광지 코드는 일반 TourAPI `contentid`가 아니므로 코드만으로 기존 장소와
+연결하지 않습니다. 수집 기준월과 행정구역별 원본을 보존하고, 한국어 이름과
+행정구역이 각각 하나의 장소와 정확히 일치할 때만 자동 확정합니다.
+
+1. `POST /api/v1/admin/batch-jobs`에 기준월과 제한 범위를 지정해 작업을 접수합니다.
+2. `GET /api/v1/admin/kto/related-tours`에서 원본·연관 관광지 이름, KTO 순위와 연결 상태를 확인합니다.
+3. 동명 장소처럼 자동 확정할 수 없는 항목은 `PUT /api/v1/admin/kto/related-tours/{recordId}/mapping`으로 확정합니다.
+4. 잘못 확정한 항목은 같은 경로의 `DELETE` 요청으로 연결만 해제합니다.
+
+확정된 관계만 장소 상세의 `relatedPlaces`에 KTO 추천 순서대로 최대 3개 노출됩니다.
+한 작업은 기본 2개 행정구역만 순차 처리하고, `autoContinue=true`일 때 마지막 완료
+지역 다음부터 별도 작업으로 이어집니다. 한 번에 KTO 한 페이지만 메모리에 유지합니다.
+
 `staging` 실행은 `KTO_SNAPSHOT_STORAGE=s3`, `KTO_SNAPSHOT_S3_BUCKET`, AWS 인증을 갖춘
 수집 환경에서만 허용된다. 이 설정이 없으면 외부 KTO 호출 전에 중단한다. Aiven에 저장된
 원문 증빙이 개인 PC 경로를 가리키지 않도록 하기 위한 안전장치이며, S3 설정 전에는

@@ -3,6 +3,8 @@ package koready_backend.batch.application;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -35,12 +37,19 @@ public class BatchJobCommandService {
 		BatchJobType.KTO_EN_SYNC,
 		BatchJobType.KTO_EN_QUALITY_BACKFILL,
 		BatchJobType.KTO_PHOTO_AWARD_SYNC,
-		BatchJobType.KTO_PHOTO_GALLERY_SYNC);
+		BatchJobType.KTO_PHOTO_GALLERY_SYNC,
+		BatchJobType.KTO_RELATED_TOUR_SYNC);
 	private static final int MAX_PAGES = 20;
 	private static final int DEFAULT_DETAIL_PLACES = 10;
 	private static final int MAX_DETAIL_PLACES = 50;
 	private static final int DEFAULT_QUALITY_RECORDS = 50;
 	private static final int MAX_QUALITY_RECORDS = 200;
+	private static final int DEFAULT_RELATED_TOUR_REGIONS = 2;
+	private static final int MAX_RELATED_TOUR_REGIONS = 10;
+	private static final int DEFAULT_RELATED_TOUR_PAGES_PER_REGION = 10;
+	private static final int MAX_RELATED_TOUR_PAGES_PER_REGION = 20;
+	private static final DateTimeFormatter YEAR_MONTH_FORMAT =
+		DateTimeFormatter.ofPattern("yyyyMM");
 
 	private final BatchJobCommandRepository repository;
 	private final Clock clock;
@@ -108,6 +117,9 @@ public class BatchJobCommandService {
 		if (command.jobType() == BatchJobType.KTO_EN_QUALITY_BACKFILL) {
 			return normalizeEnglishQuality(command, input);
 		}
+		if (command.jobType() == BatchJobType.KTO_RELATED_TOUR_SYNC) {
+			return normalizeRelatedTour(command, input);
+		}
 		int startPage = positive(input.get("startPage"), 1, 100_000, "startPage");
 		int defaultMaxPages = command.jobType() == BatchJobType.KTO_FULL_CATALOG_SYNC
 			|| command.jobType() == BatchJobType.KTO_EN_SYNC ? MAX_PAGES : 1;
@@ -120,6 +132,43 @@ public class BatchJobCommandService {
 		}
 		return new NormalizedCommand(
 			command.jobType(), Map.copyOf(parameters), command.reason().strip(), command.actorSubject().strip());
+	}
+
+	private NormalizedCommand normalizeRelatedTour(
+		CreateCommand command,
+		Map<String, Object> input
+	) {
+		LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+		parameters.put(
+			"baseYearMonth",
+			yearMonth(
+				input.get("baseYearMonth"),
+				YearMonth.now(clock).minusMonths(1)));
+		parameters.put(
+			"startAfterRegionKey",
+			regionKey(input.get("startAfterRegionKey")));
+		parameters.put(
+			"maxRegions",
+			positive(
+				input.get("maxRegions"),
+				DEFAULT_RELATED_TOUR_REGIONS,
+				MAX_RELATED_TOUR_REGIONS,
+				"maxRegions"));
+		parameters.put(
+			"maxPagesPerRegion",
+			positive(
+				input.get("maxPagesPerRegion"),
+				DEFAULT_RELATED_TOUR_PAGES_PER_REGION,
+				MAX_RELATED_TOUR_PAGES_PER_REGION,
+				"maxPagesPerRegion"));
+		parameters.put(
+			"autoContinue",
+			booleanValue(input.get("autoContinue"), false, "autoContinue"));
+		return new NormalizedCommand(
+			command.jobType(),
+			Map.copyOf(parameters),
+			command.reason().strip(),
+			command.actorSubject().strip());
 	}
 
 	private NormalizedCommand normalizeEnglishQuality(
@@ -208,6 +257,35 @@ public class BatchJobCommandService {
 		} catch (DateTimeParseException exception) {
 			throw new IllegalArgumentException("Festival event start date is invalid");
 		}
+	}
+
+	private static String yearMonth(Object value, YearMonth fallback) {
+		if (value == null) {
+			return fallback.format(YEAR_MONTH_FORMAT);
+		}
+		if (!(value instanceof String text)) {
+			throw new IllegalArgumentException(
+				"Batch job baseYearMonth is invalid");
+		}
+		try {
+			return YearMonth.parse(text, YEAR_MONTH_FORMAT)
+				.format(YEAR_MONTH_FORMAT);
+		} catch (DateTimeParseException exception) {
+			throw new IllegalArgumentException(
+				"Batch job baseYearMonth is invalid");
+		}
+	}
+
+	private static String regionKey(Object value) {
+		if (value == null) {
+			return "";
+		}
+		if (!(value instanceof String text)
+			|| (!text.isBlank() && !text.matches("\\d{2,10}:\\d{2,10}"))) {
+			throw new IllegalArgumentException(
+				"Batch job startAfterRegionKey is invalid");
+		}
+		return text.strip();
 	}
 
 	private static boolean blank(String value) {

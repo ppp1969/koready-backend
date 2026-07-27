@@ -65,6 +65,8 @@ public class KtoEnglishQualityBackfillService {
 				.add(target);
 		}
 		Instant classifiedAt = Instant.now(clock);
+		List<QualityUpdate> updates =
+			new ArrayList<>(targets.size());
 		for (var entry : bySnapshot.entrySet()) {
 			List<String> contentIds = entry.getValue().stream()
 				.map(QualityTarget::sourceContentId)
@@ -79,7 +81,7 @@ public class KtoEnglishQualityBackfillService {
 				}
 				var quality = classifier.classify(
 					source.title(), joinAddress(source.address1(), source.address2()));
-				repository.classify(new QualityUpdate(
+				updates.add(new QualityUpdate(
 					target.sourceRecordId(),
 					target.sourceHash(),
 					quality.quality(),
@@ -88,6 +90,7 @@ public class KtoEnglishQualityBackfillService {
 					KtoEnglishSourceQualityClassifier.VERSION));
 			}
 		}
+		repository.classifyAll(updates);
 		return new KtoEnglishQualityBackfillResult(
 			targets.size(),
 			targets.getLast().sourceRecordId(),

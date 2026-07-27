@@ -70,8 +70,12 @@ public class JdbcKtoEnglishQualityRepository
 
 	@Override
 	@Transactional
-	public void classify(QualityUpdate update) {
-		int updated = jdbcTemplate.update(
+	public void classifyAll(List<QualityUpdate> updates) {
+		if (updates == null || updates.isEmpty()) {
+			throw new IllegalArgumentException(
+				"KTO English quality updates are required");
+		}
+		int[][] counts = jdbcTemplate.batchUpdate(
 			"""
 			UPDATE place_source_records
 			SET source_quality = ?,
@@ -82,13 +86,28 @@ public class JdbcKtoEnglishQualityRepository
 			  AND source_hash = ?
 			  AND source_quality IS NULL
 			""",
-			update.quality().name(),
-			json(update.warnings().stream().map(Enum::name).sorted().toList()),
-			Timestamp.from(update.classifiedAt()),
-			update.classifierVersion(),
-			update.sourceRecordId(),
-			update.expectedSourceHash());
-		if (updated != 1) {
+			updates,
+			50,
+			(statement, update) -> {
+				statement.setString(1, update.quality().name());
+				statement.setString(
+					2,
+					json(update.warnings().stream()
+						.map(Enum::name)
+						.sorted()
+						.toList()));
+				statement.setTimestamp(
+					3, Timestamp.from(update.classifiedAt()));
+				statement.setString(
+					4, update.classifierVersion());
+				statement.setLong(5, update.sourceRecordId());
+				statement.setString(
+					6, update.expectedSourceHash());
+			});
+		boolean conflicted = java.util.Arrays.stream(counts)
+			.flatMapToInt(java.util.Arrays::stream)
+			.anyMatch(count -> count != 1);
+		if (conflicted) {
 			throw new IllegalStateException(
 				"KTO English source quality update conflicted");
 		}

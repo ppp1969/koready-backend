@@ -11,7 +11,7 @@ public interface KtoEnglishQualityRepository {
 
 	List<QualityTarget> findUnclassified(long startAfterSourceRecordId, int limit);
 
-	void classify(QualityUpdate update);
+	void classifyAll(List<QualityUpdate> updates);
 
 	QualityCoverage summarizeLatest();
 

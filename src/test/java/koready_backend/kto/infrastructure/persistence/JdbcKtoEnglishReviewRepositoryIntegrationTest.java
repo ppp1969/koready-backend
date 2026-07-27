@@ -40,7 +40,9 @@ class JdbcKtoEnglishReviewRepositoryIntegrationTest {
 
 	@Container
 	@ServiceConnection
-	static final MySQLContainer mysql = new MySQLContainer("mysql:8.4");
+	static final MySQLContainer mysql =
+		new MySQLContainer("mysql:8.4")
+			.withUrlParam("rewriteBatchedStatements", "true");
 
 	@Autowired
 	KtoEnglishReviewRepository repository;
@@ -246,13 +248,14 @@ class JdbcKtoEnglishReviewRepositoryIntegrationTest {
 			.map(KtoEnglishQualityRepository.QualityTarget::sourceRecordId)
 			.toList());
 
-		qualityRepository.classify(new QualityUpdate(
-			firstId,
-			"1".repeat(64),
-			KtoEnglishSourceQuality.USABLE,
-			Set.of(),
-			Instant.parse("2026-07-27T02:00:00Z"),
-			"kto-en-source-quality-v1"));
+		qualityRepository.classifyAll(List.of(
+			new QualityUpdate(
+				firstId,
+				"1".repeat(64),
+				KtoEnglishSourceQuality.USABLE,
+				Set.of(),
+				Instant.parse("2026-07-27T02:00:00Z"),
+				"kto-en-source-quality-v1")));
 
 		var remaining = qualityRepository.findUnclassified(0L, 10);
 		assertEquals(List.of(secondId), remaining.stream()
@@ -263,6 +266,54 @@ class JdbcKtoEnglishReviewRepositoryIntegrationTest {
 		assertEquals(1, coverage.classified());
 		assertEquals(1, coverage.pending());
 		assertEquals(1, coverage.usable());
+	}
+
+	@Test
+	void classifiesUpdatesInBulkAndRejectsAnyHashConflict() {
+		long firstId = insertSource("eng-bulk-first", "3".repeat(64));
+		long secondId = insertSource("eng-bulk-second", "4".repeat(64));
+		Instant classifiedAt =
+			Instant.parse("2026-07-27T02:00:00Z");
+
+		qualityRepository.classifyAll(List.of(
+			new QualityUpdate(
+				firstId,
+				"3".repeat(64),
+				KtoEnglishSourceQuality.USABLE,
+				Set.of(),
+				classifiedAt,
+				"kto-en-source-quality-v1"),
+			new QualityUpdate(
+				secondId,
+				"4".repeat(64),
+				KtoEnglishSourceQuality.NON_ENGLISH_SUSPECTED,
+				Set.of(),
+				classifiedAt,
+				"kto-en-source-quality-v1")));
+
+		assertEquals(
+			2,
+			jdbcTemplate.queryForObject(
+				"""
+				SELECT COUNT(*)
+				FROM place_source_records
+				WHERE id IN (?, ?)
+				  AND source_quality IS NOT NULL
+				""",
+				Integer.class,
+				firstId,
+				secondId));
+		assertThrows(IllegalStateException.class, () ->
+			qualityRepository.classifyAll(List.of(
+				new QualityUpdate(
+					insertSource(
+						"eng-bulk-conflict",
+						"5".repeat(64)),
+					"6".repeat(64),
+					KtoEnglishSourceQuality.USABLE,
+					Set.of(),
+					classifiedAt,
+					"kto-en-source-quality-v1"))));
 	}
 
 	private long insertPlace(String contentId, String title) {

@@ -2161,7 +2161,8 @@ paths:
       description: |
         ADMIN 또는 OPERATOR가 KTO 관광지 동기화, 축제 수집, 장소 상세 보강 작업을 한 번에 하나씩 접수합니다.
         202는 접수 성공일 뿐 완료가 아니므로 반환 jobId로 상세 상태를 polling합니다. PENDING 또는 RUNNING 작업이 있으면 새 작업은 409입니다.
-        KTO_DAILY_SYNC는 startPage와 maxPages를, KTO_FESTIVAL_SYNC는 eventStartDate와 startPage, maxPages를 사용합니다.
+        KTO_DAILY_SYNC는 startPage와 maxPages를 사용합니다. KTO_FESTIVAL_SYNC는 eventStartDate,
+        startPage, maxPages, autoContinue를 사용하며 autoContinue=true일 때 성공한 범위 다음 페이지를 자동 등록합니다.
         KTO_DETAIL_ENRICHMENT는 startAfterPlaceId, maxPlaces, autoContinue를 사용합니다. 장소마다 detailCommon2,
         detailIntro2, detailInfo2, detailImage2를 순서대로 호출하므로 먼저 maxPlaces 10 이하와 autoContinue=false로
         확인한 뒤 범위를 늘립니다. 네 호출이 완료된 장소는 30일 동안 다시 선택하지 않으므로 startAfterPlaceId=0으로
@@ -7681,7 +7682,7 @@ components:
       type: object
       description: |
         KTO_DAILY_SYNC는 startPage와 maxPages를 사용합니다.
-        KTO_FESTIVAL_SYNC는 eventStartDate(YYYY-MM-DD)를 추가로 사용합니다.
+        KTO_FESTIVAL_SYNC는 eventStartDate(YYYY-MM-DD)와 autoContinue를 추가로 사용합니다.
         KTO_DETAIL_ENRICHMENT는 startAfterPlaceId 이후이면서 상세 수집이 필요하거나 30일 갱신 기한이 지난 장소를
         place ID 오름차순으로 maxPlaces개 처리합니다.
         상세 보강은 장소마다 KTO detailCommon2, detailIntro2, detailInfo2, detailImage2를 호출하고 원본을 private S3에 저장합니다.
@@ -7759,4 +7760,7 @@ components:
         autoContinue:
           type: boolean
           default: false
-          description: 처리할 장소가 남았을 때 다음 작업을 자동 등록할지 여부. 최초 운영 확인 전에는 false를 사용합니다.
+          description: |
+            KTO_FESTIVAL_SYNC, KTO_DETAIL_ENRICHMENT, KTO_EN_QUALITY_BACKFILL,
+            KTO_RELATED_TOUR_SYNC에서 처리할 범위가 남았을 때 다음 작업을 자동 등록할지 여부입니다.
+            최초 운영 확인 전에는 false를 사용합니다.

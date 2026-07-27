@@ -170,9 +170,30 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 			return new RunResult(result.processedItems(), result.processedItems(), 0, continuation);
 		}
 		if (job.jobType() == BatchJobType.KTO_FESTIVAL_SYNC) {
+			String eventStartDate = string(
+				job.parameters(), "eventStartDate");
+			boolean autoContinue = flag(
+				job.parameters(), "autoContinue");
 			var result = festivalImportService.importFestivals(new KtoFestivalImportRequest(
-				LocalDate.parse(string(job.parameters(), "eventStartDate")), startPage, maxPages), batchExecution);
-			return new RunResult(result.processedItems(), result.processedItems(), 0);
+				LocalDate.parse(eventStartDate),
+				startPage,
+				maxPages), batchExecution);
+			var continuation = result.truncatedByPageLimit()
+				&& autoContinue
+				? new BatchJobContinuation(
+					BatchJobType.KTO_FESTIVAL_SYNC,
+					Map.of(
+						"eventStartDate", eventStartDate,
+						"startPage",
+						result.lastProcessedPage() + 1,
+						"maxPages", maxPages,
+						"autoContinue", true))
+				: null;
+			return new RunResult(
+				result.processedItems(),
+				result.processedItems(),
+				0,
+				continuation);
 		}
 		if (job.jobType() == BatchJobType.KTO_PHOTO_AWARD_SYNC) {
 			var result = photoAwardImportService.importAwards(

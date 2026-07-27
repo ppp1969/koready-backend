@@ -1,0 +1,41 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "0000",
+      "resultMsg": "OK"
+    },
+    "body": {
+      "items": {
+        "item": [
+          {
+            "galContentId": "gallery-001",
+            "galContentTypeId": "17",
+            "galTitle": "Palace in autumn",
+            "galPhotographyLocation": "Seoul",
+            "galPhotographyMonth": "10",
+            "galPhotographer": "KTO",
+            "galSearchKeyword": "palace,autumn,seoul",
+            "galWebImageUrl": "https://example.invalid/photo-gallery/gallery-001.jpg",
+            "galCreatedtime": "20240102030405",
+            "galModifiedtime": "20250102030405"
+          },
+          {
+            "galContentId": "gallery-002",
+            "galContentTypeId": "17",
+            "galTitle": "Coastal trail",
+            "galPhotographyLocation": "Busan",
+            "galPhotographyMonth": "",
+            "galPhotographer": "",
+            "galSearchKeyword": "coast,trail",
+            "galWebImageUrl": "https://example.invalid/photo-gallery/gallery-002.jpg",
+            "galCreatedtime": "20240202030405",
+            "galModifiedtime": "20250202030405"
+          }
+        ]
+      },
+      "numOfRows": 200,
+      "pageNo": 1,
+      "totalCount": 312
+    }
+  }
+}

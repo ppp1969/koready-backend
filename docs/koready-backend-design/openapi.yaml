@@ -54,6 +54,8 @@ tags:
     description: KTO 장소 상세 수집 진행률과 사진 커버리지
   - name: Admin KTO Photo Award
     description: KTO 사진공모전 수상작 수집 결과와 운영자 승인 장소 연결
+  - name: Admin KTO Photo Gallery
+    description: KTO 관광사진 수집 결과와 저작권·장소 검수 후 승인 연결
   - name: Admin Evidence
     description: 관광공모전 증빙 번들
   - name: Admin Audit
@@ -1880,6 +1882,122 @@ paths:
           $ref: '#/components/responses/NotFound'
         '204':
           description: 연결과 우선 이미지 제거 완료
+  /admin/kto/photo-gallery:
+    get:
+      tags: [Admin KTO Photo Gallery]
+      operationId: getKtoPhotoGallery
+      summary: KTO 관광사진 후보 조회
+      description: |
+        `KTO_PHOTO_GALLERY_SYNC` 배치가 `galleryList1`에서 수집한 관광사진과
+        현재 장소 연결 상태를 조회합니다. `query`는 제목, 촬영지, 검색어, 사진가를
+        검색하고 `mapped=true|false`는 승인 연결 여부를 필터링합니다.
+
+        관광사진 `contentId`는 TourAPI 장소 `contentid`가 아니며, 공개 URL도 자유
+        이용 가능함을 뜻하지 않습니다. 따라서 `rightsStatus=REQUIRES_REVIEW`인 후보는
+        운영자가 사진, 장소와 이용 근거를 확인한 뒤 mapping API로 승인해야 합니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: mapped
+          in: query
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Size100'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '200':
+          description: 관광사진 후보 목록
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/KtoPhotoGalleryListResponse'
+  /admin/kto/photo-gallery/{contentId}/mapping:
+    put:
+      tags: [Admin KTO Photo Gallery]
+      operationId: approveKtoPhotoGalleryMapping
+      summary: 관광사진 장소 연결 승인
+      description: |
+        운영자가 사진의 촬영 장소와 이용 가능성을 확인한 뒤 내부 장소에 연결합니다.
+        승인된 사진만 `KTO_PHOTO_GALLERY` 출처와 우선순위 250으로 `place_images`에
+        반영됩니다. 사진공모전 수상작 300보다 낮고 기본 대표 이미지 200과
+        `detailImage2` 100보다 높습니다. `reason`에는 장소 및 이용 근거를 적고
+        키, 토큰, 개인정보는 입력하지 않습니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN, OPERATOR]
+      parameters:
+        - $ref: '#/components/parameters/KtoPhotoGalleryContentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveKtoPhotoGalleryMappingRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '200':
+          description: 승인된 관광사진과 장소 연결
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/KtoPhotoGallery'
+    delete:
+      tags: [Admin KTO Photo Gallery]
+      operationId: removeKtoPhotoGalleryMapping
+      summary: 관광사진 장소 연결 해제
+      description: |
+        잘못 승인한 장소 연결과 해당 `KTO_PHOTO_GALLERY` 장소 이미지를 제거합니다.
+        수집한 관광사진 원천 메타데이터는 다음 검수를 위해 유지합니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN, OPERATOR]
+      parameters:
+        - $ref: '#/components/parameters/KtoPhotoGalleryContentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveKtoPhotoGalleryMappingRequest'
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '204':
+          description: 연결과 공개 장소 이미지 제거 완료
   /admin/batch-jobs:
     get:
       tags: [Admin Batch]
@@ -2631,6 +2749,15 @@ components:
       in: path
       required: true
       description: KTO 사진공모전 수상작 식별자. TourAPI 관광지 contentid가 아님
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 100
+    KtoPhotoGalleryContentId:
+      name: contentId
+      in: path
+      required: true
+      description: KTO 관광사진 식별자. TourAPI 관광지 contentid가 아님
       schema:
         type: string
         minLength: 1
@@ -3508,7 +3635,7 @@ components:
     BatchJobType:
       type: string
       description: 현재 수동 실행을 허용하는 KTO 작업 유형
-      enum: [KTO_DAILY_SYNC, KTO_FULL_CATALOG_SYNC, KTO_FESTIVAL_SYNC, KTO_DETAIL_ENRICHMENT, KTO_EN_SYNC, KTO_EN_QUALITY_BACKFILL, KTO_PHOTO_AWARD_SYNC, AI_TRANSLATION, IMAGE_ENRICHMENT]
+      enum: [KTO_DAILY_SYNC, KTO_FULL_CATALOG_SYNC, KTO_FESTIVAL_SYNC, KTO_DETAIL_ENRICHMENT, KTO_EN_SYNC, KTO_EN_QUALITY_BACKFILL, KTO_PHOTO_AWARD_SYNC, KTO_PHOTO_GALLERY_SYNC, AI_TRANSLATION, IMAGE_ENRICHMENT]
     SocialLoginRequest:
       type: object
       required: [provider, deviceId]
@@ -7194,6 +7321,108 @@ components:
           type: string
           minLength: 1
           maxLength: 500
+    KtoPhotoGalleryListResponse:
+      type: object
+      required: [items, hasMore]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/KtoPhotoGallery'
+        nextCursor:
+          type: string
+          nullable: true
+          description: 다음 페이지 요청에 그대로 전달할 cursor
+        hasMore:
+          type: boolean
+    KtoPhotoGallery:
+      type: object
+      required:
+        - contentId
+        - title
+        - imageUrl
+        - rightsStatus
+        - sourceCapturedAt
+      properties:
+        contentId:
+          type: string
+          maxLength: 100
+          description: 관광사진 식별자. TourAPI 관광지 contentid와 직접 연결되지 않음
+        contentTypeId:
+          type: string
+          nullable: true
+        title:
+          type: string
+        photographyLocation:
+          type: string
+          nullable: true
+        photographyMonth:
+          type: string
+          nullable: true
+          description: KTO가 제공한 촬영월 원문
+        photographer:
+          type: string
+          nullable: true
+        searchKeyword:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          format: uri
+        rightsStatus:
+          type: string
+          enum: [REQUIRES_REVIEW, OPERATOR_APPROVED]
+          description: 공개 URL 후보의 검수 대기 또는 운영자의 장소·이용 근거 승인 완료 상태
+        mappedPlaceId:
+          type: integer
+          format: int64
+          nullable: true
+        mappedPlaceTitleKo:
+          type: string
+          nullable: true
+        displayOrder:
+          type: integer
+          minimum: 1
+          maximum: 20
+          nullable: true
+        approvedBySubject:
+          type: string
+          nullable: true
+        approvalReason:
+          type: string
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        sourceCapturedAt:
+          type: string
+          format: date-time
+    ApproveKtoPhotoGalleryMappingRequest:
+      type: object
+      required: [placeId, displayOrder, reason]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+          minimum: 1
+        displayOrder:
+          type: integer
+          minimum: 1
+          maximum: 20
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: 운영자가 장소와 이용 가능성을 확인한 근거
+    RemoveKtoPhotoGalleryMappingRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
     BatchJobParameters:
       type: object
       description: |
@@ -7208,6 +7437,8 @@ components:
         startAfterSourceRecordId, maxRecords, autoContinue를 사용하며 한 작업은 최대 200건입니다.
         KTO_PHOTO_AWARD_SYNC는 별도 사진공모전 API `phokoAwrdSyncList`를 페이지 단위로 수집합니다.
         96건 전체 후보 저장만 수행하며 장소 연결은 운영자 승인 mapping API에서 별도로 처리합니다.
+        KTO_PHOTO_GALLERY_SYNC는 관광사진 API `galleryList1`을 페이지 단위로 수집합니다.
+        후보는 PROVIDER_RESTRICTED 원본과 함께 저장되며 운영자가 장소·이용 근거를 확인하기 전에는 공개되지 않습니다.
         서버의 KTO pageSize와 동시성은 환경 설정으로 고정되어 있어 요청에서 바꾸지 않습니다.
       additionalProperties: false
       properties:

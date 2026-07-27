@@ -23,6 +23,7 @@ import koready_backend.kto.application.KtoEnglishSyncImportService;
 import koready_backend.kto.application.KtoEnglishQualityBackfillService;
 import koready_backend.kto.application.KtoFestivalImportService;
 import koready_backend.kto.application.KtoPhotoAwardImportService;
+import koready_backend.kto.application.KtoPhotoGalleryImportService;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDailySyncResult;
 import koready_backend.kto.application.model.KtoDetailEnrichmentResult;
@@ -31,6 +32,7 @@ import koready_backend.kto.application.model.KtoEnglishQualityBackfillResult;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
 import koready_backend.kto.application.model.KtoFestivalImportResult;
 import koready_backend.kto.application.model.KtoPhotoAwardImportResult;
+import koready_backend.kto.application.model.KtoPhotoGalleryImportResult;
 
 @ExtendWith(MockitoExtension.class)
 class KtoBatchJobRunnerAdapterTest {
@@ -52,6 +54,9 @@ class KtoBatchJobRunnerAdapterTest {
 
 	@Mock
 	KtoPhotoAwardImportService photoAwardImportService;
+
+	@Mock
+	KtoPhotoGalleryImportService photoGalleryImportService;
 
 	@Test
 	void forwardsTheClaimedDailyJobAndItemIdsToTheKtoImport() {
@@ -105,6 +110,27 @@ class KtoBatchJobRunnerAdapterTest {
 			BatchJobType.KTO_PHOTO_AWARD_SYNC,
 			result.continuation().jobType());
 		assertEquals(2, result.continuation().parameters().get("startPage"));
+	}
+
+	@Test
+	void forwardsThePhotoGalleryJobAndSchedulesTheNextBoundedPage() {
+		when(photoGalleryImportService.importGallery(any(), any()))
+			.thenReturn(new KtoPhotoGalleryImportResult(
+				1, 1, 200, 0, 312, 1, true));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_PHOTO_GALLERY_SYNC,
+			Map.of("startPage", 1, "maxPages", 1),
+			47L));
+
+		verify(photoGalleryImportService).importGallery(any(), any());
+		assertEquals(200, result.successCount());
+		assertEquals(
+			BatchJobType.KTO_PHOTO_GALLERY_SYNC,
+			result.continuation().jobType());
+		assertEquals(
+			2, result.continuation().parameters().get("startPage"));
 	}
 
 	@Test
@@ -239,6 +265,7 @@ class KtoBatchJobRunnerAdapterTest {
 			englishSyncService,
 			englishQualityBackfillService,
 			festivalImportService,
-			photoAwardImportService);
+			photoAwardImportService,
+			photoGalleryImportService);
 	}
 }

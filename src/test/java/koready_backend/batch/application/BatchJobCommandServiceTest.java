@@ -112,6 +112,30 @@ class BatchJobCommandServiceTest {
 	}
 
 	@Test
+	void acceptsABoundedPhotoGallerySyncJob() {
+		when(repository.enqueue(any())).thenReturn(99L);
+		BatchJobCommandService service = service();
+
+		var accepted = service.accept(
+			new BatchJobCommandService.CreateCommand(
+				BatchJobType.KTO_PHOTO_GALLERY_SYNC,
+				Map.of(),
+				"Collect the KTO photo gallery catalog",
+				"operator-7"));
+
+		ArgumentCaptor<EnqueueCommand> captor =
+			ArgumentCaptor.forClass(EnqueueCommand.class);
+		verify(repository).enqueue(captor.capture());
+		assertEquals(
+			BatchJobType.KTO_PHOTO_GALLERY_SYNC,
+			accepted.jobType());
+		assertEquals(
+			1, captor.getValue().parameters().get("startPage"));
+		assertEquals(
+			1, captor.getValue().parameters().get("maxPages"));
+	}
+
+	@Test
 	void acceptsABoundedKtoDetailEnrichmentJob() {
 		when(repository.enqueue(any())).thenReturn(95L);
 		BatchJobCommandService service = service();

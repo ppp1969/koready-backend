@@ -146,6 +146,23 @@ URL은 한 번만 사용합니다. 10곳이 전부 준비된 후에만
 보관하고, API 키와 원본 본문은 로그나 Git에 남기지 않습니다. 수집은 후보 저장까지만
 수행하며 운영자 승인 전에는 어떤 장소 상세에도 수상작 이미지가 노출되지 않습니다.
 
+### KTO 관광사진 수집과 검수 연결
+
+일반 관광사진은 관리자 배치 `KTO_PHOTO_GALLERY_SYNC`로
+`PhotoGalleryService1/galleryList1`을 페이지 단위로 수집합니다. 관광사진의
+`galContentId`는 장소 API의 `contentid`가 아니고 공개 이미지 URL도 자유 이용
+허가를 의미하지 않으므로 자동으로 장소에 연결하지 않습니다.
+
+1. `POST /api/v1/admin/batch-jobs`에 `KTO_PHOTO_GALLERY_SYNC`를 접수합니다.
+2. `GET /api/v1/admin/kto/photo-gallery`에서 제목, 촬영지, 사진가, 이미지와 연결 상태를 확인합니다.
+3. 장소와 이용 근거를 확인한 항목만 `PUT /api/v1/admin/kto/photo-gallery/{contentId}/mapping`으로 승인합니다.
+4. 잘못 승인한 항목은 같은 경로의 `DELETE` 요청으로 공개 이미지 연결만 해제합니다.
+
+승인된 관광사진은 우선순위 250으로 장소 상세에 반영됩니다. 사진공모전 수상작
+300보다 낮고 KTO 기본 대표 이미지 200과 `detailImage2` 100보다 높습니다. 원본
+snapshot은 `PROVIDER_RESTRICTED`로 보존하며 운영자 승인 전에는 사용자 API에
+노출하지 않습니다.
+
 `staging` 실행은 `KTO_SNAPSHOT_STORAGE=s3`, `KTO_SNAPSHOT_S3_BUCKET`, AWS 인증을 갖춘
 수집 환경에서만 허용된다. 이 설정이 없으면 외부 KTO 호출 전에 중단한다. Aiven에 저장된
 원문 증빙이 개인 PC 경로를 가리키지 않도록 하기 위한 안전장치이며, S3 설정 전에는

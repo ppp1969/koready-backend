@@ -82,6 +82,7 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 			case KTO_FESTIVAL_SYNC -> "searchFestival2";
 			case KTO_EN_SYNC -> "ENG:areaBasedSyncList2";
 			case KTO_PHOTO_AWARD_SYNC -> "PHOTO_AWARD:phokoAwrdSyncList";
+			case KTO_PHOTO_GALLERY_SYNC -> "PHOTO_GALLERY:galleryList1";
 			default -> "areaBasedSyncList2";
 		};
 		Object startPage = command.parameters().getOrDefault("startPage", 1);

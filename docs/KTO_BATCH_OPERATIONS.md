@@ -46,6 +46,13 @@ page만 요청한다. 응답의
 `scripts/import-kto-festivals.ps1`에서 `local` 또는 `staging`을 명시했을 때만
 실행한다. 한 번에 최대 20page까지 허용하지만 기본값은 1page다.
 
+관광사진은 `KTO_PHOTO_GALLERY_SYNC` 수동 배치로
+`PhotoGalleryService1/galleryList1`을 같은 page 크기와 단일 worker 제한 안에서
+수집한다. 원본 snapshot은 이미지 이용조건 확인이 필요한 자료이므로
+`PROVIDER_RESTRICTED`로 저장한다. 관광사진 ID는 장소 `contentid`가 아니어서 수집
+시 자동 연결하지 않으며, 운영자가 관리자 API에서 장소와 이용 근거를 승인한
+사진만 `KTO_PHOTO_GALLERY` 우선순위 250으로 `place_images`에 반영한다.
+
 온보딩 대표 관광지 초기 등록도 개발자 PC의
 `scripts/bootstrap-curated-onboarding.ps1`에서만 실행한다. 승인된 KTO
 `contentId` 10개를 코드 카탈로그에 고정하고, 각 장소마다 `searchKeyword2` 1회와

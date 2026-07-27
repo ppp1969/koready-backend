@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.Test;
 
@@ -38,11 +39,50 @@ class KtoRelatedTourResponseParserTest {
 	void rejectsMissingOpaqueIdentifiers() throws IOException {
 		byte[] invalid = new String(
 			fixture("related-tour-page.json"),
-			java.nio.charset.StandardCharsets.UTF_8)
+			StandardCharsets.UTF_8)
 			.replace(
 				"\"tAtsCd\": \"11111111111111111111111111111111\"",
 				"\"tAtsCd\": \"\"")
-			.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+			.getBytes(StandardCharsets.UTF_8);
+
+		assertThrows(KtoResponseParseException.class,
+			() -> parser.parse(invalid));
+	}
+
+	@Test
+	void parsesProviderEmptyPageWithZeroPageSize() {
+		byte[] payload = """
+			{
+			  "response": {
+			    "header": {
+			      "resultCode": "0000",
+			      "resultMsg": "OK"
+			    },
+			    "body": {
+			      "items": "",
+			      "numOfRows": 0,
+			      "pageNo": 1,
+			      "totalCount": 0
+			    }
+			  }
+			}
+			""".getBytes(StandardCharsets.UTF_8);
+
+		KtoRelatedTourPage page = parser.parse(payload);
+
+		assertEquals(1, page.pageNumber());
+		assertEquals(1, page.pageSize());
+		assertEquals(0, page.totalCount());
+		assertEquals(0, page.items().size());
+	}
+
+	@Test
+	void rejectsZeroPageSizeWhenProviderReturnsItems() throws IOException {
+		byte[] invalid = new String(
+			fixture("related-tour-page.json"),
+			StandardCharsets.UTF_8)
+			.replace("\"numOfRows\": 2", "\"numOfRows\": 0")
+			.getBytes(StandardCharsets.UTF_8);
 
 		assertThrows(KtoResponseParseException.class,
 			() -> parser.parse(invalid));

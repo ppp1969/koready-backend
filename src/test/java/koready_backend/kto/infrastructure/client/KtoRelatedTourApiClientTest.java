@@ -6,6 +6,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 
@@ -78,6 +79,44 @@ class KtoRelatedTourApiClientTest {
 			KtoResponseTooLargeException.class,
 			() -> client.fetchPage("202606", "11", "11530", 1));
 
+		server.verify();
+	}
+
+	@Test
+	void normalizesAProviderEmptyPageToTheRequestedPageSize() {
+		byte[] payload = """
+			{
+			  "response": {
+			    "header": {
+			      "resultCode": "0000",
+			      "resultMsg": "OK"
+			    },
+			    "body": {
+			      "items": "",
+			      "numOfRows": 0,
+			      "pageNo": 1,
+			      "totalCount": 0
+			    }
+			  }
+			}
+			""".getBytes(StandardCharsets.UTF_8);
+		KtoRelatedTourApiProperties properties =
+			properties(4 * 1024 * 1024);
+		RestClient.Builder builder =
+			RestClient.builder().baseUrl(properties.baseUrl());
+		MockRestServiceServer server =
+			MockRestServiceServer.bindTo(builder).build();
+		KtoRelatedTourApiClient client =
+			client(builder.build(), properties);
+		server.expect(request -> { })
+			.andRespond(withSuccess(payload, MediaType.APPLICATION_JSON));
+
+		var fetched = client.fetchPage(
+			"202606", "41", "41110", 1);
+
+		assertEquals(0, fetched.page().totalCount());
+		assertEquals(0, fetched.page().items().size());
+		assertEquals(200, fetched.page().pageSize());
 		server.verify();
 	}
 

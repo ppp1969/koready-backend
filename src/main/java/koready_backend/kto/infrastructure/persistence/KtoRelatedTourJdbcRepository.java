@@ -20,7 +20,6 @@ import koready_backend.kto.application.model.KtoRelatedTourStorePageResult;
 import koready_backend.kto.application.port.KtoRelatedTourCurationRepository;
 import koready_backend.kto.application.port.KtoRelatedTourRegionSource;
 import koready_backend.kto.application.port.KtoRelatedTourStore;
-import koready_backend.kto.domain.KtoRelatedTourItem;
 
 @Repository
 public class KtoRelatedTourJdbcRepository
@@ -58,7 +57,7 @@ public class KtoRelatedTourJdbcRepository
 		long callLogId = insertCallLog(command);
 		long snapshotId = insertSnapshot(command, callLogId);
 		upsertRecords(command, snapshotId);
-		refreshAutoMappings(command.page().items());
+		refreshAutoMappings(snapshotId);
 		return new KtoRelatedTourStorePageResult(
 			command.page().items().size(), false);
 	}
@@ -427,152 +426,147 @@ public class KtoRelatedTourJdbcRepository
 			});
 	}
 
-	private void refreshAutoMappings(
-		List<KtoRelatedTourItem> items
-	) {
-		for (KtoRelatedTourItem item : items) {
-			long recordId = jdbcTemplate.queryForObject(
-				"""
-				SELECT id
-				FROM kto_related_tour_records
-				WHERE base_ym = ?
-				  AND source_tour_code = ?
-				  AND related_tour_code = ?
-				""",
-				Long.class,
-				item.baseYearMonth(),
-				item.sourceTourCode(),
-				item.relatedTourCode());
-			String existingStatus = mappingStatus(recordId);
-			if ("MANUAL_CONFIRMED".equals(existingStatus)) {
-				continue;
-			}
-			Long sourcePlaceId = uniquePlace(
-				item.sourceName(),
-				item.areaCode(),
-				item.signguCode());
-			Long relatedPlaceId = uniquePlace(
-				item.relatedName(),
-				item.relatedRegionCode(),
-				item.relatedSignguCode());
-			if (sourcePlaceId != null
-				&& relatedPlaceId != null
-				&& !sourcePlaceId.equals(relatedPlaceId)) {
-				upsertAutoMapping(
-					recordId, sourcePlaceId, relatedPlaceId);
-				upsertRelation(recordId);
-			} else {
-				removeAutoMapping(recordId);
-			}
-		}
-	}
-
-	private String mappingStatus(long recordId) {
-		List<String> rows = jdbcTemplate.query(
+	private void refreshAutoMappings(long snapshotId) {
+		jdbcTemplate.update(
 			"""
-			SELECT match_status
-			FROM kto_related_tour_mappings
-			WHERE related_tour_record_id = ?
+			DELETE relation
+			FROM place_relations relation
+			JOIN kto_related_tour_mappings mapping
+			    ON mapping.related_tour_record_id =
+			        relation.related_tour_record_id
+			JOIN kto_related_tour_records record
+			    ON record.id = mapping.related_tour_record_id
+			WHERE record.raw_snapshot_id = ?
+			  AND mapping.match_status = 'AUTO_CONFIRMED'
 			""",
-			(resultSet, rowNumber) ->
-				resultSet.getString("match_status"),
-			recordId);
-		return rows.isEmpty() ? null : rows.getFirst();
-	}
-
-	private Long uniquePlace(
-		String title,
-		String regionCode,
-		String signguCode
-	) {
-		StringBuilder sql = new StringBuilder("""
-			SELECT place.id
-			FROM place_localizations localization
-			JOIN places place ON place.id = localization.place_id
-			WHERE localization.language = 'KO'
-			  AND localization.title = ?
-			  AND place.active = TRUE
-			  AND place.show_flag = TRUE
-			""");
-		List<Object> parameters = new ArrayList<>();
-		parameters.add(title);
-		if (regionCode != null) {
-			sql.append("""
-
-				  AND (
-				      place.ldong_regn_cd = ?
-				      OR LEFT(place.ldong_regn_cd, 2) = ?
-				  )
-				""");
-			parameters.add(regionCode);
-			parameters.add(regionCode);
-		}
-		if (signguCode != null) {
-			sql.append("""
-
-				  AND (
-				      place.ldong_signgu_cd = ?
-				      OR CONCAT(
-				          LEFT(place.ldong_regn_cd, 2),
-				          LPAD(place.ldong_signgu_cd, 3, '0')) = ?
-				  )
-				""");
-			parameters.add(signguCode);
-			parameters.add(signguCode);
-		}
-		sql.append(" ORDER BY place.id ASC LIMIT 2");
-		List<Long> candidates = jdbcTemplate.query(
-			sql.toString(),
-			(resultSet, rowNumber) -> resultSet.getLong("id"),
-			parameters.toArray());
-		return candidates.size() == 1 ? candidates.getFirst() : null;
-	}
-
-	private void upsertAutoMapping(
-		long recordId,
-		long sourcePlaceId,
-		long relatedPlaceId
-	) {
+			snapshotId);
+		jdbcTemplate.update(
+			"""
+			DELETE mapping
+			FROM kto_related_tour_mappings mapping
+			JOIN kto_related_tour_records record
+			    ON record.id = mapping.related_tour_record_id
+			WHERE record.raw_snapshot_id = ?
+			  AND mapping.match_status = 'AUTO_CONFIRMED'
+			""",
+			snapshotId);
 		jdbcTemplate.update(
 			"""
 			INSERT INTO kto_related_tour_mappings
 			    (related_tour_record_id, source_place_id,
 			     related_place_id, match_status, match_evidence,
 			     confirmed_at)
-			VALUES (
-			    ?, ?, ?, 'AUTO_CONFIRMED',
+			SELECT
+			    matched.record_id,
+			    matched.source_place_id,
+			    matched.related_place_id,
+			    'AUTO_CONFIRMED',
 			    JSON_OBJECT(
 			        'method', 'EXACT_KO_TITLE_AND_REGION',
 			        'candidateCount', 1),
-			    UTC_TIMESTAMP(6))
+			    UTC_TIMESTAMP(6)
+			FROM (
+			    SELECT
+			        record.id AS record_id,
+			        MIN(source_place.id) AS source_place_id,
+			        MIN(related_place.id) AS related_place_id
+			    FROM kto_related_tour_records record
+			    JOIN place_localizations source_localization
+			        ON source_localization.language = 'KO'
+			       AND source_localization.title = record.source_name
+			    JOIN places source_place
+			        ON source_place.id =
+			            source_localization.place_id
+			       AND source_place.active = TRUE
+			       AND source_place.show_flag = TRUE
+			       AND (
+			           source_place.ldong_regn_cd =
+			               record.area_code
+			           OR LEFT(source_place.ldong_regn_cd, 2) =
+			               record.area_code
+			       )
+			       AND (
+			           source_place.ldong_signgu_cd =
+			               record.signgu_code
+			           OR CONCAT(
+			               LEFT(source_place.ldong_regn_cd, 2),
+			               LPAD(
+			                   source_place.ldong_signgu_cd,
+			                   3,
+			                   '0')) = record.signgu_code
+			       )
+			    JOIN place_localizations related_localization
+			        ON related_localization.language = 'KO'
+			       AND related_localization.title =
+			           record.related_name
+			    JOIN places related_place
+			        ON related_place.id =
+			            related_localization.place_id
+			       AND related_place.active = TRUE
+			       AND related_place.show_flag = TRUE
+			       AND (
+			           record.related_region_code IS NULL
+			           OR related_place.ldong_regn_cd =
+			               record.related_region_code
+			           OR LEFT(related_place.ldong_regn_cd, 2) =
+			               record.related_region_code
+			       )
+			       AND (
+			           record.related_signgu_code IS NULL
+			           OR related_place.ldong_signgu_cd =
+			               record.related_signgu_code
+			           OR CONCAT(
+			               LEFT(related_place.ldong_regn_cd, 2),
+			               LPAD(
+			                   related_place.ldong_signgu_cd,
+			                   3,
+			                   '0')) =
+			               record.related_signgu_code
+			       )
+			    LEFT JOIN kto_related_tour_mappings existing
+			        ON existing.related_tour_record_id = record.id
+			    WHERE record.raw_snapshot_id = ?
+			      AND existing.id IS NULL
+			    GROUP BY record.id
+			    HAVING COUNT(DISTINCT source_place.id) = 1
+			       AND COUNT(DISTINCT related_place.id) = 1
+			       AND MIN(source_place.id) <>
+			           MIN(related_place.id)
+			) matched
+			""",
+			snapshotId);
+		upsertRelationsForSnapshot(snapshotId);
+	}
+
+	private void upsertRelationsForSnapshot(long snapshotId) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO place_relations
+			    (related_tour_record_id, source_place_id,
+			     related_place_id, relation_source, relation_type,
+			     relation_rank, source_base_ym, last_synced_at)
+			SELECT
+			    record.id,
+			    mapping.source_place_id,
+			    mapping.related_place_id,
+			    'KTO_RELATED',
+			    record.category_large,
+			    record.related_rank,
+			    record.base_ym,
+			    record.source_captured_at
+			FROM kto_related_tour_records record
+			JOIN kto_related_tour_mappings mapping
+			    ON mapping.related_tour_record_id = record.id
+			WHERE record.raw_snapshot_id = ?
 			ON DUPLICATE KEY UPDATE
 			    source_place_id = VALUES(source_place_id),
 			    related_place_id = VALUES(related_place_id),
-			    match_status = 'AUTO_CONFIRMED',
-			    match_evidence = VALUES(match_evidence),
-			    confirmed_by_subject = NULL,
-			    confirmation_reason = NULL,
-			    confirmed_at = VALUES(confirmed_at)
+			    relation_type = VALUES(relation_type),
+			    relation_rank = VALUES(relation_rank),
+			    source_base_ym = VALUES(source_base_ym),
+			    last_synced_at = VALUES(last_synced_at)
 			""",
-			recordId,
-			sourcePlaceId,
-			relatedPlaceId);
-	}
-
-	private void removeAutoMapping(long recordId) {
-		if (!"AUTO_CONFIRMED".equals(mappingStatus(recordId))) {
-			return;
-		}
-		jdbcTemplate.update(
-			"DELETE FROM place_relations WHERE related_tour_record_id = ?",
-			recordId);
-		jdbcTemplate.update(
-			"""
-			DELETE FROM kto_related_tour_mappings
-			WHERE related_tour_record_id = ?
-			  AND match_status = 'AUTO_CONFIRMED'
-			""",
-			recordId);
+			snapshotId);
 	}
 
 	private void upsertRelation(long recordId) {

@@ -93,6 +93,46 @@ public class BatchJobCommandService {
 		return accepted;
 	}
 
+	@Transactional
+	public DailyScheduleResult scheduleDailyDetail(
+		LocalDate scheduleDate,
+		int maxPlaces
+	) {
+		if (scheduleDate == null || maxPlaces < 1
+			|| maxPlaces > MAX_DETAIL_PLACES) {
+			throw new IllegalArgumentException(
+				"KTO daily detail schedule is invalid");
+		}
+		Map<String, Object> parameters = Map.of(
+			"startAfterPlaceId", 0L,
+			"maxPlaces", maxPlaces,
+			"autoContinue", false,
+			"scheduleDate", scheduleDate.toString());
+		String scheduleKey =
+			BatchJobType.KTO_DETAIL_ENRICHMENT.name()
+				+ ":" + scheduleDate;
+		try {
+			Instant createdAt = Instant.now(clock);
+			long jobId = repository.enqueue(new EnqueueCommand(
+				BatchJobType.KTO_DETAIL_ENRICHMENT,
+				BatchTriggerSource.SCHEDULED,
+				null,
+				parameters,
+				scheduleKey,
+				createdAt));
+			repository.recordAudit(new BatchAuditRecord(
+				"SYSTEM:KTO_DETAIL_DAILY",
+				"BATCH_JOB_SCHEDULED",
+				jobId,
+				"Schedule the bounded daily KTO detail budget.",
+				parameters,
+				createdAt));
+			return new DailyScheduleResult(true, jobId);
+		} catch (DuplicateKeyException exception) {
+			return new DailyScheduleResult(false, null);
+		}
+	}
+
 	private JobAcceptance enqueue(
 		BatchJobType jobType, BatchTriggerSource source, Long parentJobId, Map<String, Object> parameters
 	) {
@@ -299,6 +339,9 @@ public class BatchJobCommandService {
 	}
 
 	public record RetryCommand(String scope, String reason, String actorSubject) {
+	}
+
+	public record DailyScheduleResult(boolean scheduled, Long jobId) {
 	}
 
 	public record JobAcceptance(

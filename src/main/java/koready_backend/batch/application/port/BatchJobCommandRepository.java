@@ -21,8 +21,24 @@ public interface BatchJobCommandRepository {
 		BatchTriggerSource triggerSource,
 		Long parentJobId,
 		Map<String, Object> parameters,
+		String scheduleKey,
 		Instant createdAt
 	) {
+		public EnqueueCommand(
+			BatchJobType jobType,
+			BatchTriggerSource triggerSource,
+			Long parentJobId,
+			Map<String, Object> parameters,
+			Instant createdAt
+		) {
+			this(
+				jobType,
+				triggerSource,
+				parentJobId,
+				parameters,
+				null,
+				createdAt);
+		}
 	}
 
 	record RetrySource(long id, BatchJobType jobType, BatchJobStatus status, Map<String, Object> parameters) {

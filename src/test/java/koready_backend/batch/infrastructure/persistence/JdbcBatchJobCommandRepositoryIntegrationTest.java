@@ -69,6 +69,28 @@ class JdbcBatchJobCommandRepositoryIntegrationTest {
 		assertThrows(DuplicateKeyException.class, () -> repository.enqueue(command(BatchJobType.KTO_DAILY_SYNC)));
 	}
 
+	@Test
+	void keepsTheDailyScheduleKeyUniqueAfterTheJobCompletes() {
+		var command = new EnqueueCommand(
+			BatchJobType.KTO_DETAIL_ENRICHMENT,
+			BatchTriggerSource.SCHEDULED,
+			null,
+			Map.of(
+				"startAfterPlaceId", 0L,
+				"maxPlaces", 50,
+				"autoContinue", false),
+			"KTO_DETAIL_ENRICHMENT:2026-07-20",
+			Instant.parse("2026-07-20T00:00:00Z"));
+		long jobId = repository.enqueue(command);
+		jdbcTemplate.update(
+			"UPDATE batch_jobs SET active_execution_slot = NULL WHERE id = ?",
+			jobId);
+
+		assertThrows(
+			DuplicateKeyException.class,
+			() -> repository.enqueue(command));
+	}
+
 	private static EnqueueCommand command(BatchJobType type) {
 		return new EnqueueCommand(
 			type,

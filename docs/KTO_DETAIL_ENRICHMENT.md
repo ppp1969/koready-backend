@@ -78,6 +78,26 @@ KTO 접근 키와 private S3 권한이 있는 EB 환경에서만 실행한다.
 적용한다. 같은 URL은 한 번만 반환하고 네 장이 없으면 있는 만큼만 내려준다.
 AI 번역과 AI 소개문 생성은 이 배치의 범위가 아니다.
 
+## EB 일일 호출 예산
+
+수동 전수 실행 대신 EB에서는 하루 최대 50곳을 자동 등록할 수 있다. 한 장소당
+KTO 상세 API를 네 번 호출하므로 기본 예산은 최대 200회/일이다.
+
+- `KTO_DETAIL_DAILY_SCHEDULE_ENABLED=true`: 자동 등록을 켠다. 기본값은 `false`다.
+- `KTO_DETAIL_DAILY_MAX_PLACES=50`: 하루에 처리할 장소 수다. 최댓값은 `50`이다.
+- `KTO_DETAIL_DAILY_SCHEDULE_ZONE=Asia/Seoul`: 일일 중복 판단 기준 시간대다.
+- `KTO_DETAIL_DAILY_SCHEDULE_CRON=0 */30 * * * *`: 30분마다 등록 가능 여부를
+  확인한다.
+
+같은 날짜의 예약 키는 DB에서 한 번만 허용한다. 다른 KTO 배치가 실행 중이면 활성
+작업 슬롯 충돌로 등록하지 않고 다음 30분 주기에 다시 확인한다. 당일 작업이 이미
+완료됐으면 이후 확인에서도 중복 등록하지 않는다. 자동 작업은
+`startAfterPlaceId=0`, `autoContinue=false`로 실행하므로 기존 체크포인트가 다음
+미완료 또는 갱신 대상 장소를 선택하면서도 하루 예산을 넘어 연속 실행하지 않는다.
+
+Render는 Swagger 공유 환경이므로 `KTO_MANUAL_BATCH_WORKER_ENABLED=false`와
+`KTO_DETAIL_DAILY_SCHEDULE_ENABLED=false`를 함께 유지한다.
+
 ## 진행률과 사진 커버리지
 
 `GET /api/v1/admin/kto/detail-coverage`는 외부 API를 다시 호출하지 않고 현재 DB를

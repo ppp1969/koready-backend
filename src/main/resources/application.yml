@@ -110,6 +110,11 @@ koready:
         cron: ${KTO_DETAIL_DAILY_SCHEDULE_CRON:0 */30 * * * *}
         zone: ${KTO_DETAIL_DAILY_SCHEDULE_ZONE:Asia/Seoul}
         max-places: ${KTO_DETAIL_DAILY_MAX_PLACES:50}
+    related-tour-resume:
+      schedule:
+        enabled: ${KTO_RELATED_TOUR_RESUME_SCHEDULE_ENABLED:false}
+        cron: ${KTO_RELATED_TOUR_RESUME_SCHEDULE_CRON:0 15 0 * * *}
+        zone: ${KTO_RELATED_TOUR_RESUME_SCHEDULE_ZONE:Asia/Seoul}
     snapshot:
       storage: ${KTO_SNAPSHOT_STORAGE:local}
       directory: ${KTO_SNAPSHOT_DIRECTORY:${user.home}/.koready/kto-snapshots}

@@ -56,6 +56,7 @@ PR, 스크린샷에는 값 자체를 적지 않는다.
 | KTO | `KTO_SERVICE_KEY` | data.go.kr 발급 key |
 | KTO | `KTO_BATCH_PAGE_SIZE`, `KTO_BATCH_FLUSH_SIZE`, `KTO_BATCH_MAX_CONCURRENCY` | `200`, `50`, `1` |
 | KTO 상세 일일 예산 | `KTO_DETAIL_DAILY_SCHEDULE_ENABLED`, `KTO_DETAIL_DAILY_MAX_PLACES` | `true`, `50` |
+| KTO 연관 관광지 재개 | `KTO_RELATED_TOUR_RESUME_SCHEDULE_ENABLED`, `KTO_RELATED_TOUR_RESUME_SCHEDULE_CRON` | `true`, `0 15 0 * * *` |
 | KTO | `KTO_MAX_RESPONSE_BYTES`, `KTO_CONNECT_TIMEOUT`, `KTO_READ_TIMEOUT` | `4194304`, `3s`, `10s` |
 | S3 | `KTO_SNAPSHOT_STORAGE`, `KTO_SNAPSHOT_S3_BUCKET`, `AWS_REGION` | `s3`, CloudFormation bucket 출력값, `ap-northeast-2` |
 | location | `LOCATION_SEARCH_PROVIDER`, `KAKAO_REST_API_KEY`, `LOCATION_SEARCH_TOKEN_SECRET` | `kakao`, Kakao key, 32 byte 이상 random secret |
@@ -66,6 +67,11 @@ PR, 스크린샷에는 값 자체를 적지 않는다.
 상세 자동 보강은 기본값이 꺼져 있으므로 EB에서만
 `KTO_DETAIL_DAILY_SCHEDULE_ENABLED=true`로 켠다. 기본 50곳은 KTO 상세 API
 최대 200회/일에 해당하며, Render에서는 이 값을 `false`로 유지한다.
+연관 관광지 전체 수집이 KTO 일일 한도에서 멈춘 동안에는 EB에서
+`KTO_RELATED_TOUR_RESUME_SCHEDULE_ENABLED=true`를 켠다. 한국 시간 00시 15분에
+최신 실패 작업만 하루 한 번 재개하며, 전체 체인이 완료되면 더 이상 작업을 만들지
+않는다. 관련 관광지 과거 데이터 수집이 끝난 뒤 상세 일일 예산을 활성화해 두 작업의
+호출량이 경쟁하지 않게 한다.
 page size와 concurrency는 빠른 수집보다 Aiven 안정성을 우선해 유지한다.
 
 ## 배포와 전환 순서

@@ -126,6 +126,22 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 			""", this::mapRetrySource, jobId).stream().findFirst();
 	}
 
+	@Override
+	public Optional<RetrySource> findLatestSourceForUpdate(
+		BatchJobType jobType
+	) {
+		return jdbcTemplate.query("""
+			SELECT id, job_type, status, parameters_json
+			FROM batch_jobs
+			WHERE job_type = ?
+			ORDER BY id DESC
+			LIMIT 1
+			FOR UPDATE
+			""",
+			this::mapRetrySource,
+			jobType.name()).stream().findFirst();
+	}
+
 	private RetrySource mapRetrySource(ResultSet resultSet, int rowNumber) throws SQLException {
 		return new RetrySource(
 			resultSet.getLong("id"),

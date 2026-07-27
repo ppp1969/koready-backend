@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -329,6 +330,82 @@ class BatchJobCommandServiceTest {
 			IllegalArgumentException.class,
 			() -> service.scheduleDailyDetail(
 				LocalDate.parse("2026-07-20"), 51));
+	}
+
+	@Test
+	void schedulesTheLatestFailedRelatedTourJobOncePerBusinessDate() {
+		Map<String, Object> parameters = Map.of(
+			"baseYearMonth", "202606",
+			"startAfterRegionKey", "51:51830",
+			"maxRegions", 2,
+			"maxPagesPerRegion", 50,
+			"autoContinue", true);
+		when(repository.findLatestSourceForUpdate(
+			BatchJobType.KTO_RELATED_TOUR_SYNC))
+			.thenReturn(Optional.of(new RetrySource(
+				360L,
+				BatchJobType.KTO_RELATED_TOUR_SYNC,
+				BatchJobStatus.FAILED,
+				parameters)));
+		when(repository.enqueue(any())).thenReturn(361L);
+		BatchJobCommandService service = service();
+
+		var result = service.scheduleDailyRelatedTourResume(
+			LocalDate.parse("2026-07-21"));
+
+		assertTrue(result.scheduled());
+		assertEquals(361L, result.jobId());
+		ArgumentCaptor<EnqueueCommand> captor =
+			ArgumentCaptor.forClass(EnqueueCommand.class);
+		verify(repository).enqueue(captor.capture());
+		assertEquals(
+			BatchJobType.KTO_RELATED_TOUR_SYNC,
+			captor.getValue().jobType());
+		assertEquals(
+			BatchTriggerSource.SCHEDULED,
+			captor.getValue().triggerSource());
+		assertEquals(360L, captor.getValue().parentJobId());
+		assertEquals(parameters, captor.getValue().parameters());
+		assertEquals(
+			"KTO_RELATED_TOUR_SYNC:RESUME:2026-07-21",
+			captor.getValue().scheduleKey());
+	}
+
+	@Test
+	void skipsRelatedTourResumeWhenTheLatestJobDidNotFail() {
+		when(repository.findLatestSourceForUpdate(
+			BatchJobType.KTO_RELATED_TOUR_SYNC))
+			.thenReturn(Optional.of(new RetrySource(
+				359L,
+				BatchJobType.KTO_RELATED_TOUR_SYNC,
+				BatchJobStatus.COMPLETED,
+				Map.of())));
+		BatchJobCommandService service = service();
+
+		var result = service.scheduleDailyRelatedTourResume(
+			LocalDate.parse("2026-07-21"));
+
+		assertFalse(result.scheduled());
+		assertEquals(null, result.jobId());
+		verify(repository, never()).enqueue(any());
+	}
+
+	@Test
+	void skipsRelatedTourResumeForAnExplicitOneOffJob() {
+		when(repository.findLatestSourceForUpdate(
+			BatchJobType.KTO_RELATED_TOUR_SYNC))
+			.thenReturn(Optional.of(new RetrySource(
+				360L,
+				BatchJobType.KTO_RELATED_TOUR_SYNC,
+				BatchJobStatus.FAILED,
+				Map.of("autoContinue", false))));
+		BatchJobCommandService service = service();
+
+		var result = service.scheduleDailyRelatedTourResume(
+			LocalDate.parse("2026-07-21"));
+
+		assertFalse(result.scheduled());
+		verify(repository, never()).enqueue(any());
 	}
 
 	@Test

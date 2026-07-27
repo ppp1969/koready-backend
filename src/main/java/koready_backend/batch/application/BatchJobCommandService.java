@@ -133,6 +133,49 @@ public class BatchJobCommandService {
 		}
 	}
 
+	@Transactional
+	public DailyScheduleResult scheduleDailyRelatedTourResume(
+		LocalDate scheduleDate
+	) {
+		if (scheduleDate == null) {
+			throw new IllegalArgumentException(
+				"KTO related tour resume date is required");
+		}
+		RetrySource source = repository.findLatestSourceForUpdate(
+			BatchJobType.KTO_RELATED_TOUR_SYNC).orElse(null);
+		if (source == null
+			|| (source.status() != BatchJobStatus.FAILED
+				&& source.status()
+					!= BatchJobStatus.PARTIAL_FAILED)
+			|| !Boolean.TRUE.equals(
+				source.parameters().get("autoContinue"))) {
+			return new DailyScheduleResult(false, null);
+		}
+		String scheduleKey =
+			BatchJobType.KTO_RELATED_TOUR_SYNC.name()
+				+ ":RESUME:" + scheduleDate;
+		try {
+			Instant createdAt = Instant.now(clock);
+			long jobId = repository.enqueue(new EnqueueCommand(
+				BatchJobType.KTO_RELATED_TOUR_SYNC,
+				BatchTriggerSource.SCHEDULED,
+				source.id(),
+				source.parameters(),
+				scheduleKey,
+				createdAt));
+			repository.recordAudit(new BatchAuditRecord(
+				"SYSTEM:KTO_RELATED_TOUR_RESUME",
+				"BATCH_JOB_SCHEDULED",
+				jobId,
+				"Resume the latest failed KTO related tour job after the daily quota reset.",
+				source.parameters(),
+				createdAt));
+			return new DailyScheduleResult(true, jobId);
+		} catch (DuplicateKeyException exception) {
+			return new DailyScheduleResult(false, null);
+		}
+	}
+
 	private JobAcceptance enqueue(
 		BatchJobType jobType, BatchTriggerSource source, Long parentJobId, Map<String, Object> parameters
 	) {

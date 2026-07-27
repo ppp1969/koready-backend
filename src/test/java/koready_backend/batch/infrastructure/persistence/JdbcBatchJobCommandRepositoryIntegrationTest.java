@@ -24,6 +24,7 @@ import koready_backend.batch.application.port.BatchJobCommandRepository;
 import koready_backend.batch.application.port.BatchJobCommandRepository.BatchAuditRecord;
 import koready_backend.batch.application.port.BatchJobCommandRepository.EnqueueCommand;
 import koready_backend.batch.application.port.BatchJobAdminRepository;
+import koready_backend.batch.domain.BatchJobStatus;
 import koready_backend.batch.domain.BatchJobType;
 import koready_backend.batch.domain.BatchTriggerSource;
 
@@ -91,6 +92,33 @@ class JdbcBatchJobCommandRepositoryIntegrationTest {
 			() -> repository.enqueue(command));
 	}
 
+	@Test
+	void findsOnlyTheLatestRelatedTourJobForScheduledResume() {
+		long failedJobId = repository.enqueue(
+			relatedTourCommand("50:50130"));
+		jdbcTemplate.update("""
+			UPDATE batch_jobs
+			SET status = 'FAILED', active_execution_slot = NULL
+			WHERE id = ?
+			""", failedJobId);
+		long completedJobId = repository.enqueue(
+			relatedTourCommand("51:51830"));
+		jdbcTemplate.update("""
+			UPDATE batch_jobs
+			SET status = 'COMPLETED', active_execution_slot = NULL
+			WHERE id = ?
+			""", completedJobId);
+
+		var latest = repository.findLatestSourceForUpdate(
+			BatchJobType.KTO_RELATED_TOUR_SYNC).orElseThrow();
+
+		assertEquals(completedJobId, latest.id());
+		assertEquals(BatchJobStatus.COMPLETED, latest.status());
+		assertEquals(
+			"51:51830",
+			latest.parameters().get("startAfterRegionKey"));
+	}
+
 	private static EnqueueCommand command(BatchJobType type) {
 		return new EnqueueCommand(
 			type,
@@ -99,6 +127,22 @@ class JdbcBatchJobCommandRepositoryIntegrationTest {
 			type == BatchJobType.KTO_FESTIVAL_SYNC
 				? Map.of("eventStartDate", "2026-07-01", "startPage", 1, "maxPages", 1)
 				: Map.of("startPage", 1, "maxPages", 1),
+			Instant.parse("2026-07-20T00:00:00Z"));
+	}
+
+	private static EnqueueCommand relatedTourCommand(
+		String startAfterRegionKey
+	) {
+		return new EnqueueCommand(
+			BatchJobType.KTO_RELATED_TOUR_SYNC,
+			BatchTriggerSource.ADMIN_MANUAL,
+			null,
+			Map.of(
+				"baseYearMonth", "202606",
+				"startAfterRegionKey", startAfterRegionKey,
+				"maxRegions", 2,
+				"maxPagesPerRegion", 50,
+				"autoContinue", true),
 			Instant.parse("2026-07-20T00:00:00Z"));
 	}
 }

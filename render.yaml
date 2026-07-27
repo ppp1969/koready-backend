@@ -37,6 +37,8 @@ services:
         value: false
       - key: KTO_DETAIL_DAILY_SCHEDULE_ENABLED
         value: false
+      - key: KTO_RELATED_TOUR_RESUME_SCHEDULE_ENABLED
+        value: false
       - key: KTO_MAX_RESPONSE_BYTES
         value: 4194304
       - key: KTO_CONNECT_TIMEOUT

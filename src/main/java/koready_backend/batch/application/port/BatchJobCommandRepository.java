@@ -16,6 +16,8 @@ public interface BatchJobCommandRepository {
 
 	Optional<RetrySource> findRetrySourceForUpdate(long jobId);
 
+	Optional<RetrySource> findLatestSourceForUpdate(BatchJobType jobType);
+
 	record EnqueueCommand(
 		BatchJobType jobType,
 		BatchTriggerSource triggerSource,

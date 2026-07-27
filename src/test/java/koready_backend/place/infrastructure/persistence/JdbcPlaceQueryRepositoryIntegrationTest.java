@@ -180,8 +180,12 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 	}
 
 	@Test
-	void ordersAwardedThenKtoDetailImagesAndMapsCollectedFacts() {
+	void ordersAwardedThenPrimaryThenKtoDetailImagesAndMapsCollectedFacts() {
 		long placeId = placeWithKorean("gallery", "80.00", "Gallery place");
+		jdbcTemplate.update(
+			"UPDATE places SET first_image_url = ? WHERE id = ?",
+			"https://example.invalid/primary.jpg",
+			placeId);
 		insertImage(
 			placeId,
 			"https://example.invalid/kto-1.jpg",
@@ -196,16 +200,28 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 			2);
 		insertImage(
 			placeId,
-			"https://example.invalid/award.jpg",
+			"https://example.invalid/kto-3.jpg",
+			"KTO_DETAIL",
+			100,
+			3);
+		insertImage(
+			placeId,
+			"https://example.invalid/award-1.jpg",
 			"KTO_PHOTO_AWARD",
 			300,
 			1);
 		insertImage(
 			placeId,
-			"https://example.invalid/award.jpg",
+			"https://example.invalid/award-2.jpg",
+			"KTO_PHOTO_AWARD",
+			300,
+			2);
+		insertImage(
+			placeId,
+			"https://example.invalid/award-1.jpg",
 			"KTO_DETAIL",
 			100,
-			3);
+			4);
 		insertAttribute(placeId, "usetime", "09:00-18:00", 1);
 		insertAttribute(placeId, "restdate", "Monday", 1);
 		insertAttribute(placeId, "normalized_usagefee", "Free", 1);
@@ -214,9 +230,10 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 		var facts = repository.findDetailFacts(placeId);
 
 		assertEquals(List.of(
-			"https://example.invalid/award.jpg",
-			"https://example.invalid/kto-1.jpg",
-			"https://example.invalid/kto-2.jpg"),
+			"https://example.invalid/award-1.jpg",
+			"https://example.invalid/award-2.jpg",
+			"https://example.invalid/primary.jpg",
+			"https://example.invalid/kto-1.jpg"),
 			images.stream().map(PlaceImageRow::imageUrl).toList());
 		assertEquals("09:00-18:00", facts.operatingHours());
 		assertEquals("Monday", facts.closedDays());
@@ -323,11 +340,11 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 			INSERT INTO place_images
 				(place_id, image_url, image_url_sha256, source_type,
 				 source_priority, source_order)
-			VALUES (?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, SHA2(?, 256), ?, ?, ?)
 			""",
 			placeId,
 			imageUrl,
-			"a".repeat(63) + sourceOrder,
+			imageUrl,
 			sourceType,
 			sourcePriority,
 			sourceOrder);

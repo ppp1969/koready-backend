@@ -116,8 +116,10 @@ Render에는 scheduler를 두지 않습니다.
 10. 성산일출봉
 
 초기 등록 명령은 이 목록 외의 검색 결과를 저장하지 않습니다. 각 장소의 KTO
-`contentId`, 공식 국문명, 관광 타입을 다시 확인한 뒤 주소·좌표·대표 이미지가 모두
-있는 경우에만 공개 가능한 장소로 저장합니다. 10곳이 전부 준비된 후에만
+`contentId`, 공식 국문명, 관광 타입을 다시 확인한 뒤 주소·좌표와 서로 다른 이미지
+4장이 모두 있는 경우에만 공개 가능한 장소로 저장합니다. 상세 이미지는 운영자가
+승인한 KTO 사진공모전 수상작, 기존 KTO 대표사진, `detailImage2` 순으로 조합하며 같은
+URL은 한 번만 사용합니다. 10곳이 전부 준비된 후에만
 `onb-kto-curated-v1` 후보 세트를 현재 버전으로 발행합니다.
 
 ```powershell
@@ -127,6 +129,22 @@ Render에는 scheduler를 두지 않습니다.
 # Aiven staging에 등록하는 명시적 일회성 작업
 ./scripts/bootstrap-curated-onboarding.ps1 -Profile staging
 ```
+
+### KTO 사진공모전 수상작 수집과 승인 연결
+
+사진공모전 후보는 관리자 배치 `KTO_PHOTO_AWARD_SYNC`로
+`phokoAwrdSyncList` 전체 96건을 수집합니다. 이 API의 `contentId`는 장소 API의
+`contentid`와 직접 연결되지 않으므로 제목이나 촬영지 문자열만으로 자동 매칭하지
+않습니다.
+
+1. `POST /api/v1/admin/batch-jobs`에 `KTO_PHOTO_AWARD_SYNC`를 접수합니다.
+2. `GET /api/v1/admin/kto/photo-awards`에서 한·영 제목, 촬영 장소, 원본 이미지를 확인합니다.
+3. 운영자가 장소를 확인한 항목만 `PUT /api/v1/admin/kto/photo-awards/{contentId}/mapping`으로 승인합니다.
+4. 잘못 연결한 항목은 같은 경로의 `DELETE` 요청으로 이미지와 연결을 함께 해제합니다.
+
+수상작 원본 응답은 다른 KTO 원본과 같이 저장소 밖의 private snapshot 저장소에
+보관하고, API 키와 원본 본문은 로그나 Git에 남기지 않습니다. 수집은 후보 저장까지만
+수행하며 운영자 승인 전에는 어떤 장소 상세에도 수상작 이미지가 노출되지 않습니다.
 
 `staging` 실행은 `KTO_SNAPSHOT_STORAGE=s3`, `KTO_SNAPSHOT_S3_BUCKET`, AWS 인증을 갖춘
 수집 환경에서만 허용된다. 이 설정이 없으면 외부 KTO 호출 전에 중단한다. Aiven에 저장된

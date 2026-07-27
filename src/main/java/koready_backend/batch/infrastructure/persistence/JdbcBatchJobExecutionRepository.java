@@ -135,6 +135,7 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 		String operation = switch (continuation.jobType()) {
 			case KTO_FESTIVAL_SYNC -> "searchFestival2";
 			case KTO_EN_SYNC -> "ENG:areaBasedSyncList2";
+			case KTO_PHOTO_AWARD_SYNC -> "PHOTO_AWARD:phokoAwrdSyncList";
 			default -> "areaBasedSyncList2";
 		};
 		return operation + ":" + continuation.parameters().getOrDefault("startPage", 1)

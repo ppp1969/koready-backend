@@ -151,6 +151,31 @@ class JdbcCandidateSetRepositoryIntegrationTest {
 			() -> service.getCurrent(PlaceLanguage.KO));
 	}
 
+	@Test
+	void rejectsPublicationWhenAPlaceHasFewerThanFourUniqueImages() {
+		AdminCandidateSet draft = service.createDraft(
+			new CreateCandidateSetCommand("Image shortage", null), "42", true);
+		long insufficientPlaceId = readyPlaceIds.getLast();
+		jdbcTemplate.update(
+			"DELETE FROM place_images WHERE place_id = ?",
+			insufficientPlaceId);
+
+		AdminCandidateSet updated = service.updateDraft(
+			draft.candidateSetId(),
+			new UpdateCandidateSetCommand(
+				"Image shortage", items(readyPlaceIds)),
+			"42",
+			true);
+
+		assertFalse(updated.items().getLast().placeReady());
+		assertTrue(updated.items().getLast().notReadyReasons()
+			.contains("INSUFFICIENT_UNIQUE_IMAGES"));
+		CandidateSetPolicyException error = assertThrows(
+			CandidateSetPolicyException.class,
+			() -> service.publish(draft.candidateSetId(), "42", true));
+		assertEquals(List.of(insufficientPlaceId), error.placeIds());
+	}
+
 	private long insertReadyPlace(int index) {
 		jdbcTemplate.update(
 			"""
@@ -187,6 +212,21 @@ class JdbcCandidateSetRepositoryIntegrationTest {
 			VALUES (?, 'LOCAL_FESTIVAL', 'MANUAL', 1.0000)
 			""",
 			placeId);
+		for (int imageOrder = 1; imageOrder <= 3; imageOrder++) {
+			String imageUrl = "https://example.com/place-" + index
+				+ "-detail-" + imageOrder + ".jpg";
+			jdbcTemplate.update(
+				"""
+				INSERT INTO place_images
+				    (place_id, image_url, image_url_sha256, source_type,
+				     source_priority, source_order)
+				VALUES (?, ?, SHA2(?, 256), 'KTO_DETAIL', 100, ?)
+				""",
+				placeId,
+				imageUrl,
+				imageUrl,
+				imageOrder);
+		}
 		return placeId;
 	}
 

@@ -58,6 +58,7 @@ class InitialCandidateSetBootstrapIntegrationTest {
 		jdbcTemplate.update("DELETE FROM place_source_matches");
 		jdbcTemplate.update("DELETE FROM place_source_records");
 		jdbcTemplate.update("DELETE FROM place_style_mappings");
+		jdbcTemplate.update("DELETE FROM place_images");
 		jdbcTemplate.update("DELETE FROM place_localizations");
 		jdbcTemplate.update("DELETE FROM places");
 		jdbcTemplate.update("DELETE FROM open_api_raw_snapshots");
@@ -96,9 +97,29 @@ class InitialCandidateSetBootstrapIntegrationTest {
 		for (InitialCandidatePlace place : InitialCandidatePlaceCatalog.approved()) {
 			RegionCodes codes = regionCodes(place.serviceRegionCode());
 			long placeId = placeStore.upsert(place, detail(place, codes));
+			insertDetailImages(placeId, place.ktoContentId());
 			result.put(place.ktoContentId(), placeId);
 		}
 		return Map.copyOf(result);
+	}
+
+	private void insertDetailImages(long placeId, String contentId) {
+		for (int order = 1; order <= 3; order++) {
+			String imageUrl = "https://example.invalid/" + contentId
+				+ "-detail-" + order + ".jpg";
+			jdbcTemplate.update(
+				"""
+				INSERT INTO place_images
+				    (place_id, image_url, image_url_sha256, source_type,
+				     source_priority, source_order, source_content_id)
+				VALUES (?, ?, SHA2(?, 256), 'KTO_DETAIL', 100, ?, ?)
+				""",
+				placeId,
+				imageUrl,
+				imageUrl,
+				order,
+				contentId);
+		}
 	}
 
 	private KtoPlaceDetail detail(InitialCandidatePlace place, RegionCodes codes) {

@@ -74,6 +74,7 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 		String operation = switch (command.jobType()) {
 			case KTO_FESTIVAL_SYNC -> "searchFestival2";
 			case KTO_EN_SYNC -> "ENG:areaBasedSyncList2";
+			case KTO_PHOTO_AWARD_SYNC -> "PHOTO_AWARD:phokoAwrdSyncList";
 			default -> "areaBasedSyncList2";
 		};
 		Object startPage = command.parameters().getOrDefault("startPage", 1);

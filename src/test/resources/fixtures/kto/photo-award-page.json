@@ -1,0 +1,41 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "0000",
+      "resultMsg": "OK"
+    },
+    "body": {
+      "numOfRows": 200,
+      "pageNo": 1,
+      "totalCount": 96,
+      "items": {
+        "item": [
+          {
+            "contentId": "award-001",
+            "koTitle": "궁궐의 아침",
+            "koFilmst": "서울 경복궁",
+            "koKeyWord": "경복궁,궁궐,아침",
+            "enTitle": "Morning at the Palace",
+            "enFilmst": "Gyeongbokgung Palace, Seoul",
+            "enKeyWord": "palace,morning,seoul",
+            "orgImage": "https://example.invalid/photo-award/original-001.jpg",
+            "thumbImage": "https://example.invalid/photo-award/thumb-001.jpg",
+            "cpyrhtDivCd": "Type1"
+          },
+          {
+            "contentId": "award-002",
+            "koTitle": "바다와 일출",
+            "koFilmst": "제주 성산일출봉",
+            "koKeyWord": "제주,일출",
+            "enTitle": "Sea and Sunrise",
+            "enFilmst": "Seongsan Ilchulbong, Jeju",
+            "enKeyWord": "jeju,sunrise",
+            "orgImage": "https://example.invalid/photo-award/original-002.jpg",
+            "thumbImage": "",
+            "cpyrhtDivCd": "Type3"
+          }
+        ]
+      }
+    }
+  }
+}

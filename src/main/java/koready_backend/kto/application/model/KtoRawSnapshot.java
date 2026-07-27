@@ -35,7 +35,7 @@ public record KtoRawSnapshot(
 		Objects.requireNonNull(rawContentSha256, "KTO snapshot raw hash is required");
 		Objects.requireNonNull(payload, "KTO snapshot payload is required");
 		Objects.requireNonNull(capturedAt, "KTO snapshot capture time is required");
-		if (!service.matches("kor|eng")) {
+		if (!service.matches("kor|eng|photo-award")) {
 			throw new IllegalArgumentException("KTO snapshot service is invalid");
 		}
 		if (!operation.matches("[A-Za-z0-9]{1,100}")) {

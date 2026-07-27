@@ -128,26 +128,49 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		SELECT image_url, alt_text
 		FROM (
 		    SELECT
-		        image.image_url,
-		        COALESCE(
-		            NULLIF(TRIM(image.source_image_name), ''),
-		            localized.title
-		        ) AS alt_text,
-		        image.source_priority,
-		        image.source_order,
-		        image.id,
+		        candidate.image_url,
+		        candidate.alt_text,
+		        candidate.source_priority,
+		        candidate.source_order,
+		        candidate.id,
 		        ROW_NUMBER() OVER (
-		            PARTITION BY image.image_url
+		            PARTITION BY candidate.image_url
 		            ORDER BY
-		                image.source_priority DESC,
-		                image.source_order ASC,
-		                image.id ASC
+		                candidate.source_priority DESC,
+		                candidate.source_order ASC,
+		                candidate.id ASC
 		        ) AS url_rank
-		    FROM place_images image
-		    JOIN place_localizations localized
-		        ON localized.place_id = image.place_id
-		       AND localized.language = 'KO'
-		    WHERE image.place_id = :placeId
+		    FROM (
+		        SELECT
+		            image.image_url,
+		            COALESCE(
+		                NULLIF(TRIM(image.source_image_name), ''),
+		                localized.title
+		            ) AS alt_text,
+		            image.source_priority,
+		            image.source_order,
+		            image.id
+		        FROM place_images image
+		        JOIN place_localizations localized
+		            ON localized.place_id = image.place_id
+		           AND localized.language = 'KO'
+		        WHERE image.place_id = :placeId
+
+		        UNION ALL
+
+		        SELECT
+		            place.first_image_url,
+		            localized.title,
+		            200 AS source_priority,
+		            1 AS source_order,
+		            0 AS id
+		        FROM places place
+		        JOIN place_localizations localized
+		            ON localized.place_id = place.id
+		           AND localized.language = 'KO'
+		        WHERE place.id = :placeId
+		          AND NULLIF(TRIM(place.first_image_url), '') IS NOT NULL
+		    ) candidate
 		) ranked
 		WHERE url_rank = 1
 		ORDER BY

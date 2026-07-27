@@ -14,12 +14,14 @@ import koready_backend.kto.application.KtoDetailEnrichmentService;
 import koready_backend.kto.application.KtoEnglishSyncImportService;
 import koready_backend.kto.application.KtoEnglishQualityBackfillService;
 import koready_backend.kto.application.KtoFestivalImportService;
+import koready_backend.kto.application.KtoPhotoAwardImportService;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDailySyncRequest;
 import koready_backend.kto.application.model.KtoDetailEnrichmentRequest;
 import koready_backend.kto.application.model.KtoEnglishSyncRequest;
 import koready_backend.kto.application.model.KtoEnglishQualityBackfillRequest;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
+import koready_backend.kto.application.model.KtoPhotoAwardImportRequest;
 
 @Component
 public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
@@ -29,19 +31,22 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 	private final KtoEnglishSyncImportService englishSyncService;
 	private final KtoEnglishQualityBackfillService englishQualityBackfillService;
 	private final KtoFestivalImportService festivalImportService;
+	private final KtoPhotoAwardImportService photoAwardImportService;
 
 	public KtoBatchJobRunnerAdapter(
 		KtoDailySyncImportService dailySyncService,
 		KtoDetailEnrichmentService detailEnrichmentService,
 		KtoEnglishSyncImportService englishSyncService,
 		KtoEnglishQualityBackfillService englishQualityBackfillService,
-		KtoFestivalImportService festivalImportService
+		KtoFestivalImportService festivalImportService,
+		KtoPhotoAwardImportService photoAwardImportService
 	) {
 		this.dailySyncService = dailySyncService;
 		this.detailEnrichmentService = detailEnrichmentService;
 		this.englishSyncService = englishSyncService;
 		this.englishQualityBackfillService = englishQualityBackfillService;
 		this.festivalImportService = festivalImportService;
+		this.photoAwardImportService = photoAwardImportService;
 	}
 
 	@Override
@@ -121,6 +126,23 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 			var result = festivalImportService.importFestivals(new KtoFestivalImportRequest(
 				LocalDate.parse(string(job.parameters(), "eventStartDate")), startPage, maxPages), batchExecution);
 			return new RunResult(result.processedItems(), result.processedItems(), 0);
+		}
+		if (job.jobType() == BatchJobType.KTO_PHOTO_AWARD_SYNC) {
+			var result = photoAwardImportService.importAwards(
+				new KtoPhotoAwardImportRequest(startPage, maxPages),
+				batchExecution);
+			var continuation = result.truncatedByPageLimit()
+				? new BatchJobContinuation(
+					BatchJobType.KTO_PHOTO_AWARD_SYNC,
+					Map.of(
+						"startPage", result.lastProcessedPage() + 1,
+						"maxPages", maxPages))
+				: null;
+			return new RunResult(
+				result.processedItems(),
+				result.processedItems(),
+				0,
+				continuation);
 		}
 		throw new IllegalArgumentException("Unsupported manual batch job type");
 	}

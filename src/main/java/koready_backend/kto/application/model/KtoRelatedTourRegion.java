@@ -2,12 +2,25 @@ package koready_backend.kto.application.model;
 
 public record KtoRelatedTourRegion(
 	String areaCode,
-	String signguCode
+	String signguCode,
+	String providerAreaCode,
+	String providerSignguCode
 ) {
 
 	public KtoRelatedTourRegion {
 		areaCode = requiredCode(areaCode, "area");
 		signguCode = requiredCode(signguCode, "signgu");
+		providerAreaCode =
+			requiredCode(providerAreaCode, "provider area");
+		providerSignguCode =
+			requiredCode(providerSignguCode, "provider signgu");
+	}
+
+	public KtoRelatedTourRegion(
+		String areaCode,
+		String signguCode
+	) {
+		this(areaCode, signguCode, areaCode, signguCode);
 	}
 
 	public String key() {

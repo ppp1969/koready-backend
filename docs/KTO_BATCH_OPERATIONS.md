@@ -290,3 +290,21 @@ snapshot 저장소를 사용했으므로 통제된 부하 시험은 아니다. �
 - 작업자가 새 KTO 원문을 저장하면 호출 로그의 `relatedJobId`와 `relatedJobItemId`가 해당 job과 page 항목으로 연결된다. 따라서 `GET /api/v1/admin/open-api/calls?relatedJobId={jobId}`로 작업이 만든 외부 호출을 추적할 수 있다.
 - 같은 immutable snapshot을 다시 사용한 page는 기존 증빙 call/snapshot을 재사용하며, 기존 호출 로그의 작업 연결은 변경하지 않는다. 이 경우에는 job의 item 상태와 기존 snapshot을 함께 확인한다.
 - 이 기능은 실제 KTO secret이 설정된 환경에서만 외부 호출을 수행한다. Render 500MB 환경에서 여러 페이지 장시간 실행을 상시 운영하기 전에는 별도 메모리 반복 측정이 필요하다.
+
+## 연관 관광지 행정구역 코드 이력
+
+연관 관광지 통계는 요청 기준월(`baseYearMonth`) 당시의 법정동 코드를 사용한다.
+장소 테이블은 최신 법정동 코드를 보유하므로, 수집 순회용 현재 코드와 KTO 요청용
+과거 코드를 구분한다.
+
+- `baseYearMonth < 202607`: 공식 변경표의 이전 시도·시군구 코드로 요청한다.
+- `baseYearMonth >= 202607`: 현재 장소의 최신 코드를 그대로 요청한다.
+- continuation cursor는 항상 현재 코드로 기록해 코드 변환 뒤에도 다음 지역으로 진행한다.
+- 응답 범위 검증과 API 호출 로그, 스냅샷 식별자는 실제 KTO 요청 코드를 기준으로 한다.
+- 과거 코드 레코드는 공식 코드 별칭과 한국어 장소명이 모두 유일하게 일치할 때만
+  현재 장소에 자동 연결한다.
+- 하나의 과거 지역이 여러 신규 지역으로 분리된 경우 코드만으로 자동 확정하지 않는다.
+
+근거는 한국관광공사의 2026-06-29 법정동 변경 공지와 첨부 전체 코드표다.
+
+- https://www.data.go.kr/bbs/ntc/selectNotice.do?originId=NOTICE_0000000004801

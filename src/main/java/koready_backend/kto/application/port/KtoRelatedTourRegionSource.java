@@ -8,6 +8,7 @@ import koready_backend.kto.application.model.KtoRelatedTourRegion;
 public interface KtoRelatedTourRegionSource {
 
 	List<KtoRelatedTourRegion> findAfter(
+		String baseYearMonth,
 		String startAfterRegionKey,
 		int limit);
 }

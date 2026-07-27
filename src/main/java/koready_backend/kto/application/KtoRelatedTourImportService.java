@@ -76,7 +76,9 @@ public class KtoRelatedTourImportService {
 		KtoBatchExecutionReference batchExecution
 	) {
 		List<KtoRelatedTourRegion> candidates = regionSource.findAfter(
-			request.startAfterRegionKey(), request.maxRegions() + 1);
+			request.baseYearMonth(),
+			request.startAfterRegionKey(),
+			request.maxRegions() + 1);
 		boolean hasMore = candidates.size() > request.maxRegions();
 		List<KtoRelatedTourRegion> regions = candidates.subList(
 			0, Math.min(request.maxRegions(), candidates.size()));
@@ -95,8 +97,8 @@ public class KtoRelatedTourImportService {
 				}
 				KtoFetchedRelatedTourPage fetched = client.fetchPage(
 					request.baseYearMonth(),
-					region.areaCode(),
-					region.signguCode(),
+					region.providerAreaCode(),
+					region.providerSignguCode(),
 					pageNumber);
 				KtoRelatedTourPage page = fetched.page();
 				if (page.pageNumber() != pageNumber) {
@@ -153,8 +155,9 @@ public class KtoRelatedTourImportService {
 	) {
 		boolean outsideRequest = page.items().stream().anyMatch(item ->
 			!baseYearMonth.equals(item.baseYearMonth())
-				|| !region.areaCode().equals(item.areaCode())
-				|| !region.signguCode().equals(item.signguCode()));
+				|| !region.providerAreaCode().equals(item.areaCode())
+				|| !region.providerSignguCode()
+					.equals(item.signguCode()));
 		if (outsideRequest) {
 			throw new KtoResponseParseException(
 				"KTO related tour item did not match the requested scope");
@@ -167,7 +170,7 @@ public class KtoRelatedTourImportService {
 	) {
 		return OPERATION
 			+ baseYearMonth
-			+ region.areaCode()
-			+ region.signguCode();
+			+ region.providerAreaCode()
+			+ region.providerSignguCode();
 	}
 }

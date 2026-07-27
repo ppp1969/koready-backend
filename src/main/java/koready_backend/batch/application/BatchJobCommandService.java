@@ -34,7 +34,8 @@ public class BatchJobCommandService {
 		BatchJobType.KTO_DETAIL_ENRICHMENT,
 		BatchJobType.KTO_EN_SYNC,
 		BatchJobType.KTO_EN_QUALITY_BACKFILL,
-		BatchJobType.KTO_PHOTO_AWARD_SYNC);
+		BatchJobType.KTO_PHOTO_AWARD_SYNC,
+		BatchJobType.KTO_PHOTO_GALLERY_SYNC);
 	private static final int MAX_PAGES = 20;
 	private static final int DEFAULT_DETAIL_PLACES = 10;
 	private static final int MAX_DETAIL_PLACES = 50;

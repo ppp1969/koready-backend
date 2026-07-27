@@ -15,6 +15,7 @@ import koready_backend.kto.application.KtoEnglishSyncImportService;
 import koready_backend.kto.application.KtoEnglishQualityBackfillService;
 import koready_backend.kto.application.KtoFestivalImportService;
 import koready_backend.kto.application.KtoPhotoAwardImportService;
+import koready_backend.kto.application.KtoPhotoGalleryImportService;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDailySyncRequest;
 import koready_backend.kto.application.model.KtoDetailEnrichmentRequest;
@@ -22,6 +23,7 @@ import koready_backend.kto.application.model.KtoEnglishSyncRequest;
 import koready_backend.kto.application.model.KtoEnglishQualityBackfillRequest;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
 import koready_backend.kto.application.model.KtoPhotoAwardImportRequest;
+import koready_backend.kto.application.model.KtoPhotoGalleryImportRequest;
 
 @Component
 public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
@@ -32,6 +34,7 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 	private final KtoEnglishQualityBackfillService englishQualityBackfillService;
 	private final KtoFestivalImportService festivalImportService;
 	private final KtoPhotoAwardImportService photoAwardImportService;
+	private final KtoPhotoGalleryImportService photoGalleryImportService;
 
 	public KtoBatchJobRunnerAdapter(
 		KtoDailySyncImportService dailySyncService,
@@ -39,7 +42,8 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 		KtoEnglishSyncImportService englishSyncService,
 		KtoEnglishQualityBackfillService englishQualityBackfillService,
 		KtoFestivalImportService festivalImportService,
-		KtoPhotoAwardImportService photoAwardImportService
+		KtoPhotoAwardImportService photoAwardImportService,
+		KtoPhotoGalleryImportService photoGalleryImportService
 	) {
 		this.dailySyncService = dailySyncService;
 		this.detailEnrichmentService = detailEnrichmentService;
@@ -47,6 +51,7 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 		this.englishQualityBackfillService = englishQualityBackfillService;
 		this.festivalImportService = festivalImportService;
 		this.photoAwardImportService = photoAwardImportService;
+		this.photoGalleryImportService = photoGalleryImportService;
 	}
 
 	@Override
@@ -137,6 +142,25 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 					Map.of(
 						"startPage", result.lastProcessedPage() + 1,
 						"maxPages", maxPages))
+				: null;
+			return new RunResult(
+				result.processedItems(),
+				result.processedItems(),
+				0,
+				continuation);
+		}
+		if (job.jobType() == BatchJobType.KTO_PHOTO_GALLERY_SYNC) {
+			var result = photoGalleryImportService.importGallery(
+				new KtoPhotoGalleryImportRequest(startPage, maxPages),
+				batchExecution);
+			var continuation = result.truncatedByPageLimit()
+				? new BatchJobContinuation(
+					BatchJobType.KTO_PHOTO_GALLERY_SYNC,
+					Map.of(
+						"startPage",
+						result.lastProcessedPage() + 1,
+						"maxPages",
+						maxPages))
 				: null;
 			return new RunResult(
 				result.processedItems(),

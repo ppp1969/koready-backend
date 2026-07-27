@@ -69,15 +69,16 @@ class KtoEnglishQualityBackfillServiceTest {
 		assertEquals(2, result.processedRecords());
 		assertEquals(12L, result.lastProcessedSourceRecordId());
 		assertFalse(result.hasMore());
-		ArgumentCaptor<QualityUpdate> update =
-			ArgumentCaptor.forClass(QualityUpdate.class);
-		verify(repository, org.mockito.Mockito.times(2)).classify(update.capture());
+		@SuppressWarnings("unchecked")
+		ArgumentCaptor<List<QualityUpdate>> updates =
+			ArgumentCaptor.forClass(List.class);
+		verify(repository).classifyAll(updates.capture());
 		assertEquals(
 			List.of(
 				KtoEnglishSourceQuality.USABLE,
 				KtoEnglishSourceQuality.NON_ENGLISH_SUSPECTED),
-			update.getAllValues().stream().map(QualityUpdate::quality).toList());
-		assertEquals(NOW, update.getAllValues().getFirst().classifiedAt());
+			updates.getValue().stream().map(QualityUpdate::quality).toList());
+		assertEquals(NOW, updates.getValue().getFirst().classifiedAt());
 	}
 
 	@Test
@@ -89,7 +90,7 @@ class KtoEnglishQualityBackfillServiceTest {
 		assertThrows(IllegalStateException.class, () -> service.backfill(
 			new KtoEnglishQualityBackfillRequest(0L, 1, false)));
 
-		verify(repository, never()).classify(any());
+		verify(repository, never()).classifyAll(any());
 	}
 
 	private static QualityTarget target(long id, String contentId) {

@@ -308,3 +308,11 @@ snapshot 저장소를 사용했으므로 통제된 부하 시험은 아니다. �
 근거는 한국관광공사의 2026-06-29 법정동 변경 공지와 첨부 전체 코드표다.
 
 - https://www.data.go.kr/bbs/ntc/selectNotice.do?originId=NOTICE_0000000004801
+
+## 영문 원본 품질 보강
+
+`KTO_EN_QUALITY_BACKFILL`은 최신 영문 원본 중 품질이 아직 분류되지 않은 대상을
+최대 200건씩 처리한다. 같은 snapshot의 원문은 한 번만 읽고, 분류 결과는 50건
+단위 JDBC batch update로 Aiven에 반영한다. 각 행은 원본 hash가 선택 시점과 같고
+아직 미분류 상태일 때만 갱신한다. 한 행이라도 이 조건을 만족하지 않으면 해당 묶음
+전체를 롤백하고 작업을 실패 처리한다.

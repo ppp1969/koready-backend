@@ -125,21 +125,35 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		""";
 
 	private static final String PLACE_IMAGES = """
-		SELECT
-		    image.image_url,
-		    COALESCE(
-		        NULLIF(TRIM(image.source_image_name), ''),
-		        localized.title
-		    ) AS alt_text
-		FROM place_images image
-		JOIN place_localizations localized
-		    ON localized.place_id = image.place_id
-		   AND localized.language = 'KO'
-		WHERE image.place_id = :placeId
+		SELECT image_url, alt_text
+		FROM (
+		    SELECT
+		        image.image_url,
+		        COALESCE(
+		            NULLIF(TRIM(image.source_image_name), ''),
+		            localized.title
+		        ) AS alt_text,
+		        image.source_priority,
+		        image.source_order,
+		        image.id,
+		        ROW_NUMBER() OVER (
+		            PARTITION BY image.image_url
+		            ORDER BY
+		                image.source_priority DESC,
+		                image.source_order ASC,
+		                image.id ASC
+		        ) AS url_rank
+		    FROM place_images image
+		    JOIN place_localizations localized
+		        ON localized.place_id = image.place_id
+		       AND localized.language = 'KO'
+		    WHERE image.place_id = :placeId
+		) ranked
+		WHERE url_rank = 1
 		ORDER BY
-		    image.source_priority DESC,
-		    image.source_order ASC,
-		    image.id ASC
+		    source_priority DESC,
+		    source_order ASC,
+		    id ASC
 		LIMIT 4
 		""";
 

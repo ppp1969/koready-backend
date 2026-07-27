@@ -129,6 +129,54 @@ class KtoRelatedTourImportServiceTest {
 	}
 
 	@Test
+	void importsTheProfiledJejuRegionAcrossTwentyEightPages() {
+		List<Integer> calls = new ArrayList<>();
+		KtoRelatedTourRegionSource regions =
+			(baseYm, after, limit) -> List.of(
+				new KtoRelatedTourRegion("50", "50110"));
+		KtoRelatedTourPageClient client =
+			(baseYm, areaCode, signguCode, pageNumber) -> {
+				calls.add(pageNumber);
+				return fetched(pageNumber, 5_518);
+			};
+		KtoRawSnapshotStore snapshots = snapshot ->
+			new KtoStoredSnapshotMetadata(
+				"kto/related-tour/areaBasedList12026065050110/"
+					+ "20260727/page-"
+					+ snapshot.pageNumber()
+					+ "-aaaaaaaaaaaaaaaa.json.gz",
+				"b".repeat(64),
+				100,
+				snapshot.capturedAt());
+		KtoRelatedTourStore store = command ->
+			new KtoRelatedTourStorePageResult(
+				command.page().items().size(), false);
+		KtoRelatedTourImportService service =
+			new KtoRelatedTourImportService(
+				regions,
+				client,
+				snapshots,
+				store,
+				Clock.fixed(NOW, ZoneOffset.UTC));
+
+		var result = service.importRelatedTours(
+			new KtoRelatedTourImportRequest(
+				"202606", "48:48890", 1, 50, false));
+
+		assertEquals(28, calls.size());
+		assertEquals(28, calls.getLast());
+		assertEquals(28, result.processedPages());
+	}
+
+	@Test
+	void rejectsMoreThanFiftyPagesPerRegion() {
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> new KtoRelatedTourImportRequest(
+				"202606", "48:48890", 1, 51, false));
+	}
+
+	@Test
 	void requestsHistoricalProviderRegionButKeepsCurrentContinuationKey() {
 		List<String> calls = new ArrayList<>();
 		KtoRelatedTourRegionSource regions =

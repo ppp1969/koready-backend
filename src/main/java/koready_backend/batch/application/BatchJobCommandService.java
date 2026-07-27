@@ -47,7 +47,7 @@ public class BatchJobCommandService {
 	private static final int DEFAULT_RELATED_TOUR_REGIONS = 2;
 	private static final int MAX_RELATED_TOUR_REGIONS = 10;
 	private static final int DEFAULT_RELATED_TOUR_PAGES_PER_REGION = 10;
-	private static final int MAX_RELATED_TOUR_PAGES_PER_REGION = 20;
+	private static final int MAX_RELATED_TOUR_PAGES_PER_REGION = 50;
 	private static final DateTimeFormatter YEAR_MONTH_FORMAT =
 		DateTimeFormatter.ofPattern("yyyyMM");
 

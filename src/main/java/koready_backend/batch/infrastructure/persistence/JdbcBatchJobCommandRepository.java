@@ -36,14 +36,16 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 		jdbcTemplate.update(connection -> {
 			var statement = connection.prepareStatement("""
 				INSERT INTO batch_jobs
-					(job_type, status, trigger_source, parent_job_id, parameters_json, active_execution_slot, created_at)
-				VALUES (?, 'PENDING', ?, ?, CAST(? AS JSON), 1, ?)
+					(job_type, status, trigger_source, parent_job_id,
+					 parameters_json, active_execution_slot, created_at, updated_at)
+				VALUES (?, 'PENDING', ?, ?, CAST(? AS JSON), 1, ?, ?)
 				""", Statement.RETURN_GENERATED_KEYS);
 			statement.setString(1, command.jobType().name());
 			statement.setString(2, command.triggerSource().name());
 			statement.setObject(3, command.parentJobId());
 			statement.setString(4, json(command.parameters()));
 			statement.setTimestamp(5, Timestamp.from(command.createdAt()));
+			statement.setTimestamp(6, Timestamp.from(command.createdAt()));
 			return statement;
 		}, keyHolder);
 		Number key = keyHolder.getKey();
@@ -52,9 +54,14 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 		}
 		long id = key.longValue();
 		jdbcTemplate.update("""
-			INSERT INTO batch_job_items (batch_job_id, target_type, target_id, status)
-			VALUES (?, 'API_PAGE', ?, 'PENDING')
-			""", id, targetId(command));
+			INSERT INTO batch_job_items
+			    (batch_job_id, target_type, target_id, status, created_at, updated_at)
+			VALUES (?, 'API_PAGE', ?, 'PENDING', ?, ?)
+			""",
+			id,
+			targetId(command),
+			Timestamp.from(command.createdAt()),
+			Timestamp.from(command.createdAt()));
 		return id;
 	}
 

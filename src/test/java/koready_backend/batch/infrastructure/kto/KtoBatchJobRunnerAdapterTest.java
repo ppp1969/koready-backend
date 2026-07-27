@@ -87,7 +87,11 @@ class KtoBatchJobRunnerAdapterTest {
 		adapter().run(new ClaimedJob(
 			31L,
 			BatchJobType.KTO_FESTIVAL_SYNC,
-			Map.of("startPage", 1, "maxPages", 1, "eventStartDate", "2026-07-01"),
+			Map.of(
+				"startPage", 1,
+				"maxPages", 1,
+				"eventStartDate", "2026-07-01",
+				"autoContinue", false),
 			47L));
 
 		ArgumentCaptor<KtoFestivalImportRequest> request = ArgumentCaptor.forClass(KtoFestivalImportRequest.class);
@@ -95,6 +99,77 @@ class KtoBatchJobRunnerAdapterTest {
 		verify(festivalImportService).importFestivals(request.capture(), execution.capture());
 		assertEquals(LocalDate.of(2026, 7, 1), request.getValue().eventStartDate());
 		assertEquals(new KtoBatchExecutionReference(31L, 47L), execution.getValue());
+	}
+
+	@Test
+	void schedulesTheNextFestivalPageWhenAutomaticContinuationIsEnabled() {
+		when(festivalImportService.importFestivals(any(), any()))
+			.thenReturn(new KtoFestivalImportResult(
+				LocalDate.of(2026, 1, 27),
+				6, 5, 1_000, 0, 2_400, 10, true));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_FESTIVAL_SYNC,
+			Map.of(
+				"startPage", 6,
+				"maxPages", 5,
+				"eventStartDate", "2026-01-27",
+				"autoContinue", true),
+			47L));
+
+		assertEquals(
+			BatchJobType.KTO_FESTIVAL_SYNC,
+			result.continuation().jobType());
+		assertEquals(
+			11,
+			result.continuation().parameters().get("startPage"));
+		assertEquals(
+			"2026-01-27",
+			result.continuation().parameters().get("eventStartDate"));
+		assertEquals(
+			true,
+			result.continuation().parameters().get("autoContinue"));
+	}
+
+	@Test
+	void doesNotContinueFestivalPagesWhenAutomaticContinuationIsDisabled() {
+		when(festivalImportService.importFestivals(any(), any()))
+			.thenReturn(new KtoFestivalImportResult(
+				LocalDate.of(2026, 1, 27),
+				1, 5, 1_000, 0, 2_400, 5, true));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_FESTIVAL_SYNC,
+			Map.of(
+				"startPage", 1,
+				"maxPages", 5,
+				"eventStartDate", "2026-01-27",
+				"autoContinue", false),
+			47L));
+
+		assertNull(result.continuation());
+	}
+
+	@Test
+	void endsFestivalCollectionAtTheLastPage() {
+		when(festivalImportService.importFestivals(any(), any()))
+			.thenReturn(new KtoFestivalImportResult(
+				LocalDate.of(2026, 1, 27),
+				11, 2, 314, 0, 2_514, 12, false));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_FESTIVAL_SYNC,
+			Map.of(
+				"startPage", 11,
+				"maxPages", 5,
+				"eventStartDate", "2026-01-27",
+				"autoContinue", true),
+			47L));
+
+		assertNull(result.continuation());
 	}
 
 	@Test

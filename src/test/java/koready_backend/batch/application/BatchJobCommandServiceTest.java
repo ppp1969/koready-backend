@@ -40,7 +40,11 @@ class BatchJobCommandServiceTest {
 
 		var accepted = service.accept(new BatchJobCommandService.CreateCommand(
 			BatchJobType.KTO_FESTIVAL_SYNC,
-			Map.of("eventStartDate", "2026-07-01", "startPage", 2, "maxPages", 3),
+			Map.of(
+				"eventStartDate", "2026-07-01",
+				"startPage", 2,
+				"maxPages", 3,
+				"autoContinue", true),
 			"Refresh festival data", "operator-7"));
 
 		ArgumentCaptor<EnqueueCommand> captor = ArgumentCaptor.forClass(EnqueueCommand.class);
@@ -49,6 +53,7 @@ class BatchJobCommandServiceTest {
 		assertEquals(BatchTriggerSource.ADMIN_MANUAL, captor.getValue().triggerSource());
 		assertEquals("2026-07-01", captor.getValue().parameters().get("eventStartDate"));
 		assertEquals(3, captor.getValue().parameters().get("maxPages"));
+		assertEquals(true, captor.getValue().parameters().get("autoContinue"));
 		ArgumentCaptor<BatchAuditRecord> auditCaptor = ArgumentCaptor.forClass(BatchAuditRecord.class);
 		verify(repository).recordAudit(auditCaptor.capture());
 		assertEquals("operator-7", auditCaptor.getValue().actorSubject());
@@ -57,6 +62,21 @@ class BatchJobCommandServiceTest {
 			BatchJobType.KTO_FESTIVAL_SYNC,
 			Map.of("eventStartDate", "not-a-date"),
 			"Refresh festival data", "operator-7")));
+	}
+
+	@Test
+	void defaultsFestivalAutomaticContinuationToDisabled() {
+		when(repository.enqueue(any())).thenReturn(92L);
+		BatchJobCommandService service = service();
+
+		service.accept(new BatchJobCommandService.CreateCommand(
+			BatchJobType.KTO_FESTIVAL_SYNC,
+			Map.of("eventStartDate", "2026-07-01"),
+			"Refresh one bounded festival range", "operator-7"));
+
+		ArgumentCaptor<EnqueueCommand> captor = ArgumentCaptor.forClass(EnqueueCommand.class);
+		verify(repository).enqueue(captor.capture());
+		assertEquals(false, captor.getValue().parameters().get("autoContinue"));
 	}
 
 	@Test

@@ -54,7 +54,8 @@ public class AdminBatchJobController {
 		description = "KTO_FULL_CATALOG_SYNC는 KTO 전체 장소 목록을 수집합니다. "
 			+ "KTO_EN_SYNC는 KTO 영문 전체 목록과 국문 장소 매칭을 수집합니다. "
 			+ "한 작업은 최대 20페이지를 처리하고, 성공한 경우에만 다음 페이지 범위를 자동으로 대기열에 넣습니다. "
-			+ "KTO_DAILY_SYNC와 KTO_FESTIVAL_SYNC는 기존처럼 범위를 지정해 수동으로 실행합니다."
+			+ "KTO_FESTIVAL_SYNC는 autoContinue=true일 때 같은 행사 시작일 기준으로 다음 페이지 범위를 "
+			+ "자동 등록하며, KTO_DAILY_SYNC는 지정한 범위만 수동 실행합니다."
 	)
 	public ApiEnvelope<BatchJobDtos.BatchJobAcceptedResponse> create(
 		@RequestBody @Validated BatchJobDtos.CreateBatchJobRequest body,

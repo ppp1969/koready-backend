@@ -129,6 +129,9 @@ public class BatchJobCommandService {
 		parameters.put("maxPages", maxPages);
 		if (command.jobType() == BatchJobType.KTO_FESTIVAL_SYNC) {
 			parameters.put("eventStartDate", requiredDate(input.get("eventStartDate")));
+			parameters.put(
+				"autoContinue",
+				booleanValue(input.get("autoContinue"), false, "autoContinue"));
 		}
 		return new NormalizedCommand(
 			command.jobType(), Map.copyOf(parameters), command.reason().strip(), command.actorSubject().strip());

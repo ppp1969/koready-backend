@@ -187,6 +187,52 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		ORDER BY source_operation ASC, item_sequence ASC, id ASC
 		""";
 
+	private static final String RELATED_PLACES = """
+		SELECT
+		    related.id AS place_id,
+		    COALESCE(requested.title, korean.title) AS title,
+		    COALESCE(
+		        (
+		            SELECT image.image_url
+		            FROM place_images image
+		            WHERE image.place_id = related.id
+		            ORDER BY
+		                image.source_priority DESC,
+		                image.source_order ASC,
+		                image.id ASC
+		            LIMIT 1
+		        ),
+		        related.first_image_url
+		    ) AS image_url,
+		    COALESCE(requested.overview, korean.overview)
+		        AS short_description
+		FROM (
+		    SELECT
+		        related_place_id,
+		        MIN(relation_rank) AS relation_rank,
+		        MIN(id) AS relation_id
+		    FROM place_relations
+		    WHERE source_place_id = :placeId
+		      AND relation_source = 'KTO_RELATED'
+		    GROUP BY related_place_id
+		) relation
+		JOIN places related
+		    ON related.id = relation.related_place_id
+		   AND related.active = TRUE
+		   AND related.show_flag = TRUE
+		LEFT JOIN place_localizations requested
+		    ON requested.place_id = related.id
+		   AND requested.language = :language
+		LEFT JOIN place_localizations korean
+		    ON korean.place_id = related.id
+		   AND korean.language = 'KO'
+		WHERE COALESCE(requested.id, korean.id) IS NOT NULL
+		ORDER BY
+		    relation.relation_rank ASC,
+		    relation.relation_id ASC
+		LIMIT :limit
+		""";
+
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 
 	public JdbcPlaceQueryRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -276,6 +322,29 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 			first(facts, "usefee", "usefeefood", "normalized_usagefee"),
 			first(facts, "parking", "parkingfood", "parkingculture",
 				"parkingleports", "parkinglodging"));
+	}
+
+	@Override
+	public List<RelatedPlaceRow> findRelatedPlaces(
+		long placeId,
+		PlaceLanguage language,
+		int limit
+	) {
+		if (placeId <= 0 || limit < 1 || limit > 20) {
+			throw new IllegalArgumentException(
+				"Related place query is invalid");
+		}
+		return jdbcTemplate.query(
+			RELATED_PLACES,
+			new MapSqlParameterSource()
+				.addValue("placeId", placeId)
+				.addValue("language", language.name())
+				.addValue("limit", limit),
+			(resultSet, rowNumber) -> new RelatedPlaceRow(
+				resultSet.getLong("place_id"),
+				resultSet.getString("title"),
+				resultSet.getString("image_url"),
+				resultSet.getString("short_description")));
 	}
 
 	private static String first(Map<String, String> facts, String... keys) {

@@ -136,6 +136,43 @@ class BatchJobCommandServiceTest {
 	}
 
 	@Test
+	void acceptsABoundedRelatedTourCoverageJob() {
+		when(repository.enqueue(any())).thenReturn(100L);
+		BatchJobCommandService service = service();
+
+		var accepted = service.accept(
+			new BatchJobCommandService.CreateCommand(
+				BatchJobType.KTO_RELATED_TOUR_SYNC,
+				Map.of(
+					"baseYearMonth", "202606",
+					"startAfterRegionKey", "11:11530",
+					"maxRegions", 3,
+					"maxPagesPerRegion", 10,
+					"autoContinue", true),
+				"Collect KTO related tours by region",
+				"operator-7"));
+
+		ArgumentCaptor<EnqueueCommand> captor =
+			ArgumentCaptor.forClass(EnqueueCommand.class);
+		verify(repository).enqueue(captor.capture());
+		assertEquals(
+			BatchJobType.KTO_RELATED_TOUR_SYNC,
+			accepted.jobType());
+		assertEquals(
+			"202606",
+			captor.getValue().parameters().get("baseYearMonth"));
+		assertEquals(
+			"11:11530",
+			captor.getValue().parameters().get(
+				"startAfterRegionKey"));
+		assertEquals(
+			3, captor.getValue().parameters().get("maxRegions"));
+		assertEquals(
+			true,
+			captor.getValue().parameters().get("autoContinue"));
+	}
+
+	@Test
 	void acceptsABoundedKtoDetailEnrichmentJob() {
 		when(repository.enqueue(any())).thenReturn(95L);
 		BatchJobCommandService service = service();

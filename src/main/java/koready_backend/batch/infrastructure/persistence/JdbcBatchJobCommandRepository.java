@@ -78,6 +78,14 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 				+ "+"
 				+ command.parameters().getOrDefault("maxRecords", 50);
 		}
+		if (command.jobType() == BatchJobType.KTO_RELATED_TOUR_SYNC) {
+			return "RELATED_TOUR:"
+				+ command.parameters().get("baseYearMonth")
+				+ ":"
+				+ cursorLabel(command.parameters())
+				+ "+"
+				+ command.parameters().getOrDefault("maxRegions", 2);
+		}
 		String operation = switch (command.jobType()) {
 			case KTO_FESTIVAL_SYNC -> "searchFestival2";
 			case KTO_EN_SYNC -> "ENG:areaBasedSyncList2";
@@ -88,6 +96,13 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 		Object startPage = command.parameters().getOrDefault("startPage", 1);
 		Object maxPages = command.parameters().getOrDefault("maxPages", 1);
 		return operation + ":" + startPage + "+" + maxPages;
+	}
+
+	private static String cursorLabel(Map<String, Object> parameters) {
+		Object cursor = parameters.get("startAfterRegionKey");
+		return cursor instanceof String text && !text.isBlank()
+			? text
+			: "START";
 	}
 
 	@Override

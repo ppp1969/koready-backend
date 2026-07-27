@@ -1,0 +1,55 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "0000",
+      "resultMsg": "OK"
+    },
+    "body": {
+      "items": {
+        "item": [
+          {
+            "baseYm": "202606",
+            "areaCd": "11",
+            "areaNm": "서울특별시",
+            "signguCd": "11530",
+            "signguNm": "구로구",
+            "tAtsCd": "11111111111111111111111111111111",
+            "tAtsNm": "가상 전통시장",
+            "rlteTatsCd": "22222222222222222222222222222222",
+            "rlteTatsNm": "가상 문화공간",
+            "rlteRegnCd": "11",
+            "rlteRegnNm": "서울특별시",
+            "rlteSignguCd": "11530",
+            "rlteSignguNm": "구로구",
+            "rlteCtgryLclsNm": "관광지",
+            "rlteCtgryMclsNm": "문화관광",
+            "rlteCtgrySclsNm": "전시시설",
+            "rlteRank": "1"
+          },
+          {
+            "baseYm": "202606",
+            "areaCd": "11",
+            "areaNm": "서울특별시",
+            "signguCd": "11530",
+            "signguNm": "구로구",
+            "tAtsCd": "11111111111111111111111111111111",
+            "tAtsNm": "가상 전통시장",
+            "rlteTatsCd": "33333333333333333333333333333333",
+            "rlteTatsNm": "가상 한식당",
+            "rlteRegnCd": "11",
+            "rlteRegnNm": "서울특별시",
+            "rlteSignguCd": "11530",
+            "rlteSignguNm": "구로구",
+            "rlteCtgryLclsNm": "음식",
+            "rlteCtgryMclsNm": "음식",
+            "rlteCtgrySclsNm": "한식",
+            "rlteRank": "2"
+          }
+        ]
+      },
+      "numOfRows": 2,
+      "pageNo": 1,
+      "totalCount": 2
+    }
+  }
+}

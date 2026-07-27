@@ -38,7 +38,8 @@ class KtoRelatedTourImportServiceTest {
 		List<String> calls = new ArrayList<>();
 		List<String> snapshotServices = new ArrayList<>();
 		List<String> snapshotOperations = new ArrayList<>();
-		KtoRelatedTourRegionSource regions = (after, limit) -> List.of(
+		KtoRelatedTourRegionSource regions =
+			(baseYm, after, limit) -> List.of(
 			new KtoRelatedTourRegion("11", "11530"),
 			new KtoRelatedTourRegion("26", "26110"),
 			new KtoRelatedTourRegion("27", "27110"));
@@ -95,7 +96,8 @@ class KtoRelatedTourImportServiceTest {
 
 	@Test
 	void completesWhenNoRegionRemains() {
-		KtoRelatedTourRegionSource regions = (after, limit) -> List.of(
+		KtoRelatedTourRegionSource regions =
+			(baseYm, after, limit) -> List.of(
 			new KtoRelatedTourRegion("11", "11530"));
 		KtoRelatedTourPageClient client =
 			(baseYm, areaCode, signguCode, pageNumber) ->
@@ -127,8 +129,46 @@ class KtoRelatedTourImportServiceTest {
 	}
 
 	@Test
+	void requestsHistoricalProviderRegionButKeepsCurrentContinuationKey() {
+		List<String> calls = new ArrayList<>();
+		KtoRelatedTourRegionSource regions =
+			(baseYm, after, limit) -> List.of(
+				new KtoRelatedTourRegion(
+					"12", "12110", "46", "46110"));
+		KtoRelatedTourPageClient client =
+			(baseYm, areaCode, signguCode, pageNumber) -> {
+				calls.add(areaCode + ":" + signguCode);
+				return fetched(pageNumber, 0);
+			};
+		KtoRawSnapshotStore snapshots = snapshot ->
+			new KtoStoredSnapshotMetadata(
+				"kto/related-tour/areaBasedList12026064646110/"
+					+ "20260727/page-1-aaaaaaaaaaaaaaaa.json.gz",
+				"b".repeat(64),
+				100,
+				snapshot.capturedAt());
+		KtoRelatedTourStore store = command ->
+			new KtoRelatedTourStorePageResult(0, false);
+		KtoRelatedTourImportService service =
+			new KtoRelatedTourImportService(
+				regions,
+				client,
+				snapshots,
+				store,
+				Clock.fixed(NOW, ZoneOffset.UTC));
+
+		var result = service.importRelatedTours(
+			new KtoRelatedTourImportRequest(
+				"202606", "", 1, 1, false));
+
+		assertEquals(List.of("46:46110"), calls);
+		assertEquals("12:12110", result.lastProcessedRegionKey());
+	}
+
+	@Test
 	void rejectsItemsOutsideTheRequestedMonthAndRegion() {
-		KtoRelatedTourRegionSource regions = (after, limit) -> List.of(
+		KtoRelatedTourRegionSource regions =
+			(baseYm, after, limit) -> List.of(
 			new KtoRelatedTourRegion("11", "11530"));
 		KtoRelatedTourPageClient client =
 			(baseYm, areaCode, signguCode, pageNumber) ->

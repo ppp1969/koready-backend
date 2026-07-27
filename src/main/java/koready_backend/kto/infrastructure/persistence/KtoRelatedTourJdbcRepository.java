@@ -64,16 +64,34 @@ public class KtoRelatedTourJdbcRepository
 
 	@Override
 	public List<KtoRelatedTourRegion> findAfter(
+		String baseYearMonth,
 		String startAfterRegionKey,
 		int limit
 	) {
-		if (startAfterRegionKey == null || limit < 1 || limit > 11) {
+		if (baseYearMonth == null
+			|| !baseYearMonth.matches("\\d{6}")
+			|| startAfterRegionKey == null
+			|| limit < 1 || limit > 11) {
 			throw new IllegalArgumentException(
 				"Related tour region query is invalid");
 		}
 		return jdbcTemplate.query(
 			"""
-			SELECT area_code, signgu_code
+			SELECT
+			    region.area_code,
+			    region.signgu_code,
+			    CASE
+			        WHEN alias.effective_from_ym IS NOT NULL
+			             AND ? < alias.effective_from_ym
+			            THEN alias.previous_area_code
+			        ELSE region.area_code
+			    END AS provider_area_code,
+			    CASE
+			        WHEN alias.effective_from_ym IS NOT NULL
+			             AND ? < alias.effective_from_ym
+			            THEN alias.previous_signgu_code
+			        ELSE region.signgu_code
+			    END AS provider_signgu_code
 			FROM (
 			    SELECT DISTINCT
 			        CASE
@@ -98,13 +116,20 @@ public class KtoRelatedTourJdbcRepository
 			      AND ldong_regn_cd REGEXP '^[0-9]+$'
 			      AND ldong_signgu_cd REGEXP '^[0-9]+$'
 			) region
+			LEFT JOIN kto_legal_region_code_aliases alias
+			    ON alias.current_area_code = region.area_code
+			   AND alias.current_signgu_code = region.signgu_code
 			WHERE CONCAT(area_code, ':', signgu_code) > ?
 			ORDER BY area_code ASC, signgu_code ASC
 			LIMIT ?
 			""",
 			(resultSet, rowNumber) -> new KtoRelatedTourRegion(
 				resultSet.getString("area_code"),
-				resultSet.getString("signgu_code")),
+				resultSet.getString("signgu_code"),
+				resultSet.getString("provider_area_code"),
+				resultSet.getString("provider_signgu_code")),
+			baseYearMonth,
+			baseYearMonth,
 			startAfterRegionKey,
 			limit);
 	}
@@ -298,8 +323,10 @@ public class KtoRelatedTourJdbcRepository
 			statement.setInt(6, command.page().pageSize());
 			statement.setInt(7, command.page().pageNumber());
 			statement.setString(8, command.baseYearMonth());
-			statement.setString(9, command.region().areaCode());
-			statement.setString(10, command.region().signguCode());
+			statement.setString(
+				9, command.region().providerAreaCode());
+			statement.setString(
+				10, command.region().providerSignguCode());
 			statement.setInt(11, command.page().pageNumber());
 			statement.setInt(12, command.page().pageSize());
 			statement.setInt(13, command.page().totalCount());
@@ -480,20 +507,63 @@ public class KtoRelatedTourJdbcRepository
 			       AND source_place.active = TRUE
 			       AND source_place.show_flag = TRUE
 			       AND (
-			           source_place.ldong_regn_cd =
-			               record.area_code
-			           OR LEFT(source_place.ldong_regn_cd, 2) =
-			               record.area_code
-			       )
-			       AND (
-			           source_place.ldong_signgu_cd =
-			               record.signgu_code
-			           OR CONCAT(
-			               LEFT(source_place.ldong_regn_cd, 2),
-			               LPAD(
-			                   source_place.ldong_signgu_cd,
-			                   3,
-			                   '0')) = record.signgu_code
+			           (
+			               (
+			                   source_place.ldong_regn_cd =
+			                       record.area_code
+			                   OR LEFT(
+			                       source_place.ldong_regn_cd,
+			                       2) = record.area_code
+			               )
+			               AND (
+			                   source_place.ldong_signgu_cd =
+			                       record.signgu_code
+			                   OR CONCAT(
+			                       LEFT(
+			                           source_place.ldong_regn_cd,
+			                           2),
+			                       LPAD(
+			                           source_place.ldong_signgu_cd,
+			                           3,
+			                           '0')) = record.signgu_code
+			               )
+			           )
+			           OR EXISTS (
+			               SELECT 1
+			               FROM kto_legal_region_code_aliases alias
+			               WHERE record.base_ym <
+			                       alias.effective_from_ym
+			                 AND alias.previous_area_code =
+			                       record.area_code
+			                 AND alias.previous_signgu_code =
+			                       record.signgu_code
+			                 AND alias.current_area_code =
+			                       CASE
+			                           WHEN CHAR_LENGTH(
+			                               source_place.ldong_regn_cd) > 2
+			                               THEN LEFT(
+			                                   source_place.ldong_regn_cd,
+			                                   2)
+			                           ELSE
+			                               source_place.ldong_regn_cd
+			                       END
+			                 AND alias.current_signgu_code =
+			                       CASE
+			                           WHEN CHAR_LENGTH(
+			                               source_place.ldong_signgu_cd) >= 5
+			                               THEN LEFT(
+			                                   source_place.ldong_signgu_cd,
+			                                   5)
+			                           ELSE CONCAT(
+			                               LEFT(
+			                                   source_place.ldong_regn_cd,
+			                                   2),
+			                               LPAD(
+			                                   source_place.ldong_signgu_cd,
+			                                   3,
+			                                   '0'))
+			                       END
+			           )
 			       )
 			    JOIN place_localizations related_localization
 			        ON related_localization.language = 'KO'
@@ -506,22 +576,69 @@ public class KtoRelatedTourJdbcRepository
 			       AND related_place.show_flag = TRUE
 			       AND (
 			           record.related_region_code IS NULL
-			           OR related_place.ldong_regn_cd =
-			               record.related_region_code
-			           OR LEFT(related_place.ldong_regn_cd, 2) =
-			               record.related_region_code
-			       )
-			       AND (
-			           record.related_signgu_code IS NULL
-			           OR related_place.ldong_signgu_cd =
-			               record.related_signgu_code
-			           OR CONCAT(
-			               LEFT(related_place.ldong_regn_cd, 2),
-			               LPAD(
-			                   related_place.ldong_signgu_cd,
-			                   3,
-			                   '0')) =
-			               record.related_signgu_code
+			           OR (
+			               (
+			                   related_place.ldong_regn_cd =
+			                       record.related_region_code
+			                   OR LEFT(
+			                       related_place.ldong_regn_cd,
+			                       2) =
+			                       record.related_region_code
+			               )
+			               AND (
+			                   record.related_signgu_code IS NULL
+			                   OR related_place.ldong_signgu_cd =
+			                       record.related_signgu_code
+			                   OR CONCAT(
+			                       LEFT(
+			                           related_place.ldong_regn_cd,
+			                           2),
+			                       LPAD(
+			                           related_place.ldong_signgu_cd,
+			                           3,
+			                           '0')) =
+			                       record.related_signgu_code
+			               )
+			           )
+			           OR EXISTS (
+			               SELECT 1
+			               FROM kto_legal_region_code_aliases alias
+			               WHERE record.base_ym <
+			                       alias.effective_from_ym
+			                 AND alias.previous_area_code =
+			                       record.related_region_code
+			                 AND (
+			                     record.related_signgu_code IS NULL
+			                     OR alias.previous_signgu_code =
+			                         record.related_signgu_code
+			                 )
+			                 AND alias.current_area_code =
+			                       CASE
+			                           WHEN CHAR_LENGTH(
+			                               related_place.ldong_regn_cd) > 2
+			                               THEN LEFT(
+			                                   related_place.ldong_regn_cd,
+			                                   2)
+			                           ELSE
+			                               related_place.ldong_regn_cd
+			                       END
+			                 AND alias.current_signgu_code =
+			                       CASE
+			                           WHEN CHAR_LENGTH(
+			                               related_place.ldong_signgu_cd) >= 5
+			                               THEN LEFT(
+			                                   related_place.ldong_signgu_cd,
+			                                   5)
+			                           ELSE CONCAT(
+			                               LEFT(
+			                                   related_place.ldong_regn_cd,
+			                                   2),
+			                               LPAD(
+			                                   related_place.ldong_signgu_cd,
+			                                   3,
+			                                   '0'))
+			                       END
+			           )
 			       )
 			    LEFT JOIN kto_related_tour_mappings existing
 			        ON existing.related_tour_record_id = record.id

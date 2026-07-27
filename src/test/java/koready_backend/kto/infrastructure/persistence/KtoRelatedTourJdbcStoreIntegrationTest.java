@@ -25,6 +25,7 @@ import koready_backend.kto.application.model.KtoRelatedTourRegion;
 import koready_backend.kto.application.model.KtoRelatedTourStorePageCommand;
 import koready_backend.kto.application.model.KtoStoredSnapshotMetadata;
 import koready_backend.kto.application.model.KtoSuccessfulCallMetadata;
+import koready_backend.kto.application.port.KtoRelatedTourRegionSource;
 import koready_backend.kto.application.port.KtoRelatedTourStore;
 import koready_backend.kto.domain.KtoRelatedTourItem;
 import koready_backend.kto.domain.KtoRelatedTourPage;
@@ -52,6 +53,9 @@ class KtoRelatedTourJdbcStoreIntegrationTest {
 
 	@Autowired
 	KtoRelatedTourStore store;
+
+	@Autowired
+	KtoRelatedTourRegionSource regionSource;
 
 	@Autowired
 	KtoRelatedTourCurationService curationService;
@@ -155,6 +159,88 @@ class KtoRelatedTourJdbcStoreIntegrationTest {
 			Integer.class);
 
 		assertEquals(3, indexColumns);
+	}
+
+	@Test
+	void resolvesProviderRegionFromBaseMonthUsingOfficialCodeHistory() {
+		place("current-mokpo", "Current Mokpo", "12", "110");
+		place("current-seohae", "Current Seohae", "28", "275");
+
+		var historicalJeonnam = regionSource.findAfter(
+			"202606", "11:99999", 1).getFirst();
+		var currentJeonnam = regionSource.findAfter(
+			"202607", "11:99999", 1).getFirst();
+		var historicalIncheon = regionSource.findAfter(
+			"202606", "27:99999", 1).getFirst();
+
+		assertEquals("12:12110", historicalJeonnam.key());
+		assertEquals("46", historicalJeonnam.providerAreaCode());
+		assertEquals("46110", historicalJeonnam.providerSignguCode());
+		assertEquals("12", currentJeonnam.providerAreaCode());
+		assertEquals("12110", currentJeonnam.providerSignguCode());
+		assertEquals("28:28275", historicalIncheon.key());
+		assertEquals("28", historicalIncheon.providerAreaCode());
+		assertEquals("28260", historicalIncheon.providerSignguCode());
+	}
+
+	@Test
+	void matchesHistoricalRegionRecordsToCurrentPlacesThroughOfficialAlias() {
+		long historicalSource =
+			place("historical-source", "Historical Source", "12", "110");
+		long historicalRelated =
+			place("historical-related", "Historical Related", "12", "130");
+		KtoRelatedTourPage page = new KtoRelatedTourPage(
+			1,
+			200,
+			1,
+			List.of(new KtoRelatedTourItem(
+				"202606",
+				"46",
+				"Jeollanam-do",
+				"46110",
+				"Mokpo-si",
+				"5".repeat(32),
+				"Historical Source",
+				"6".repeat(32),
+				"Historical Related",
+				"46",
+				"Jeollanam-do",
+				"46130",
+				"Yeosu-si",
+				"Tour",
+				null,
+				null,
+				1,
+				PAGE_HASH)),
+			2048,
+			"e".repeat(64));
+
+		store.store(new KtoRelatedTourStorePageCommand(
+			"202606",
+			new KtoRelatedTourRegion(
+				"12", "12110", "46", "46110"),
+			page,
+			new KtoSuccessfulCallMetadata(
+				REQUESTED_AT, RECEIVED_AT, 1000, 200),
+			new KtoStoredSnapshotMetadata(
+				"kto/related-tour/areaBasedList12026064646110/"
+					+ "20260727/page-1-eeeeeeeeeeeeeeee.json.gz",
+				"f".repeat(64),
+				1024,
+				RECEIVED_AT.plusSeconds(1)),
+			null));
+
+		assertEquals(1, count("kto_related_tour_mappings"));
+		assertEquals(
+			historicalSource,
+			jdbcTemplate.queryForObject(
+				"SELECT source_place_id FROM kto_related_tour_mappings",
+				Long.class));
+		assertEquals(
+			historicalRelated,
+			jdbcTemplate.queryForObject(
+				"SELECT related_place_id FROM kto_related_tour_mappings",
+				Long.class));
 	}
 
 	@Test

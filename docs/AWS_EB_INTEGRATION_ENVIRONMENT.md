@@ -55,6 +55,7 @@ PR, 스크린샷에는 값 자체를 적지 않는다.
 | DB | `DB_POOL_SIZE`, `DB_MIN_IDLE` | `5`, `1` |
 | KTO | `KTO_SERVICE_KEY` | data.go.kr 발급 key |
 | KTO | `KTO_BATCH_PAGE_SIZE`, `KTO_BATCH_FLUSH_SIZE`, `KTO_BATCH_MAX_CONCURRENCY` | `200`, `50`, `1` |
+| KTO 상세 일일 예산 | `KTO_DETAIL_DAILY_SCHEDULE_ENABLED`, `KTO_DETAIL_DAILY_MAX_PLACES` | `true`, `50` |
 | KTO | `KTO_MAX_RESPONSE_BYTES`, `KTO_CONNECT_TIMEOUT`, `KTO_READ_TIMEOUT` | `4194304`, `3s`, `10s` |
 | S3 | `KTO_SNAPSHOT_STORAGE`, `KTO_SNAPSHOT_S3_BUCKET`, `AWS_REGION` | `s3`, CloudFormation bucket 출력값, `ap-northeast-2` |
 | location | `LOCATION_SEARCH_PROVIDER`, `KAKAO_REST_API_KEY`, `LOCATION_SEARCH_TOKEN_SECRET` | `kakao`, Kakao key, 32 byte 이상 random secret |
@@ -62,6 +63,9 @@ PR, 스크린샷에는 값 자체를 적지 않는다.
 | JVM | `JAVA_OPTS` | `-Xms256m -Xmx768m -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8` |
 
 `KTO_MANUAL_BATCH_WORKER_ENABLED=true`은 기본값이므로 필요할 때만 명시한다. KTO의
+상세 자동 보강은 기본값이 꺼져 있으므로 EB에서만
+`KTO_DETAIL_DAILY_SCHEDULE_ENABLED=true`로 켠다. 기본 50곳은 KTO 상세 API
+최대 200회/일에 해당하며, Render에서는 이 값을 `false`로 유지한다.
 page size와 concurrency는 빠른 수집보다 Aiven 안정성을 우선해 유지한다.
 
 ## 배포와 전환 순서

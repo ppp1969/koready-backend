@@ -104,6 +104,12 @@ koready:
       worker:
         enabled: ${KTO_MANUAL_BATCH_WORKER_ENABLED:true}
         poll-delay: ${KTO_MANUAL_BATCH_WORKER_POLL_DELAY:30s}
+    detail-enrichment:
+      schedule:
+        enabled: ${KTO_DETAIL_DAILY_SCHEDULE_ENABLED:false}
+        cron: ${KTO_DETAIL_DAILY_SCHEDULE_CRON:0 */30 * * * *}
+        zone: ${KTO_DETAIL_DAILY_SCHEDULE_ZONE:Asia/Seoul}
+        max-places: ${KTO_DETAIL_DAILY_MAX_PLACES:50}
     snapshot:
       storage: ${KTO_SNAPSHOT_STORAGE:local}
       directory: ${KTO_SNAPSHOT_DIRECTORY:${user.home}/.koready/kto-snapshots}

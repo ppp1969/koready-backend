@@ -1,13 +1,16 @@
 package koready_backend.batch.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
@@ -17,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 import koready_backend.batch.application.exception.BatchJobRetryNotAllowedException;
 import koready_backend.batch.application.port.BatchJobCommandRepository;
@@ -269,6 +273,62 @@ class BatchJobCommandServiceTest {
 		assertEquals(120L, captor.getValue().parameters().get("startAfterSourceRecordId"));
 		assertEquals(100, captor.getValue().parameters().get("maxRecords"));
 		assertEquals(false, captor.getValue().parameters().get("autoContinue"));
+	}
+
+	@Test
+	void schedulesOneBoundedDailyDetailJobWithAnIdempotencyKey() {
+		when(repository.enqueue(any())).thenReturn(101L);
+		BatchJobCommandService service = service();
+
+		var result = service.scheduleDailyDetail(
+			LocalDate.parse("2026-07-20"), 50);
+
+		assertTrue(result.scheduled());
+		assertEquals(101L, result.jobId());
+		ArgumentCaptor<EnqueueCommand> captor =
+			ArgumentCaptor.forClass(EnqueueCommand.class);
+		verify(repository).enqueue(captor.capture());
+		assertEquals(
+			BatchJobType.KTO_DETAIL_ENRICHMENT,
+			captor.getValue().jobType());
+		assertEquals(
+			BatchTriggerSource.SCHEDULED,
+			captor.getValue().triggerSource());
+		assertEquals(
+			"KTO_DETAIL_ENRICHMENT:2026-07-20",
+			captor.getValue().scheduleKey());
+		assertEquals(
+			0L,
+			captor.getValue().parameters().get("startAfterPlaceId"));
+		assertEquals(
+			50,
+			captor.getValue().parameters().get("maxPlaces"));
+		assertEquals(
+			false,
+			captor.getValue().parameters().get("autoContinue"));
+	}
+
+	@Test
+	void defersDailyDetailJobWhenTheScheduleOrExecutionSlotAlreadyExists() {
+		when(repository.enqueue(any()))
+			.thenThrow(new DuplicateKeyException("duplicate"));
+		BatchJobCommandService service = service();
+
+		var result = service.scheduleDailyDetail(
+			LocalDate.parse("2026-07-20"), 50);
+
+		assertFalse(result.scheduled());
+		assertEquals(null, result.jobId());
+	}
+
+	@Test
+	void rejectsAnUnboundedDailyDetailBudget() {
+		BatchJobCommandService service = service();
+
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> service.scheduleDailyDetail(
+				LocalDate.parse("2026-07-20"), 51));
 	}
 
 	@Test

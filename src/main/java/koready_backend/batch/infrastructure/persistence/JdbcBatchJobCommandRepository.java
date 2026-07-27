@@ -37,15 +37,17 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 			var statement = connection.prepareStatement("""
 				INSERT INTO batch_jobs
 					(job_type, status, trigger_source, parent_job_id,
-					 parameters_json, active_execution_slot, created_at, updated_at)
-				VALUES (?, 'PENDING', ?, ?, CAST(? AS JSON), 1, ?, ?)
+					 parameters_json, schedule_key, active_execution_slot,
+					 created_at, updated_at)
+				VALUES (?, 'PENDING', ?, ?, CAST(? AS JSON), ?, 1, ?, ?)
 				""", Statement.RETURN_GENERATED_KEYS);
 			statement.setString(1, command.jobType().name());
 			statement.setString(2, command.triggerSource().name());
 			statement.setObject(3, command.parentJobId());
 			statement.setString(4, json(command.parameters()));
-			statement.setTimestamp(5, Timestamp.from(command.createdAt()));
+			statement.setString(5, command.scheduleKey());
 			statement.setTimestamp(6, Timestamp.from(command.createdAt()));
+			statement.setTimestamp(7, Timestamp.from(command.createdAt()));
 			return statement;
 		}, keyHolder);
 		Number key = keyHolder.getKey();

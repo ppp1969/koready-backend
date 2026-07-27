@@ -17,7 +17,7 @@ public record KtoRelatedTourImportRequest(
 			|| maxRegions < 1
 			|| maxRegions > 10
 			|| maxPagesPerRegion < 1
-			|| maxPagesPerRegion > 20) {
+			|| maxPagesPerRegion > 50) {
 			throw new IllegalArgumentException(
 				"Related tour import window is invalid");
 		}

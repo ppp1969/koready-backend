@@ -193,6 +193,32 @@ class BatchJobCommandServiceTest {
 	}
 
 	@Test
+	void acceptsTheProfiledJejuRelatedTourPageLimit() {
+		when(repository.enqueue(any())).thenReturn(102L);
+		BatchJobCommandService service = service();
+
+		service.accept(
+			new BatchJobCommandService.CreateCommand(
+				BatchJobType.KTO_RELATED_TOUR_SYNC,
+				Map.of(
+					"baseYearMonth", "202606",
+					"startAfterRegionKey", "48:48890",
+					"maxRegions", 2,
+					"maxPagesPerRegion", 50,
+					"autoContinue", true),
+				"Collect profiled Jeju related tours",
+				"operator-7"));
+
+		ArgumentCaptor<EnqueueCommand> captor =
+			ArgumentCaptor.forClass(EnqueueCommand.class);
+		verify(repository).enqueue(captor.capture());
+		assertEquals(
+			50,
+			captor.getValue().parameters().get(
+				"maxPagesPerRegion"));
+	}
+
+	@Test
 	void acceptsABoundedKtoDetailEnrichmentJob() {
 		when(repository.enqueue(any())).thenReturn(95L);
 		BatchJobCommandService service = service();

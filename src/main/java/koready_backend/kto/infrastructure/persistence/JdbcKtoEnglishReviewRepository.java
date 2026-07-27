@@ -4,9 +4,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,6 +24,11 @@ import koready_backend.kto.application.port.KtoEnglishReviewRepository;
 import koready_backend.kto.domain.KtoEnglishPlaceItem;
 import koready_backend.kto.domain.KtoEnglishReviewDecision;
 import koready_backend.kto.domain.KtoEnglishReviewStatus;
+import koready_backend.kto.domain.KtoEnglishSourceQuality;
+import koready_backend.kto.domain.KtoEnglishSourceQualityWarning;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
 
 @Repository
 public class JdbcKtoEnglishReviewRepository implements KtoEnglishReviewRepository {
@@ -47,6 +54,9 @@ public class JdbcKtoEnglishReviewRepository implements KtoEnglishReviewRepositor
 		        source.raw_snapshot_id,
 		        snapshot.storage_key,
 		        source.captured_at,
+		        source.source_quality,
+		        source.quality_warnings,
+		        source.quality_classified_at,
 		        COALESCE(
 		            decision.status,
 		            CASE
@@ -90,18 +100,22 @@ public class JdbcKtoEnglishReviewRepository implements KtoEnglishReviewRepositor
 	private static final String SUMMARY_COLUMNS = """
 		source_record_id, source_content_id, source_old_content_id, source_hash,
 		raw_snapshot_id, storage_key, captured_at, review_status, candidate_count,
+		source_quality, quality_warnings, quality_classified_at,
 		decision_version, selected_place_id, decided_at
 		""";
 
 	private final JdbcTemplate jdbcTemplate;
 	private final NamedParameterJdbcTemplate namedJdbcTemplate;
+	private final JsonMapper jsonMapper;
 
 	public JdbcKtoEnglishReviewRepository(
 		JdbcTemplate jdbcTemplate,
-		NamedParameterJdbcTemplate namedJdbcTemplate
+		NamedParameterJdbcTemplate namedJdbcTemplate,
+		JsonMapper jsonMapper
 	) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.namedJdbcTemplate = namedJdbcTemplate;
+		this.jsonMapper = jsonMapper;
 	}
 
 	@Override
@@ -116,6 +130,10 @@ public class JdbcKtoEnglishReviewRepository implements KtoEnglishReviewRepositor
 		} else {
 			sql.append("source.review_status = :status");
 			parameters.addValue("status", criteria.status().name());
+		}
+		if (criteria.quality() != null) {
+			sql.append(" AND source.source_quality = :quality");
+			parameters.addValue("quality", criteria.quality().name());
 		}
 		if (criteria.beforeSourceRecordId() != null) {
 			sql.append(" AND source.source_record_id < :beforeId");
@@ -507,11 +525,40 @@ public class JdbcKtoEnglishReviewRepository implements KtoEnglishReviewRepositor
 			rs.getLong("raw_snapshot_id"),
 			rs.getString("storage_key"),
 			instant(rs, "captured_at"),
+			nullableQuality(rs.getString("source_quality")),
+			qualityWarnings(rs.getString("quality_warnings")),
+			nullableInstant(rs, "quality_classified_at"),
 			KtoEnglishReviewStatus.valueOf(rs.getString("review_status")),
 			rs.getInt("candidate_count"),
 			rs.getInt("decision_version"),
 			nullableLong(rs, "selected_place_id"),
 			nullableInstant(rs, "decided_at"));
+	}
+
+	private static KtoEnglishSourceQuality nullableQuality(String value) {
+		return value == null ? null : KtoEnglishSourceQuality.valueOf(value);
+	}
+
+	private Set<KtoEnglishSourceQualityWarning> qualityWarnings(String value) {
+		if (value == null) {
+			return Set.of();
+		}
+		try {
+			List<String> names = jsonMapper.readValue(
+				value,
+				new TypeReference<List<String>>() {
+				});
+			EnumSet<KtoEnglishSourceQualityWarning> warnings =
+				EnumSet.noneOf(KtoEnglishSourceQualityWarning.class);
+			for (String name : names) {
+				warnings.add(KtoEnglishSourceQualityWarning.valueOf(name));
+			}
+			return Set.copyOf(warnings);
+		} catch (JacksonException | IllegalArgumentException exception) {
+			throw new IllegalStateException(
+				"Stored KTO English quality warnings are invalid",
+				exception);
+		}
 	}
 
 	private static KtoEnglishReviewStatus nullableStatus(String value) {

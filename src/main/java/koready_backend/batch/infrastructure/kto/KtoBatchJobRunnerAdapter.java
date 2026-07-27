@@ -12,11 +12,13 @@ import koready_backend.batch.domain.BatchJobType;
 import koready_backend.kto.application.KtoDailySyncImportService;
 import koready_backend.kto.application.KtoDetailEnrichmentService;
 import koready_backend.kto.application.KtoEnglishSyncImportService;
+import koready_backend.kto.application.KtoEnglishQualityBackfillService;
 import koready_backend.kto.application.KtoFestivalImportService;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDailySyncRequest;
 import koready_backend.kto.application.model.KtoDetailEnrichmentRequest;
 import koready_backend.kto.application.model.KtoEnglishSyncRequest;
+import koready_backend.kto.application.model.KtoEnglishQualityBackfillRequest;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
 
 @Component
@@ -25,17 +27,20 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 	private final KtoDailySyncImportService dailySyncService;
 	private final KtoDetailEnrichmentService detailEnrichmentService;
 	private final KtoEnglishSyncImportService englishSyncService;
+	private final KtoEnglishQualityBackfillService englishQualityBackfillService;
 	private final KtoFestivalImportService festivalImportService;
 
 	public KtoBatchJobRunnerAdapter(
 		KtoDailySyncImportService dailySyncService,
 		KtoDetailEnrichmentService detailEnrichmentService,
 		KtoEnglishSyncImportService englishSyncService,
+		KtoEnglishQualityBackfillService englishQualityBackfillService,
 		KtoFestivalImportService festivalImportService
 	) {
 		this.dailySyncService = dailySyncService;
 		this.detailEnrichmentService = detailEnrichmentService;
 		this.englishSyncService = englishSyncService;
+		this.englishQualityBackfillService = englishQualityBackfillService;
 		this.festivalImportService = festivalImportService;
 	}
 
@@ -62,6 +67,29 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 			return new RunResult(
 				result.processedPlaces(),
 				result.processedPlaces(),
+				0,
+				continuation);
+		}
+		if (job.jobType() == BatchJobType.KTO_EN_QUALITY_BACKFILL) {
+			long startAfterSourceRecordId = longInteger(
+				job.parameters(), "startAfterSourceRecordId");
+			int maxRecords = integer(job.parameters(), "maxRecords");
+			boolean autoContinue = flag(job.parameters(), "autoContinue");
+			var result = englishQualityBackfillService.backfill(
+				new KtoEnglishQualityBackfillRequest(
+					startAfterSourceRecordId, maxRecords, autoContinue));
+			var continuation = result.hasMore() && result.autoContinue()
+				? new BatchJobContinuation(
+					BatchJobType.KTO_EN_QUALITY_BACKFILL,
+					Map.of(
+						"startAfterSourceRecordId",
+						result.lastProcessedSourceRecordId(),
+						"maxRecords", maxRecords,
+						"autoContinue", true))
+				: null;
+			return new RunResult(
+				result.processedRecords(),
+				result.processedRecords(),
 				0,
 				continuation);
 		}

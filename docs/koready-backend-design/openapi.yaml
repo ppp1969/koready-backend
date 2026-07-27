@@ -2131,6 +2131,12 @@ paths:
           description: 생략하면 미처리 상태 두 종류만 조회
           schema:
             $ref: '#/components/schemas/KtoEnglishReviewStatus'
+        - name: quality
+          in: query
+          required: false
+          description: DB에 판정 결과가 저장된 최신 KTO 영문 원본을 품질 상태로 필터링합니다. 아직 backfill되지 않은 null 항목은 포함하지 않습니다.
+          schema:
+            $ref: '#/components/schemas/KtoEnglishSourceQuality'
         - name: search
           in: query
           required: false
@@ -2179,6 +2185,23 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '200':
           $ref: '#/components/responses/KtoDetailCoverageSuccess'
+  /admin/kto/english-quality-coverage:
+    get:
+      tags: [Admin KTO English Review]
+      operationId: getKtoEnglishQualityCoverage
+      summary: KTO 영문 원본 품질 판정 진행률 조회
+      description: |
+        최신 KTO 영문 원본만 기준으로 DB에 저장된 품질 판정 완료·미완료 수와 품질별 건수를 집계합니다.
+        외부 KTO API와 S3를 호출하지 않으며, backfill 작업 전후의 진행률을 운영자가 확인할 때 사용합니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN, OPERATOR, AUDITOR]
+      responses:
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '200':
+          $ref: '#/components/responses/KtoEnglishQualityCoverageSuccess'
   /admin/kto/english-match-reviews/{sourceRecordId}:
     get:
       tags: [Admin KTO English Review]
@@ -2919,6 +2942,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/KtoDetailCoverageEnvelope'
+    KtoEnglishQualityCoverageSuccess:
+      description: KTO 영문 원본 품질 판정 진행률과 품질별 건수
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/KtoEnglishQualityCoverageEnvelope'
     KtoEnglishReviewSuccess:
       description: KTO 영문 원본, 국문 후보와 감사 이력
       content:
@@ -3355,7 +3384,7 @@ components:
     BatchJobType:
       type: string
       description: 현재 수동 실행을 허용하는 KTO 작업 유형
-      enum: [KTO_DAILY_SYNC, KTO_FULL_CATALOG_SYNC, KTO_FESTIVAL_SYNC, KTO_DETAIL_ENRICHMENT, KTO_EN_SYNC, AI_TRANSLATION, IMAGE_ENRICHMENT]
+      enum: [KTO_DAILY_SYNC, KTO_FULL_CATALOG_SYNC, KTO_FESTIVAL_SYNC, KTO_DETAIL_ENRICHMENT, KTO_EN_SYNC, KTO_EN_QUALITY_BACKFILL, AI_TRANSLATION, IMAGE_ENRICHMENT]
     SocialLoginRequest:
       type: object
       required: [provider, deviceId]
@@ -6631,6 +6660,53 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/KtoDetailCoverageResponse'
+    KtoEnglishQualityCoverageEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/KtoEnglishQualityCoverageResponse'
+    KtoEnglishQualityCoverageResponse:
+      type: object
+      required: [generatedAt, total, classified, pending, completionRate, usable, nonEnglishSuspected, encodingSuspected, mixedOrUnknown]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+        classified:
+          type: integer
+          format: int64
+          minimum: 0
+        pending:
+          type: integer
+          format: int64
+          minimum: 0
+        completionRate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+        usable:
+          type: integer
+          format: int64
+          minimum: 0
+        nonEnglishSuspected:
+          type: integer
+          format: int64
+          minimum: 0
+        encodingSuspected:
+          type: integer
+          format: int64
+          minimum: 0
+        mixedOrUnknown:
+          type: integer
+          format: int64
+          minimum: 0
     KtoDetailCoverageResponse:
       type: object
       required: [generatedAt, catalog, ktoDetailImages, effectiveGalleryImages]
@@ -6899,6 +6975,8 @@ components:
         상세 보강은 장소마다 KTO detailCommon2, detailIntro2, detailInfo2, detailImage2를 호출하고 원본을 private S3에 저장합니다.
         네 호출이 완료되면 장소별 checkpoint와 snapshot 근거를 저장하며, 유효한 checkpoint가 있는 장소는 건너뜁니다.
         autoContinue는 기본 false이며 true일 때만 다음 구간 작업을 자동 등록합니다.
+        KTO_EN_QUALITY_BACKFILL은 기존 private S3 영문 원본을 다시 외부 호출하지 않고 읽어 품질 판정을 DB에 저장합니다.
+        startAfterSourceRecordId, maxRecords, autoContinue를 사용하며 한 작업은 최대 200건입니다.
         서버의 KTO pageSize와 동시성은 환경 설정으로 고정되어 있어 요청에서 바꾸지 않습니다.
       additionalProperties: false
       properties:
@@ -6928,6 +7006,18 @@ components:
           maximum: 50
           default: 10
           description: KTO_DETAIL_ENRICHMENT 한 작업에서 처리할 장소 수. 장소당 외부 API를 4회 호출합니다.
+        startAfterSourceRecordId:
+          type: integer
+          format: int64
+          minimum: 0
+          default: 0
+          description: KTO_EN_QUALITY_BACKFILL에서 이 source record ID보다 큰 미판정 최신 원본부터 처리하는 재개 cursor
+        maxRecords:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+          description: KTO_EN_QUALITY_BACKFILL 한 작업에서 판정할 최신 영문 source record 상한
         autoContinue:
           type: boolean
           default: false

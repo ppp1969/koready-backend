@@ -6,6 +6,8 @@ import java.util.Set;
 
 public final class KtoEnglishSourceQualityClassifier {
 
+	public static final String VERSION = "kto-en-source-quality-v1";
+
 	private static final List<String> ENCODING_MARKERS = List.of(
 		"\uFFFD",
 		"Ã",

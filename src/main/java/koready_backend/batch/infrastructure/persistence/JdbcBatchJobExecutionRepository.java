@@ -125,6 +125,13 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 				+ "+"
 				+ continuation.parameters().getOrDefault("maxPlaces", 10);
 		}
+		if (continuation.jobType() == BatchJobType.KTO_EN_QUALITY_BACKFILL) {
+			return "ENG:quality:"
+				+ continuation.parameters()
+					.getOrDefault("startAfterSourceRecordId", 0)
+				+ "+"
+				+ continuation.parameters().getOrDefault("maxRecords", 50);
+		}
 		String operation = switch (continuation.jobType()) {
 			case KTO_FESTIVAL_SYNC -> "searchFestival2";
 			case KTO_EN_SYNC -> "ENG:areaBasedSyncList2";

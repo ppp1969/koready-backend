@@ -3,10 +3,13 @@ package koready_backend.kto.application.port;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import koready_backend.kto.domain.KtoEnglishPlaceItem;
 import koready_backend.kto.domain.KtoEnglishReviewDecision;
 import koready_backend.kto.domain.KtoEnglishReviewStatus;
+import koready_backend.kto.domain.KtoEnglishSourceQuality;
+import koready_backend.kto.domain.KtoEnglishSourceQualityWarning;
 
 public interface KtoEnglishReviewRepository {
 
@@ -18,6 +21,7 @@ public interface KtoEnglishReviewRepository {
 
 	record ReviewCriteria(
 		KtoEnglishReviewStatus status,
+		KtoEnglishSourceQuality quality,
 		String search,
 		Long beforeSourceRecordId,
 		int limit
@@ -32,6 +36,9 @@ public interface KtoEnglishReviewRepository {
 		long rawSnapshotId,
 		String storageKey,
 		Instant capturedAt,
+		KtoEnglishSourceQuality sourceQuality,
+		Set<KtoEnglishSourceQualityWarning> qualityWarnings,
+		Instant qualityClassifiedAt,
 		KtoEnglishReviewStatus status,
 		int candidateCount,
 		int decisionVersion,

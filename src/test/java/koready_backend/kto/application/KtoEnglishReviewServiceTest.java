@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,7 +58,7 @@ class KtoEnglishReviewServiceTest {
 				"eng-1", source("eng-1", "First place")));
 
 		var page = service.list(new KtoEnglishReviewService.ReviewQuery(
-			null, null, null, 20));
+			null, null, null, null, 20));
 
 		assertEquals(2, page.items().size());
 		assertEquals("Second place", page.items().getFirst().titleEn());
@@ -77,7 +78,7 @@ class KtoEnglishReviewServiceTest {
 				"eng-1", source("eng-1", "Gyeongbokgung Palace")));
 
 		var page = service.list(new KtoEnglishReviewService.ReviewQuery(
-			null, null, null, 20));
+			null, null, null, null, 20));
 
 		assertEquals(2, page.items().size());
 		assertEquals(
@@ -87,6 +88,43 @@ class KtoEnglishReviewServiceTest {
 			KtoEnglishSourceQuality.USABLE,
 			page.items().getLast().sourceQuality());
 		verify(repository).findPage(any());
+	}
+
+	@Test
+	void keepsPersistedQualityAndAddsSourceUnavailableWarning() {
+		ReviewSummaryRecord persisted = new ReviewSummaryRecord(
+			32L,
+			"eng-2",
+			null,
+			"a".repeat(64),
+			11L,
+			"kto/eng/page-1.json.gz",
+			NOW,
+			KtoEnglishSourceQuality.NON_ENGLISH_SUSPECTED,
+			Set.of(
+				koready_backend.kto.domain.KtoEnglishSourceQualityWarning.NON_LATIN_TITLE),
+			NOW,
+			KtoEnglishReviewStatus.REVIEW_REQUIRED,
+			2,
+			0,
+			null,
+			null);
+		when(repository.findPage(any())).thenReturn(List.of(persisted));
+		when(sourceReader.findAll(any(), any())).thenThrow(
+			new IllegalStateException("S3 unavailable"));
+
+		var page = service.list(new KtoEnglishReviewService.ReviewQuery(
+			null, KtoEnglishSourceQuality.NON_ENGLISH_SUSPECTED,
+			null, null, 20));
+
+		assertEquals(
+			KtoEnglishSourceQuality.NON_ENGLISH_SUSPECTED,
+			page.items().getFirst().sourceQuality());
+		assertEquals(
+			Set.of(
+				koready_backend.kto.domain.KtoEnglishSourceQualityWarning.NON_LATIN_TITLE,
+				koready_backend.kto.domain.KtoEnglishSourceQualityWarning.SOURCE_UNAVAILABLE),
+			page.items().getFirst().qualityWarnings());
 	}
 
 	@Test
@@ -145,6 +183,9 @@ class KtoEnglishReviewServiceTest {
 			11L,
 			"kto/eng/page-1.json.gz",
 			NOW,
+			null,
+			java.util.Set.of(),
+			null,
 			KtoEnglishReviewStatus.REVIEW_REQUIRED,
 			2,
 			0,

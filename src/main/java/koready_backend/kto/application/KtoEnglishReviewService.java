@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -55,11 +56,13 @@ public class KtoEnglishReviewService {
 		validate(query);
 		String fingerprint = fingerprint(
 			name(query.status()),
+			name(query.quality()),
 			normalizedSearch(query.search()),
 			String.valueOf(query.size()));
 		Long beforeId = decodeCursor(query.cursor(), fingerprint);
 		List<ReviewSummaryRecord> rows = repository.findPage(new ReviewCriteria(
-			query.status(), normalizedSearch(query.search()), beforeId, query.size() + 1));
+			query.status(), query.quality(), normalizedSearch(query.search()),
+			beforeId, query.size() + 1));
 		boolean hasMore = rows.size() > query.size();
 		List<ReviewSummaryRecord> visible =
 			rows.subList(0, Math.min(query.size(), rows.size()));
@@ -173,7 +176,9 @@ public class KtoEnglishReviewService {
 		KtoEnglishPlaceItem source
 	) {
 		KtoEnglishSourceQualityClassifier.Result sourceQuality =
-			sourceQuality(source);
+			row.sourceQuality() == null
+				? sourceQuality(source)
+				: persistedSourceQuality(row, source);
 		return new ReviewSummaryView(
 			row.sourceRecordId(),
 			row.sourceContentId(),
@@ -201,6 +206,21 @@ public class KtoEnglishReviewService {
 		}
 		return QUALITY_CLASSIFIER.classify(
 			source.title(), joinAddress(source.address1(), source.address2()));
+	}
+
+	private static KtoEnglishSourceQualityClassifier.Result persistedSourceQuality(
+		ReviewSummaryRecord row,
+		KtoEnglishPlaceItem source
+	) {
+		EnumSet<KtoEnglishSourceQualityWarning> warnings =
+			EnumSet.noneOf(KtoEnglishSourceQualityWarning.class);
+		warnings.addAll(row.qualityWarnings());
+		if (source == null) {
+			warnings.add(KtoEnglishSourceQualityWarning.SOURCE_UNAVAILABLE);
+		}
+		return new KtoEnglishSourceQualityClassifier.Result(
+			row.sourceQuality(),
+			warnings);
 	}
 
 	private static ReviewDetailView detail(
@@ -317,6 +337,7 @@ public class KtoEnglishReviewService {
 
 	public record ReviewQuery(
 		KtoEnglishReviewStatus status,
+		KtoEnglishSourceQuality quality,
 		String search,
 		String cursor,
 		int size

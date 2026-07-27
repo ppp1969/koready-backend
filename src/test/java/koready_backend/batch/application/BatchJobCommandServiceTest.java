@@ -129,6 +129,24 @@ class BatchJobCommandServiceTest {
 	}
 
 	@Test
+	void acceptsABoundedEnglishQualityBackfillJob() {
+		when(repository.enqueue(any())).thenReturn(97L);
+		BatchJobCommandService service = service();
+
+		var accepted = service.accept(new BatchJobCommandService.CreateCommand(
+			BatchJobType.KTO_EN_QUALITY_BACKFILL,
+			Map.of("startAfterSourceRecordId", 120L, "maxRecords", 100, "autoContinue", false),
+			"Backfill indexed English source quality", "operator-7"));
+
+		ArgumentCaptor<EnqueueCommand> captor = ArgumentCaptor.forClass(EnqueueCommand.class);
+		verify(repository).enqueue(captor.capture());
+		assertEquals(BatchJobType.KTO_EN_QUALITY_BACKFILL, accepted.jobType());
+		assertEquals(120L, captor.getValue().parameters().get("startAfterSourceRecordId"));
+		assertEquals(100, captor.getValue().parameters().get("maxRecords"));
+		assertEquals(false, captor.getValue().parameters().get("autoContinue"));
+	}
+
+	@Test
 	void retriesOnlyFailedJobsWithANewLinkedJob() {
 		when(repository.findRetrySourceForUpdate(7L)).thenReturn(Optional.of(new RetrySource(
 			7L, BatchJobType.KTO_DAILY_SYNC, BatchJobStatus.FAILED, Map.of("startPage", 1, "maxPages", 1))));

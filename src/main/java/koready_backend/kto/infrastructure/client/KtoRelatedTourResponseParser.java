@@ -44,11 +44,21 @@ public final class KtoRelatedTourResponseParser {
 				throw new KtoResponseParseException(
 					"KTO related tour response body is missing");
 			}
+			int pageNumber = requiredInteger(body, "pageNo");
+			int pageSize = requiredInteger(body, "numOfRows");
+			int totalCount = requiredInteger(body, "totalCount");
+			List<KtoRelatedTourItem> items =
+				parseItems(body.path("items"));
+			if (pageSize == 0
+				&& totalCount == 0
+				&& items.isEmpty()) {
+				pageSize = 1;
+			}
 			return new KtoRelatedTourPage(
-				requiredInteger(body, "pageNo"),
-				requiredInteger(body, "numOfRows"),
-				requiredInteger(body, "totalCount"),
-				parseItems(body.path("items")),
+				pageNumber,
+				pageSize,
+				totalCount,
+				items,
 				payload.length,
 				sha256(payload));
 		} catch (KtoProviderException | KtoResponseParseException exception) {

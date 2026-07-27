@@ -75,7 +75,21 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		    place.show_flag,
 		    COALESCE(place.road_address, place.address, korean.address_text) AS address_text,
 		    place.latitude,
-		    place.longitude
+		    place.longitude,
+		    (
+		        SELECT COUNT(DISTINCT image.image_url)
+		        FROM place_images image
+		        WHERE image.place_id = place.id
+		    ) + CASE
+		        WHEN NULLIF(TRIM(place.first_image_url), '') IS NOT NULL
+		         AND NOT EXISTS (
+		             SELECT 1
+		             FROM place_images image
+		             WHERE image.place_id = place.id
+		               AND image.image_url = place.first_image_url
+		         )
+		        THEN 1 ELSE 0
+		    END AS unique_image_count
 		FROM onboarding_candidate_set_items item
 		JOIN places place ON place.id = item.place_id
 		LEFT JOIN place_localizations korean
@@ -246,7 +260,21 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			    place.latitude,
 			    place.longitude,
 			    place.first_image_url,
-			    place.service_region_code
+			    place.service_region_code,
+			    (
+			        SELECT COUNT(DISTINCT image.image_url)
+			        FROM place_images image
+			        WHERE image.place_id = place.id
+			    ) + CASE
+			        WHEN NULLIF(TRIM(place.first_image_url), '') IS NOT NULL
+			         AND NOT EXISTS (
+			             SELECT 1
+			             FROM place_images image
+			             WHERE image.place_id = place.id
+			               AND image.image_url = place.first_image_url
+			         )
+			        THEN 1 ELSE 0
+			    END AS unique_image_count
 			FROM places place
 			LEFT JOIN place_localizations korean
 			    ON korean.place_id = place.id AND korean.language = 'KO'
@@ -371,7 +399,8 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			resultSet.getObject("latitude"),
 			resultSet.getObject("longitude"),
 			resultSet.getString("first_image_url"),
-			resultSet.getString("service_region_code"));
+			resultSet.getString("service_region_code"),
+			resultSet.getInt("unique_image_count"));
 		String regionCode = resultSet.getString("service_region_code");
 		String travelStyle = resultSet.getString("travel_style");
 		return new CandidateItemRecord(
@@ -402,7 +431,8 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			resultSet.getObject("latitude"),
 			resultSet.getObject("longitude"),
 			resultSet.getString("first_image_url"),
-			resultSet.getString("service_region_code"));
+			resultSet.getString("service_region_code"),
+			resultSet.getInt("unique_image_count"));
 	}
 
 	private static CandidatePlaceReadiness readiness(
@@ -427,8 +457,11 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		if (place.latitude() == null || place.longitude() == null) {
 			reasons.add("MISSING_COORDINATES");
 		}
-		if (isBlank(place.imageUrl())) {
+		if (place.uniqueImageCount() == 0) {
 			reasons.add("MISSING_IMAGE");
+		}
+		if (place.uniqueImageCount() < 4) {
+			reasons.add("INSUFFICIENT_UNIQUE_IMAGES");
 		}
 		if (representativeImageId != null) {
 			reasons.add("IMAGE_NOT_OWNED_BY_PLACE");
@@ -484,7 +517,8 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		Object latitude,
 		Object longitude,
 		String imageUrl,
-		String serviceRegionCode
+		String serviceRegionCode,
+		int uniqueImageCount
 	) {
 	}
 }

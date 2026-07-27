@@ -598,6 +598,30 @@ cursor 초기화 요청은 다음과 같습니다.
 않습니다. reason에는 키·토큰·개인 위치정보를 입력하지 않습니다. 없는 cursorId는
 `404 SYNC_CURSOR_NOT_FOUND`입니다.
 
+## 7.5 KTO 사진공모전 수상작
+
+`KTO_PHOTO_AWARD_SYNC`는 한국관광공사 사진공모전 API의
+`phokoAwrdSyncList`를 페이지 단위로 수집한다. 현재 프로파일링 기준 전체 96건이며
+한·영 제목, 촬영 장소, 키워드, 원본·썸네일 URL, 저작권 구분을 저장한다. 이 작업은
+후보를 저장할 뿐 장소에 자동으로 연결하지 않는다.
+
+| Method | URI | 권한 | 설명 |
+|---|---|---|---|
+| GET | `/kto/photo-awards` | ADMIN, OPERATOR, AUDITOR | 수상작 후보와 현재 연결 상태 조회 |
+| PUT | `/kto/photo-awards/{contentId}/mapping` | ADMIN, OPERATOR | 확인한 장소 연결 승인 |
+| DELETE | `/kto/photo-awards/{contentId}/mapping` | ADMIN, OPERATOR | 연결과 우선 이미지 해제 |
+
+수상작 `contentId`와 TourAPI 장소 `contentid`는 다른 식별자다. 서버는 제목·촬영지
+유사도만으로 매핑하지 않는다. 운영자가 원본 이미지와 촬영 장소를 확인해 `placeId`,
+같은 장소 안에서의 `displayOrder`, 확인 근거인 `reason`을 제출한 경우에만
+`KTO_PHOTO_AWARD` 이미지를 만든다. 승인·재승인·해제는 작업자와 사유를 감사 로그에
+남긴다.
+
+장소 상세 이미지 순서는 운영자 승인 수상작 → 기존 대표사진 → `detailImage2`이며,
+URL이 같으면 가장 높은 우선순위 한 장만 남긴다. 공개 온보딩 후보 세트는 각 장소의
+고유 이미지가 4장 미만이면 발행되지 않는다. 일반 장소 상세은 아직 수집된 이미지
+수에 따라 4장보다 적을 수 있다.
+
 ---
 
 ## 8. 공모전 증빙 번들

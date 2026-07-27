@@ -142,7 +142,81 @@ class KtoRelatedTourJdbcStoreIntegrationTest {
 		assertEquals(3, count("kto_related_tour_records"));
 	}
 
+	@Test
+	void indexesTheExactKoreanTitleLookupUsedByBulkMatching() {
+		Integer indexColumns = jdbcTemplate.queryForObject(
+			"""
+			SELECT COUNT(*)
+			FROM information_schema.statistics
+			WHERE table_schema = DATABASE()
+			  AND table_name = 'place_localizations'
+			  AND index_name = 'idx_place_localizations_language_title'
+			""",
+			Integer.class);
+
+		assertEquals(3, indexColumns);
+	}
+
+	@Test
+	void refreshesAutoMappingsInBulkWithoutOverwritingManualReview() {
+		store.store(command());
+		long ambiguousRecordId = recordId("4".repeat(32));
+		curationService.confirmMapping(
+			ambiguousRecordId,
+			new KtoRelatedTourCurationService.ConfirmMappingCommand(
+				sourcePlaceId,
+				ambiguousRelatedPlaceId,
+				"운영진이 모호한 장소를 확인했습니다."),
+			"operator");
+		place(
+			"related-1-duplicate",
+			"첫 번째 장소",
+			"11",
+			"11530");
+
+		store.store(command(
+			"c".repeat(64),
+			"d".repeat(64),
+			"page-1-cccccccccccccccc.json.gz"));
+
+		assertEquals(2, count("kto_related_tour_mappings"));
+		assertEquals(2, count("place_relations"));
+		assertEquals(
+			"MANUAL_CONFIRMED",
+			jdbcTemplate.queryForObject(
+				"""
+				SELECT match_status
+				FROM kto_related_tour_mappings
+				WHERE related_tour_record_id = ?
+				""",
+				String.class,
+				ambiguousRecordId));
+		assertEquals(
+			0,
+			jdbcTemplate.queryForObject(
+				"""
+				SELECT COUNT(*)
+				FROM kto_related_tour_mappings mapping
+				JOIN kto_related_tour_records record
+				    ON record.id = mapping.related_tour_record_id
+				WHERE record.related_tour_code = ?
+				""",
+				Integer.class,
+				"2".repeat(32)));
+	}
+
 	private KtoRelatedTourStorePageCommand command() {
+		return command(
+			PAGE_HASH,
+			STORED_HASH,
+			"page-1-aaaaaaaaaaaaaaaa.json.gz");
+	}
+
+	private KtoRelatedTourStorePageCommand command(
+		String pageHash,
+		String storedHash,
+		String fileName
+	) {
 		return new KtoRelatedTourStorePageCommand(
 			"202606",
 			new KtoRelatedTourRegion("11", "11530"),
@@ -155,16 +229,27 @@ class KtoRelatedTourJdbcStoreIntegrationTest {
 					item("3", "두 번째 장소", 2),
 					item("4", "모호한 장소", 3)),
 				2048,
-				PAGE_HASH),
+				pageHash),
 			new KtoSuccessfulCallMetadata(
 				REQUESTED_AT, RECEIVED_AT, 1000, 200),
 			new KtoStoredSnapshotMetadata(
 				"kto/related-tour/areaBasedList12026061111530/"
-					+ "20260727/page-1-aaaaaaaaaaaaaaaa.json.gz",
-				STORED_HASH,
+					+ "20260727/" + fileName,
+				storedHash,
 				1024,
 				RECEIVED_AT.plusSeconds(1)),
 			null);
+	}
+
+	private long recordId(String relatedTourCode) {
+		return jdbcTemplate.queryForObject(
+			"""
+			SELECT id
+			FROM kto_related_tour_records
+			WHERE related_tour_code = ?
+			""",
+			Long.class,
+			relatedTourCode);
 	}
 
 	private KtoRelatedTourItem item(

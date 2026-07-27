@@ -54,6 +54,11 @@ Swagger의 `Admin KTO English Review` 태그에는 각 요청·응답 필드와 
 - `ENCODING_SUSPECTED`는 `Ã`, `Â`, 대체 문자 등 대표적인 문자 깨짐 표식이 발견된 경우다.
 - `MIXED_OR_UNKNOWN`은 문자 체계가 섞였거나 판정할 텍스트가 부족한 경우다.
 - `qualityWarnings`는 판정 이유를 enum 목록으로 제공한다.
-- 품질 상태별 서버 필터는 아직 제공하지 않는다. 전체 원본의 품질값을 DB에 저장하고
-  인덱스를 만든 뒤 별도 작업으로 추가한다.
+- 신규 `KTO_EN_SYNC` 원본은 품질 상태와 경고, 판정기 버전을 같은 DB transaction에서 저장한다.
+- 기존 원본은 `KTO_EN_QUALITY_BACKFILL` 작업으로 private S3를 제한된 범위만 읽어 보완한다.
+- 목록의 `quality` 필터는 DB에 저장된 최신 품질값과 인덱스를 사용한다. 아직 backfill되지 않은
+  null 항목은 품질 필터 결과에 포함되지 않지만, 필터가 없는 목록에서는 화면 표시를 위해 현재
+  페이지의 S3 원본만 읽어 품질값을 계산한다.
+- backfill은 `startAfterSourceRecordId`, `maxRecords`(최대 200), `autoContinue`를 사용한다.
+  외부 KTO API는 호출하지 않고, 원본이 없거나 hash가 달라지면 해당 작업을 실패시켜 재검토한다.
 - 이 기능은 원문을 수정하거나 번역하거나 자동 확정하지 않는다.

@@ -32,10 +32,13 @@ public class BatchJobCommandService {
 		BatchJobType.KTO_FULL_CATALOG_SYNC,
 		BatchJobType.KTO_FESTIVAL_SYNC,
 		BatchJobType.KTO_DETAIL_ENRICHMENT,
-		BatchJobType.KTO_EN_SYNC);
+		BatchJobType.KTO_EN_SYNC,
+		BatchJobType.KTO_EN_QUALITY_BACKFILL);
 	private static final int MAX_PAGES = 20;
 	private static final int DEFAULT_DETAIL_PLACES = 10;
 	private static final int MAX_DETAIL_PLACES = 50;
+	private static final int DEFAULT_QUALITY_RECORDS = 50;
+	private static final int MAX_QUALITY_RECORDS = 200;
 
 	private final BatchJobCommandRepository repository;
 	private final Clock clock;
@@ -100,6 +103,9 @@ public class BatchJobCommandService {
 		if (command.jobType() == BatchJobType.KTO_DETAIL_ENRICHMENT) {
 			return normalizeDetail(command, input);
 		}
+		if (command.jobType() == BatchJobType.KTO_EN_QUALITY_BACKFILL) {
+			return normalizeEnglishQuality(command, input);
+		}
 		int startPage = positive(input.get("startPage"), 1, 100_000, "startPage");
 		int defaultMaxPages = command.jobType() == BatchJobType.KTO_FULL_CATALOG_SYNC
 			|| command.jobType() == BatchJobType.KTO_EN_SYNC ? MAX_PAGES : 1;
@@ -112,6 +118,34 @@ public class BatchJobCommandService {
 		}
 		return new NormalizedCommand(
 			command.jobType(), Map.copyOf(parameters), command.reason().strip(), command.actorSubject().strip());
+	}
+
+	private NormalizedCommand normalizeEnglishQuality(
+		CreateCommand command,
+		Map<String, Object> input
+	) {
+		LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+		parameters.put(
+			"startAfterSourceRecordId",
+			nonNegativeLong(
+				input.get("startAfterSourceRecordId"),
+				0L,
+				"startAfterSourceRecordId"));
+		parameters.put(
+			"maxRecords",
+			positive(
+				input.get("maxRecords"),
+				DEFAULT_QUALITY_RECORDS,
+				MAX_QUALITY_RECORDS,
+				"maxRecords"));
+		parameters.put(
+			"autoContinue",
+			booleanValue(input.get("autoContinue"), false, "autoContinue"));
+		return new NormalizedCommand(
+			command.jobType(),
+			Map.copyOf(parameters),
+			command.reason().strip(),
+			command.actorSubject().strip());
 	}
 
 	private NormalizedCommand normalizeDetail(CreateCommand command, Map<String, Object> input) {

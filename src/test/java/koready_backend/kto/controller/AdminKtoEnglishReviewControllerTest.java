@@ -78,11 +78,12 @@ class AdminKtoEnglishReviewControllerTest {
 	}
 
 	@Test
-	void rejectsTheUnindexedQualityFilterWithoutScanningSources() throws Exception {
+	void acceptsTheIndexedQualityFilter() throws Exception {
 		mockMvc.perform(get("/api/v1/admin/kto/english-match-reviews")
 				.queryParam("quality", "NON_ENGLISH_SUSPECTED")
 				.with(user("auditor").roles("AUDITOR")))
-			.andExpect(status().isBadRequest());
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value("KTO_ENGLISH_REVIEW_LIST_OK"));
 	}
 
 	@Test

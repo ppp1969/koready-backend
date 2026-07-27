@@ -104,6 +104,27 @@ class KtoEnglishPageJdbcStoreIntegrationTest {
 			String.class));
 		assertEquals("IMAGE_PATH", matchMethod("eng-image"));
 		assertEquals("COORDINATE_CONTENT_TYPE", matchMethod("eng-coordinate"));
+		assertEquals("USABLE", jdbcTemplate.queryForObject(
+			"""
+			SELECT source_quality
+			FROM place_source_records
+			WHERE source_content_id = 'eng-image'
+			""",
+			String.class));
+		assertEquals(0, jdbcTemplate.queryForObject(
+			"""
+			SELECT JSON_LENGTH(quality_warnings)
+			FROM place_source_records
+			WHERE source_content_id = 'eng-image'
+			""",
+			Integer.class));
+		assertEquals("kto-en-source-quality-v1", jdbcTemplate.queryForObject(
+			"""
+			SELECT quality_classifier_version
+			FROM place_source_records
+			WHERE source_content_id = 'eng-image'
+			""",
+			String.class));
 		assertEquals(2, jdbcTemplate.queryForObject(
 			"""
 			SELECT COUNT(*)

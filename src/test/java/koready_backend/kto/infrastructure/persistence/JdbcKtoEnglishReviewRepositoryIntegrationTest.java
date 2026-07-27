@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -23,9 +24,12 @@ import org.testcontainers.mysql.MySQLContainer;
 import koready_backend.kto.application.exception.KtoEnglishReviewCandidateRequiredException;
 import koready_backend.kto.application.exception.KtoEnglishReviewConflictException;
 import koready_backend.kto.application.port.KtoEnglishReviewRepository;
+import koready_backend.kto.application.port.KtoEnglishQualityRepository;
+import koready_backend.kto.application.port.KtoEnglishQualityRepository.QualityUpdate;
 import koready_backend.kto.domain.KtoEnglishPlaceItem;
 import koready_backend.kto.domain.KtoEnglishReviewDecision;
 import koready_backend.kto.domain.KtoEnglishReviewStatus;
+import koready_backend.kto.domain.KtoEnglishSourceQuality;
 
 @Tag("integration")
 @SpringBootTest
@@ -40,6 +44,9 @@ class JdbcKtoEnglishReviewRepositoryIntegrationTest {
 
 	@Autowired
 	KtoEnglishReviewRepository repository;
+
+	@Autowired
+	KtoEnglishQualityRepository qualityRepository;
 
 	@Autowired
 	JdbcTemplate jdbcTemplate;
@@ -65,7 +72,7 @@ class JdbcKtoEnglishReviewRepositoryIntegrationTest {
 		insertCandidate(sourceRecordId, secondPlaceId);
 
 		var page = repository.findPage(new KtoEnglishReviewRepository.ReviewCriteria(
-			null, null, null, 20));
+			null, null, null, null, 20));
 		assertEquals(1, page.size());
 		assertEquals(KtoEnglishReviewStatus.REVIEW_REQUIRED, page.getFirst().status());
 		assertEquals(2, page.getFirst().candidateCount());
@@ -167,7 +174,7 @@ class JdbcKtoEnglishReviewRepositoryIntegrationTest {
 		long sourceRecordId = insertSource("eng-unmatched", "c".repeat(64));
 
 		var page = repository.findPage(new KtoEnglishReviewRepository.ReviewCriteria(
-			KtoEnglishReviewStatus.UNMATCHED, "eng-unmatched", null, 20));
+			KtoEnglishReviewStatus.UNMATCHED, null, "eng-unmatched", null, 20));
 		assertEquals(1, page.size());
 		assertEquals(0, page.getFirst().candidateCount());
 
@@ -185,6 +192,77 @@ class JdbcKtoEnglishReviewRepositoryIntegrationTest {
 		assertTrue(detail.candidates().isEmpty());
 		assertEquals(1, detail.audits().size());
 		assertEquals("operator", detail.audits().getFirst().reviewedBy());
+	}
+
+	@Test
+	void filtersLatestReviewSourcesByIndexedQuality() {
+		long usableId = insertSource("eng-usable", "d".repeat(64));
+		long suspectId = insertSource("eng-suspect", "e".repeat(64));
+		jdbcTemplate.update(
+			"""
+			UPDATE place_source_records
+			SET source_quality = 'USABLE',
+			    quality_warnings = JSON_ARRAY(),
+			    quality_classified_at = CURRENT_TIMESTAMP(6),
+			    quality_classifier_version = 'kto-en-source-quality-v1'
+			WHERE id = ?
+			""",
+			usableId);
+		jdbcTemplate.update(
+			"""
+			UPDATE place_source_records
+			SET source_quality = 'NON_ENGLISH_SUSPECTED',
+			    quality_warnings = JSON_ARRAY('NON_LATIN_TITLE'),
+			    quality_classified_at = CURRENT_TIMESTAMP(6),
+			    quality_classifier_version = 'kto-en-source-quality-v1'
+			WHERE id = ?
+			""",
+			suspectId);
+
+		var page = repository.findPage(new KtoEnglishReviewRepository.ReviewCriteria(
+			null,
+			KtoEnglishSourceQuality.NON_ENGLISH_SUSPECTED,
+			null,
+			null,
+			20));
+
+		assertEquals(1, page.size());
+		assertEquals(suspectId, page.getFirst().sourceRecordId());
+		assertEquals(
+			KtoEnglishSourceQuality.NON_ENGLISH_SUSPECTED,
+			page.getFirst().sourceQuality());
+		assertEquals(
+			Set.of(koready_backend.kto.domain.KtoEnglishSourceQualityWarning.NON_LATIN_TITLE),
+			page.getFirst().qualityWarnings());
+	}
+
+	@Test
+	void backfillsOnlyUnclassifiedLatestSourcesAndDoesNotSelectThemAgain() {
+		long firstId = insertSource("eng-first", "1".repeat(64));
+		long secondId = insertSource("eng-second", "2".repeat(64));
+
+		var initial = qualityRepository.findUnclassified(0L, 10);
+		assertEquals(List.of(firstId, secondId), initial.stream()
+			.map(KtoEnglishQualityRepository.QualityTarget::sourceRecordId)
+			.toList());
+
+		qualityRepository.classify(new QualityUpdate(
+			firstId,
+			"1".repeat(64),
+			KtoEnglishSourceQuality.USABLE,
+			Set.of(),
+			Instant.parse("2026-07-27T02:00:00Z"),
+			"kto-en-source-quality-v1"));
+
+		var remaining = qualityRepository.findUnclassified(0L, 10);
+		assertEquals(List.of(secondId), remaining.stream()
+			.map(KtoEnglishQualityRepository.QualityTarget::sourceRecordId)
+			.toList());
+		var coverage = qualityRepository.summarizeLatest();
+		assertEquals(2, coverage.total());
+		assertEquals(1, coverage.classified());
+		assertEquals(1, coverage.pending());
+		assertEquals(1, coverage.usable());
 	}
 
 	private long insertPlace(String contentId, String title) {

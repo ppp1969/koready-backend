@@ -20,11 +20,13 @@ import koready_backend.batch.domain.BatchJobType;
 import koready_backend.kto.application.KtoDailySyncImportService;
 import koready_backend.kto.application.KtoDetailEnrichmentService;
 import koready_backend.kto.application.KtoEnglishSyncImportService;
+import koready_backend.kto.application.KtoEnglishQualityBackfillService;
 import koready_backend.kto.application.KtoFestivalImportService;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDailySyncResult;
 import koready_backend.kto.application.model.KtoDetailEnrichmentResult;
 import koready_backend.kto.application.model.KtoEnglishSyncResult;
+import koready_backend.kto.application.model.KtoEnglishQualityBackfillResult;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
 import koready_backend.kto.application.model.KtoFestivalImportResult;
 
@@ -36,6 +38,9 @@ class KtoBatchJobRunnerAdapterTest {
 
 	@Mock
 	KtoEnglishSyncImportService englishSyncService;
+
+	@Mock
+	KtoEnglishQualityBackfillService englishQualityBackfillService;
 
 	@Mock
 	KtoDetailEnrichmentService detailEnrichmentService;
@@ -178,11 +183,36 @@ class KtoBatchJobRunnerAdapterTest {
 		assertNull(result.continuation());
 	}
 
+	@Test
+	void continuesTheEnglishQualityBackfillFromTheLastClassifiedRecord() {
+		when(englishQualityBackfillService.backfill(any()))
+			.thenReturn(new KtoEnglishQualityBackfillResult(
+				100, 220L, true, true));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_EN_QUALITY_BACKFILL,
+			Map.of(
+				"startAfterSourceRecordId", 120L,
+				"maxRecords", 100,
+				"autoContinue", true),
+			47L));
+
+		assertEquals(100, result.successCount());
+		assertEquals(
+			BatchJobType.KTO_EN_QUALITY_BACKFILL,
+			result.continuation().jobType());
+		assertEquals(
+			220L,
+			result.continuation().parameters().get("startAfterSourceRecordId"));
+	}
+
 	private KtoBatchJobRunnerAdapter adapter() {
 		return new KtoBatchJobRunnerAdapter(
 			dailySyncService,
 			detailEnrichmentService,
 			englishSyncService,
+			englishQualityBackfillService,
 			festivalImportService);
 	}
 }

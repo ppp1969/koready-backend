@@ -24,6 +24,7 @@ import koready_backend.kto.application.port.KtoEnglishPageStore;
 import koready_backend.kto.domain.KtoEnglishMatchDecision;
 import koready_backend.kto.domain.KtoEnglishMatchMethod;
 import koready_backend.kto.domain.KtoEnglishMatchStatus;
+import koready_backend.kto.domain.KtoEnglishSourceQualityClassifier;
 import koready_backend.kto.infrastructure.config.KtoBatchProperties;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
@@ -36,6 +37,8 @@ public class KtoEnglishPageJdbcStore implements KtoEnglishPageStore {
 	private static final String MATCHER_VERSION = "kto-en-crosswalk-v1";
 	private static final DateTimeFormatter KTO_TIMESTAMP =
 		DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+	private static final KtoEnglishSourceQualityClassifier QUALITY_CLASSIFIER =
+		new KtoEnglishSourceQualityClassifier();
 
 	private final JdbcTemplate jdbcTemplate;
 	private final JsonMapper jsonMapper;
@@ -206,18 +209,31 @@ public class KtoEnglishPageJdbcStore implements KtoEnglishPageStore {
 			"""
 			INSERT INTO place_source_records
 				(provider, api_name, operation, source_content_id, source_old_content_id,
-				 language, raw_snapshot_id, source_modified_time, source_hash, captured_at)
-			VALUES ('KTO', 'ENG', 'areaBasedSyncList2', ?, ?, 'EN', ?, ?, ?, ?)
+				 language, raw_snapshot_id, source_modified_time, source_hash,
+				 source_quality, quality_warnings, quality_classified_at,
+				 quality_classifier_version, captured_at)
+			VALUES ('KTO', 'ENG', 'areaBasedSyncList2', ?, ?, 'EN', ?, ?, ?,
+			        ?, CAST(? AS JSON), ?, ?, ?)
 			""",
 			command.matches(),
 			batchProperties.flushSize(),
 			(statement, match) -> {
+				var quality = QUALITY_CLASSIFIER.classify(
+					match.source().title(),
+					joinAddress(match.source().address1(), match.source().address2()));
 				statement.setString(1, match.source().contentId());
 				statement.setString(2, match.source().oldContentId());
 				statement.setLong(3, snapshotId);
 				statement.setObject(4, modifiedTime(match.source().modifiedTime()));
 				statement.setString(5, match.source().sourceHash());
-				statement.setTimestamp(6, Timestamp.from(command.snapshot().capturedAt()));
+				statement.setString(6, quality.quality().name());
+				statement.setString(7, json(quality.warnings().stream()
+					.map(Enum::name)
+					.sorted()
+					.toList()));
+				statement.setTimestamp(8, Timestamp.from(command.snapshot().capturedAt()));
+				statement.setString(9, KtoEnglishSourceQualityClassifier.VERSION);
+				statement.setTimestamp(10, Timestamp.from(command.snapshot().capturedAt()));
 			});
 	}
 

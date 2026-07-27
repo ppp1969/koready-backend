@@ -65,6 +65,12 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 				+ "+"
 				+ command.parameters().getOrDefault("maxPlaces", 10);
 		}
+		if (command.jobType() == BatchJobType.KTO_EN_QUALITY_BACKFILL) {
+			return "ENG:quality:"
+				+ command.parameters().getOrDefault("startAfterSourceRecordId", 0)
+				+ "+"
+				+ command.parameters().getOrDefault("maxRecords", 50);
+		}
 		String operation = switch (command.jobType()) {
 			case KTO_FESTIVAL_SYNC -> "searchFestival2";
 			case KTO_EN_SYNC -> "ENG:areaBasedSyncList2";

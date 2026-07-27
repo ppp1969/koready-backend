@@ -3,9 +3,12 @@ package koready_backend.batch.infrastructure.persistence;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,15 +25,28 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 
 	private final JdbcTemplate jdbcTemplate;
 	private final JsonMapper jsonMapper;
+	private final Clock clock;
 
+	@Autowired
 	public JdbcBatchJobExecutionRepository(JdbcTemplate jdbcTemplate, JsonMapper jsonMapper) {
+		this(jdbcTemplate, jsonMapper, Clock.systemUTC());
+	}
+
+	JdbcBatchJobExecutionRepository(
+		JdbcTemplate jdbcTemplate,
+		JsonMapper jsonMapper,
+		Clock clock
+	) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.jsonMapper = jsonMapper;
+		this.clock = clock;
 	}
 
 	@Override
 	@Transactional
 	public Optional<ClaimedJob> claimNextQueued() {
+		Instant startedAt = clock.instant();
+		Timestamp startedTimestamp = Timestamp.from(startedAt);
 		return jdbcTemplate.query("""
 			SELECT jobs.id, jobs.job_type, jobs.parameters_json, items.id AS item_id
 			FROM batch_jobs jobs
@@ -40,10 +56,15 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 			LIMIT 1 FOR UPDATE
 			""", this::mapClaimed).stream().findFirst().map(job -> {
 			jdbcTemplate.update("""
-				UPDATE batch_jobs SET status = 'RUNNING', started_at = UTC_TIMESTAMP(6)
+				UPDATE batch_jobs
+				SET status = 'RUNNING', started_at = ?, updated_at = ?
 				WHERE id = ? AND status = 'PENDING'
-				""", job.id());
-			jdbcTemplate.update("UPDATE batch_job_items SET status = 'RUNNING' WHERE id = ?", job.itemId());
+				""", startedTimestamp, startedTimestamp, job.id());
+			jdbcTemplate.update("""
+				UPDATE batch_job_items
+				SET status = 'RUNNING', updated_at = ?
+				WHERE id = ?
+				""", startedTimestamp, job.itemId());
 			return job;
 		});
 	}
@@ -53,15 +74,16 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 		jdbcTemplate.update("""
 			UPDATE batch_jobs
 			SET status = 'FAILED', finished_at = ?, message = 'Batch job interrupted by a restart.',
-				active_execution_slot = NULL
+				active_execution_slot = NULL, updated_at = ?
 			WHERE status = 'RUNNING'
-			""", Timestamp.from(recoveredAt));
+			""", Timestamp.from(recoveredAt), Timestamp.from(recoveredAt));
 		jdbcTemplate.update("""
 			UPDATE batch_job_items items
 			JOIN batch_jobs jobs ON jobs.id = items.batch_job_id
-			SET items.status = 'FAILED', items.error_message = 'Batch item failed.'
+			SET items.status = 'FAILED', items.error_message = 'Batch item failed.',
+			    items.updated_at = ?
 			WHERE jobs.status = 'FAILED' AND items.status = 'RUNNING'
-			""");
+			""", Timestamp.from(recoveredAt));
 	}
 
 	@Override
@@ -72,14 +94,19 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 		jdbcTemplate.update("""
 			UPDATE batch_jobs
 			SET status = ?, finished_at = ?, processed_count = ?, success_count = ?, failure_count = ?,
-				message = NULL, active_execution_slot = NULL
+				message = NULL, active_execution_slot = NULL, updated_at = ?
 			WHERE id = ? AND status = 'RUNNING'
 			""", status.name(), Timestamp.from(completion.finishedAt()), completion.processedCount(),
-			completion.successCount(), completion.failureCount(), job.id());
+			completion.successCount(), completion.failureCount(),
+			Timestamp.from(completion.finishedAt()), job.id());
 		jdbcTemplate.update("""
-			UPDATE batch_job_items SET status = ?, error_message = NULL
+			UPDATE batch_job_items
+			SET status = ?, error_message = NULL, updated_at = ?
 			WHERE id = ?
-			""", completion.failureCount() == 0 ? "COMPLETED" : "FAILED", job.itemId());
+			""",
+			completion.failureCount() == 0 ? "COMPLETED" : "FAILED",
+			Timestamp.from(completion.finishedAt()),
+			job.itemId());
 		if (completion.failureCount() == 0 && completion.continuation() != null) {
 			enqueueContinuation(job, completion.continuation(), completion.finishedAt());
 		}
@@ -90,13 +117,15 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 		jdbcTemplate.update(connection -> {
 			var statement = connection.prepareStatement("""
 				INSERT INTO batch_jobs
-					(job_type, status, trigger_source, parent_job_id, parameters_json, active_execution_slot, created_at)
-				VALUES (?, 'PENDING', 'SCHEDULED', ?, CAST(? AS JSON), 1, ?)
+					(job_type, status, trigger_source, parent_job_id,
+					 parameters_json, active_execution_slot, created_at, updated_at)
+				VALUES (?, 'PENDING', 'SCHEDULED', ?, CAST(? AS JSON), 1, ?, ?)
 				""", java.sql.Statement.RETURN_GENERATED_KEYS);
 			statement.setString(1, continuation.jobType().name());
 			statement.setLong(2, parent.id());
 			statement.setString(3, json(continuation.parameters()));
 			statement.setTimestamp(4, Timestamp.from(createdAt));
+			statement.setTimestamp(5, Timestamp.from(createdAt));
 			return statement;
 		}, keyHolder);
 		Number key = keyHolder.getKey();
@@ -105,9 +134,14 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 		}
 		long jobId = key.longValue();
 		jdbcTemplate.update("""
-			INSERT INTO batch_job_items (batch_job_id, target_type, target_id, status)
-			VALUES (?, 'API_PAGE', ?, 'PENDING')
-			""", jobId, targetId(continuation));
+			INSERT INTO batch_job_items
+			    (batch_job_id, target_type, target_id, status, created_at, updated_at)
+			VALUES (?, 'API_PAGE', ?, 'PENDING', ?, ?)
+			""",
+			jobId,
+			targetId(continuation),
+			Timestamp.from(createdAt),
+			Timestamp.from(createdAt));
 		jdbcTemplate.update("""
 			INSERT INTO admin_audit_logs
 				(actor_subject, action, resource_type, resource_id, reason, after_snapshot, created_at)
@@ -147,13 +181,15 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 		jdbcTemplate.update("""
 			UPDATE batch_jobs
 			SET status = 'FAILED', finished_at = ?, failure_count = 1, processed_count = 1,
-				success_count = 0, message = 'Batch job failed.', active_execution_slot = NULL
+				success_count = 0, message = 'Batch job failed.',
+				active_execution_slot = NULL, updated_at = ?
 			WHERE id = ? AND status = 'RUNNING'
-			""", Timestamp.from(finishedAt), job.id());
+			""", Timestamp.from(finishedAt), Timestamp.from(finishedAt), job.id());
 		jdbcTemplate.update("""
-			UPDATE batch_job_items SET status = 'FAILED', error_message = 'Batch item failed.'
+			UPDATE batch_job_items
+			SET status = 'FAILED', error_message = 'Batch item failed.', updated_at = ?
 			WHERE id = ?
-			""", job.itemId());
+			""", Timestamp.from(finishedAt), job.itemId());
 	}
 
 	private ClaimedJob mapClaimed(ResultSet resultSet, int rowNumber) throws SQLException {

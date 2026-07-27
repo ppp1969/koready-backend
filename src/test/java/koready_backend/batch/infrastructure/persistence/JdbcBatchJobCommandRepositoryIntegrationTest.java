@@ -23,6 +23,7 @@ import org.testcontainers.mysql.MySQLContainer;
 import koready_backend.batch.application.port.BatchJobCommandRepository;
 import koready_backend.batch.application.port.BatchJobCommandRepository.BatchAuditRecord;
 import koready_backend.batch.application.port.BatchJobCommandRepository.EnqueueCommand;
+import koready_backend.batch.application.port.BatchJobAdminRepository;
 import koready_backend.batch.domain.BatchJobType;
 import koready_backend.batch.domain.BatchTriggerSource;
 
@@ -36,10 +37,14 @@ class JdbcBatchJobCommandRepositoryIntegrationTest {
 
 	@Container
 	@ServiceConnection
-	static final MySQLContainer mysql = new MySQLContainer("mysql:8.4");
+	static final MySQLContainer mysql = new MySQLContainer("mysql:8.4")
+		.withUrlParam("connectionTimeZone", "Asia/Seoul");
 
 	@Autowired
 	BatchJobCommandRepository repository;
+
+	@Autowired
+	BatchJobAdminRepository adminRepository;
 
 	@Autowired
 	JdbcTemplate jdbcTemplate;
@@ -47,9 +52,12 @@ class JdbcBatchJobCommandRepositoryIntegrationTest {
 	@Test
 	void persistsTheInitialApiPageAndLetsMySqlEnforceTheSingleActiveSlot() {
 		long jobId = repository.enqueue(command(BatchJobType.KTO_FESTIVAL_SYNC));
+		var saved = adminRepository.findJobById(jobId).orElseThrow();
 
 		assertEquals("PENDING", jdbcTemplate.queryForObject(
 			"SELECT status FROM batch_jobs WHERE id = ?", String.class, jobId));
+		assertEquals(Instant.parse("2026-07-20T00:00:00Z"), saved.createdAt());
+		assertEquals(saved.createdAt(), saved.updatedAt());
 		assertEquals("searchFestival2:1+1", jdbcTemplate.queryForObject(
 			"SELECT target_id FROM batch_job_items WHERE batch_job_id = ?", String.class, jobId));
 		repository.recordAudit(new BatchAuditRecord(

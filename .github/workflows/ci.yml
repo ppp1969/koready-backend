@@ -80,7 +80,31 @@ jobs:
       AWS_EB_DEPLOY_ROLE_ARN: ${{ vars.AWS_EB_DEPLOY_ROLE_ARN }}
 
     steps:
+      - name: "소스 체크아웃"
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: "EB 런타임 변경 확인"
+        id: runtime_changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy="$(
+            bash scripts/eb-runtime-change-filter.sh \
+              "${{ github.event.before }}" \
+              "${{ github.sha }}"
+          )"
+          echo "deploy=${deploy}" >> "$GITHUB_OUTPUT"
+          echo "EB runtime changed: ${deploy}"
+
+      - name: "EB 배포 생략"
+        if: steps.runtime_changes.outputs.deploy != 'true'
+        shell: bash
+        run: echo "No EB runtime files changed; skipping deployment."
+
       - name: "배포 설정 확인"
+        if: steps.runtime_changes.outputs.deploy == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -96,10 +120,8 @@ jobs:
             fi
           done
 
-      - name: "소스 체크아웃"
-        uses: actions/checkout@v7
-
       - name: "AWS OIDC 자격 증명 설정"
+        if: steps.runtime_changes.outputs.deploy == 'true'
         uses: aws-actions/configure-aws-credentials@v6.1.0
         with:
           role-to-assume: ${{ env.AWS_EB_DEPLOY_ROLE_ARN }}
@@ -107,6 +129,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: "EB 소스 번들 업로드"
+        if: steps.runtime_changes.outputs.deploy == 'true'
         id: source_bundle
         shell: bash
         run: |
@@ -121,6 +144,7 @@ jobs:
           echo "source_key=${source_key}" >> "$GITHUB_OUTPUT"
 
       - name: "EB 애플리케이션 버전 생성"
+        if: steps.runtime_changes.outputs.deploy == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -131,6 +155,7 @@ jobs:
             --source-bundle "S3Bucket=${AWS_EB_ARTIFACT_BUCKET},S3Key=${{ steps.source_bundle.outputs.source_key }}"
 
       - name: "EB 환경 업데이트 대기"
+        if: steps.runtime_changes.outputs.deploy == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -163,6 +188,7 @@ jobs:
           exit 1
 
       - name: "Readiness 스모크"
+        if: steps.runtime_changes.outputs.deploy == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -175,7 +201,7 @@ jobs:
             --connect-timeout 10 "http://${endpoint}/actuator/health/readiness"
 
       - name: "실패 시 최근 EB 이벤트"
-        if: failure()
+        if: failure() && steps.runtime_changes.outputs.deploy == 'true'
         shell: bash
         run: |
           aws elasticbeanstalk describe-events \

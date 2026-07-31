@@ -82,6 +82,15 @@ public class JdbcBuddyMessageRepository implements BuddyMessageRepository {
 			  AND place.active = TRUE
 			  AND place.show_flag = TRUE
 			  AND COALESCE(requested.title, fallback.title) IS NOT NULL
+			  AND EXISTS (
+			      SELECT 1
+			      FROM place_localizations publication_en
+			      WHERE publication_en.place_id = place.id
+			        AND publication_en.language = 'EN'
+			        AND publication_en.translation_source
+			            IN ('KTO_EN', 'MANUAL_EDITED')
+			        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+			  )
 			""",
 			(resultSet, rowNumber) -> new PlaceSnapshot(
 				resultSet.getLong("id"),

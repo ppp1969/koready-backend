@@ -87,7 +87,7 @@ class JdbcSavedPlaceRepositoryIntegrationTest {
 	}
 
 	@Test
-	void listsOnlyActiveVisiblePlacesWithStableCursorAndEnglishFallback() {
+	void listsOnlyActiveVisiblePlacesWithATrustedEnglishMatch() {
 		long userId = user("usr_saved_list");
 		long koreanOnly = place("saved-ko", true, true, "한국어 장소", null);
 		long translated = place("saved-en", true, true, "번역 장소", "English Place");
@@ -109,9 +109,9 @@ class JdbcSavedPlaceRepositoryIntegrationTest {
 
 		assertEquals(List.of(translated), firstPage.stream().map(SavedPlaceRow::placeId).toList());
 		assertEquals("English Place", firstPage.getFirst().title());
-		assertEquals(List.of(koreanOnly), secondPage.stream().map(SavedPlaceRow::placeId).toList());
-		assertEquals("한국어 장소", secondPage.getFirst().title());
+		assertTrue(secondPage.isEmpty());
 		assertTrue(repository.existsVisiblePlace(translated));
+		assertFalse(repository.existsVisiblePlace(koreanOnly));
 		assertFalse(repository.existsVisiblePlace(hidden));
 	}
 

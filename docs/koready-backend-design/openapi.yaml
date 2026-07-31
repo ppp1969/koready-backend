@@ -627,7 +627,8 @@ paths:
 
         **검색 규칙:** 앞뒤 공백과 연속 공백은 서버가 정리합니다. `%`, `_`는 일반 문자로 검색되며
         SQL wildcard로 동작하지 않습니다. active와 showFlag가 모두 true인 장소만 반환합니다.
-        Accept-Language가 en 계열이면 영문을 우선하고 영문이 없는 장소는 한국어로 대체합니다.
+        MVP에서는 `KTO_EN` 또는 운영자 수정 영문 제목이 있는 장소만 검색됩니다.
+        Accept-Language가 en 계열이고 영문 소개가 없으면 overview는 null이며 소개 영역을 숨깁니다.
       security: []
       x-implementation-status: IMPLEMENTED
       parameters:
@@ -665,6 +666,9 @@ paths:
 
         **다음 페이지:** 첫 요청에는 cursor를 보내지 않습니다. hasMore=true이면 같은 권역, 관광유형,
         sort, size, Accept-Language로 nextCursor를 그대로 전달합니다. 조건이 하나라도 바뀌면 cursor를 버립니다.
+
+        **MVP 공개 조건:** `KTO_EN` 또는 운영자 수정 영문 제목이 있고 KTO 상세 수집까지
+        완료된 장소만 반환합니다. 영문 소개가 없으면 overview는 null이며 한국어 또는 AI 소개로 대체하지 않습니다.
       security: []
       x-implementation-status: IMPLEMENTED
       parameters:
@@ -695,7 +699,8 @@ paths:
         availableTabs에 DESCRIPTION이 포함되지 않습니다. Buddy 메이트 조회가 구현되어 MATES는
         모든 표출 장소에 포함합니다. TMAP Route는 아직 PLANNED이므로 ROUTE는 포함하지 않습니다.
 
-        **언어:** Accept-Language가 en 계열이면 영문을 우선하고, 영문이 없으면 한국어로 대체합니다.
+        **언어:** MVP에서는 `KTO_EN` 또는 운영자 수정 영문 제목이 있는 장소만 조회됩니다.
+        Accept-Language가 en 계열이고 영문 소개가 없으면 overview는 null이며 한국어 또는 AI 소개로 대체하지 않습니다.
       security: []
       x-implementation-status: IMPLEMENTED
       parameters:
@@ -719,6 +724,7 @@ paths:
       description: |
         **호출 시점:** 하단 저장 탭에 들어갈 때 호출합니다.
         cursor 무한 스크롤을 사용하며 저장 취소 성공 시 해당 item을 로컬 목록에서 제거합니다.
+        저장 이후 공개 조건을 잃은 장소는 목록에서 숨기며, 영문 소개가 없으면 overview는 null입니다.
       x-implementation-status: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/Cursor'

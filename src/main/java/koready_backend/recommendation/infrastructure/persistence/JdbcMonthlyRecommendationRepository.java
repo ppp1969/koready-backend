@@ -52,7 +52,7 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 		    ) AS address_summary,
 		    NULLIF(TRIM(p.first_image_url), '') AS image_url,
 		    %s AS travel_style,
-		    COALESCE(requested.overview, korean.overview) AS overview,
+		    requested.overview AS overview,
 		    p.data_quality_score,
 		    %s AS recommendation_status_rank
 		""".formatted(PRIMARY_STYLE, STATUS_RANK);
@@ -68,6 +68,14 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 		WHERE p.active = TRUE
 		  AND p.show_flag = TRUE
 		  AND COALESCE(requested.id, korean.id) IS NOT NULL
+		  AND EXISTS (
+		      SELECT 1
+		      FROM place_localizations publication_en
+		      WHERE publication_en.place_id = p.id
+		        AND publication_en.language = 'EN'
+		        AND publication_en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+		        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+		  )
 		  AND event.date_validation_status = 'VALID'
 		  AND event.start_date <= :queryEnd
 		  AND event.end_date >= :queryStart

@@ -216,10 +216,21 @@ class JdbcHoriTipRepositoryIntegrationTest {
 			""",
 			ktoContentId,
 			visible);
-		return jdbcTemplate.queryForObject(
+		long placeId = jdbcTemplate.queryForObject(
 			"SELECT id FROM places WHERE kto_content_id = ?",
 			Long.class,
 			ktoContentId);
+		if (visible) {
+			jdbcTemplate.update(
+				"""
+				INSERT INTO place_localizations
+				    (place_id, language, title, translation_source)
+				VALUES (?, 'EN', ?, 'MANUAL_EDITED')
+				""",
+				placeId,
+				"English " + ktoContentId);
+		}
+		return placeId;
 	}
 
 	private int count(String table) {

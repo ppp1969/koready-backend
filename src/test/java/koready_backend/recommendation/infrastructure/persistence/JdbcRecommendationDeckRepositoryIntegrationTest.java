@@ -224,6 +224,30 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 		assertEquals(List.of(nationwideMatch, nearbyMatch), nationwide);
 	}
 
+	@Test
+	void excludesAiTranslatedPlacesFromRecommendationCandidates() {
+		UserFixture user = user(USER, "SEOUL", TravelStyle.NATURE);
+		long trusted = place("trusted-english", "SEOUL", TravelStyle.NATURE, "80.00");
+		long aiTranslated = place("ai-translated", "SEOUL", TravelStyle.NATURE, "100.00");
+		jdbcTemplate.update(
+			"""
+			UPDATE place_localizations
+			SET translation_source = 'AI_TRANSLATED'
+			WHERE place_id = ? AND language = 'EN'
+			""",
+			aiTranslated);
+
+		List<Long> candidates = repository.findEligibleCandidates(
+			user.userId(),
+			NOW,
+			PlaceLanguage.EN,
+			RecommendationScope.NEARBY,
+			ServiceRegionCode.SEOUL,
+			10).stream().map(candidate -> candidate.placeId()).toList();
+
+		assertEquals(List.of(trusted), candidates);
+	}
+
 	private UserFixture user(String publicId, String region, TravelStyle style) {
 		jdbcTemplate.update(
 			"""

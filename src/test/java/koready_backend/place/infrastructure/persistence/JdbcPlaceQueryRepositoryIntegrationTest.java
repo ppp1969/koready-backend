@@ -65,7 +65,7 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 	}
 
 	@Test
-	void filtersVisiblePlacesByRegionAndStyleWithEnglishFallback() {
+	void servesOnlyPlacesWithATrustedEnglishMatch() {
 		long high = insertPlace("high", "SEOUL", true, true, "95.00");
 		insertLocalization(high, "KO", "한국어 자연", "서울 종로구", "한국어 설명");
 		insertLocalization(high, "EN", "English Nature", "Jongno-gu, Seoul", "English overview");
@@ -74,6 +74,12 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 		long fallback = insertPlace("fallback", "SEOUL", true, true, "80.00");
 		insertLocalization(fallback, "KO", "한국어만 있는 장소", "서울 중구", "설명");
 		insertStyle(fallback, "NATURE", "0.8000");
+
+		long ai = insertPlace("ai", "SEOUL", true, true, "85.00");
+		insertLocalization(ai, "KO", "AI 장소", "서울", "AI 이전 한국어 설명");
+		insertLocalizationWithSource(
+			ai, "EN", "AI Place", "Seoul", "Generated overview", "AI_TRANSLATED");
+		insertStyle(ai, "NATURE", "0.8500");
 
 		long hidden = insertPlace("hidden", "SEOUL", false, true, "99.00");
 		insertLocalization(hidden, "KO", "숨김 장소", "서울", null);
@@ -92,11 +98,11 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 			PlaceLanguage.EN,
 			TODAY));
 
-		assertEquals(List.of(high, fallback), rows.stream().map(PlaceRow::placeId).toList());
+		assertEquals(List.of(high), rows.stream().map(PlaceRow::placeId).toList());
 		assertEquals("English Nature", rows.getFirst().title());
-		assertEquals("한국어만 있는 장소", rows.get(1).title());
-		assertEquals("Seoul", rows.get(1).serviceRegionName());
 		assertEquals(TravelStyle.NATURE, rows.getFirst().travelStyle());
+		assertTrue(repository.findDetail(fallback, PlaceLanguage.KO).isEmpty());
+		assertTrue(repository.findDetail(ai, PlaceLanguage.EN).isEmpty());
 	}
 
 	@Test
@@ -164,6 +170,7 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 	void detailExposesOnlyVisiblePlaceAndStyleMappingRejectsUnknownEnum() {
 		long visible = insertPlace("detail-visible", "SEOUL", true, true, "80.00");
 		insertLocalization(visible, "KO", "상세 장소", "서울시", "상세 설명");
+		insertLocalization(visible, "EN", "Detail Place", "Seoul", null);
 		long inactive = insertPlace("detail-inactive", "SEOUL", true, false, "90.00");
 		insertLocalization(inactive, "KO", "비활성", "서울시", null);
 
@@ -171,6 +178,9 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 			"KTO_KO",
 			repository.findDetail(visible, PlaceLanguage.KO).orElseThrow().translationSource());
 		assertFalse(repository.findDetail(inactive, PlaceLanguage.KO).isPresent());
+		assertNull(repository.findDetail(visible, PlaceLanguage.EN)
+			.orElseThrow()
+			.overview());
 		assertThrows(DataAccessException.class, () -> jdbcTemplate.update(
 			"""
 			INSERT INTO place_style_mappings (place_id, travel_style, source, confidence)
@@ -254,6 +264,7 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 	private long placeWithKorean(String sourceId, String score, String title) {
 		long placeId = insertPlace(sourceId, "SEOUL", true, true, score);
 		insertLocalization(placeId, "KO", title, "서울", title + " 설명");
+		insertLocalization(placeId, "EN", title + " EN", "Seoul", null);
 		return placeId;
 	}
 
@@ -286,6 +297,23 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 		String address,
 		String overview
 	) {
+		insertLocalizationWithSource(
+			placeId,
+			language,
+			title,
+			address,
+			overview,
+			"KO".equals(language) ? "KTO_KO" : "KTO_EN");
+	}
+
+	private void insertLocalizationWithSource(
+		long placeId,
+		String language,
+		String title,
+		String address,
+		String overview,
+		String source
+	) {
 		jdbcTemplate.update(
 			"""
 			INSERT INTO place_localizations
@@ -297,7 +325,7 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 			title,
 			overview,
 			address,
-			"KO".equals(language) ? "KTO_KO" : "KTO_EN");
+			source);
 	}
 
 	private void insertStyle(long placeId, String style, String confidence) {

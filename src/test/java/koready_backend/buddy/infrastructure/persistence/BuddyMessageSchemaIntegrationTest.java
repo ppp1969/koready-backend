@@ -83,7 +83,7 @@ class BuddyMessageSchemaIntegrationTest {
 			repository.findProfileByUserId(senderUserId).orElseThrow().profileId());
 		assertEquals(receiverProfileId,
 			repository.findActiveProfile(receiverProfileId).orElseThrow().profileId());
-		assertEquals("Message Festival",
+		assertEquals("Message Festival EN",
 			repository.findActivePlace(placeId, "EN").orElseThrow().title());
 
 		assertEquals(IdempotencyStatus.CLAIMED,
@@ -234,7 +234,7 @@ class BuddyMessageSchemaIntegrationTest {
 			new ThreadListCriteria(viewerProfileId, "EN", null, 1));
 		assertEquals(1, firstPage.size());
 		assertEquals("thread_inbox_newest", firstPage.getFirst().threadPublicId());
-		assertEquals("Inbox Festival", firstPage.getFirst().place().title());
+		assertEquals("Inbox Festival EN", firstPage.getFirst().place().title());
 		assertEquals(1, firstPage.getFirst().unreadCount());
 		assertTrue(firstPage.getFirst().blocked());
 		assertFalse(firstPage.getFirst().otherProfile().profilePublic());
@@ -334,10 +334,14 @@ class BuddyMessageSchemaIntegrationTest {
 			"""
 			INSERT INTO place_localizations
 			    (place_id, language, title, translation_source)
-			VALUES (?, 'KO', ?, 'MANUAL_EDITED')
+			VALUES
+			    (?, 'KO', ?, 'MANUAL_EDITED'),
+			    (?, 'EN', ?, 'MANUAL_EDITED')
 			""",
 			placeId,
-			title);
+			title,
+			placeId,
+			title + " EN");
 		return placeId;
 	}
 }

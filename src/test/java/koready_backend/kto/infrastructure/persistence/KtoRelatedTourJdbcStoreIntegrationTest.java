@@ -395,6 +395,14 @@ class KtoRelatedTourJdbcStoreIntegrationTest {
 			placeId,
 			title,
 			title + " 설명");
+		jdbcTemplate.update(
+			"""
+			INSERT INTO place_localizations
+			    (place_id, language, title, translation_source)
+			VALUES (?, 'EN', ?, 'KTO_EN')
+			""",
+			placeId,
+			"English " + ktoContentId);
 		return placeId;
 	}
 

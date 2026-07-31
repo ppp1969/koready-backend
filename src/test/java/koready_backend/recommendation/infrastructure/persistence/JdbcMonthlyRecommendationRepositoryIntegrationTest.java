@@ -88,7 +88,7 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 		assertEquals(List.of(ended), rows.stream().map(MonthlyRecommendationRow::occurrenceId).toList());
 		assertEquals(2026, rows.getFirst().eventYear());
 		assertEquals(2, rows.getFirst().statusRank());
-		assertEquals("Korean ended-2026", rows.getFirst().title());
+		assertEquals("English ended-2026", rows.getFirst().title());
 		assertEquals(1L, repository.count(july));
 
 		MonthlyRecommendationFilter january = filter(
@@ -193,15 +193,13 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 			VALUES (?, 'KO', ?, 'Korean overview', 'Korean address', 'MANUAL_EDITED')
 			""",
 			placeId, "Korean " + sourceId);
-		if (!"ended-2026".equals(sourceId)) {
-			jdbcTemplate.update(
-				"""
-				INSERT INTO place_localizations
-				    (place_id, language, title, overview, address_text, translation_source)
-				VALUES (?, 'EN', ?, 'English overview', 'English address', 'MANUAL_EDITED')
-				""",
-				placeId, "English " + sourceId);
-		}
+		jdbcTemplate.update(
+			"""
+			INSERT INTO place_localizations
+			    (place_id, language, title, overview, address_text, translation_source)
+			VALUES (?, 'EN', ?, 'English overview', 'English address', 'MANUAL_EDITED')
+			""",
+			placeId, "English " + sourceId);
 		jdbcTemplate.update(
 			"""
 			INSERT INTO place_style_mappings (place_id, travel_style, source, confidence)

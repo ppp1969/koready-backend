@@ -176,6 +176,34 @@ class JdbcCandidateSetRepositoryIntegrationTest {
 		assertEquals(List.of(insufficientPlaceId), error.placeIds());
 	}
 
+	@Test
+	void rejectsPublicationWhenEnglishContentIsAiTranslated() {
+		AdminCandidateSet draft = service.createDraft(
+			new CreateCandidateSetCommand("Untrusted English", null), "42", true);
+		long aiTranslatedPlaceId = readyPlaceIds.getLast();
+		jdbcTemplate.update(
+			"""
+			UPDATE place_localizations
+			SET translation_source = 'AI_TRANSLATED'
+			WHERE place_id = ? AND language = 'EN'
+			""",
+			aiTranslatedPlaceId);
+
+		AdminCandidateSet updated = service.updateDraft(
+			draft.candidateSetId(),
+			new UpdateCandidateSetCommand("Untrusted English", items(readyPlaceIds)),
+			"42",
+			true);
+
+		assertFalse(updated.items().getLast().placeReady());
+		assertTrue(updated.items().getLast().notReadyReasons()
+			.contains("MISSING_TRUSTED_TITLE_EN"));
+		CandidateSetPolicyException error = assertThrows(
+			CandidateSetPolicyException.class,
+			() -> service.publish(draft.candidateSetId(), "42", true));
+		assertEquals(List.of(aiTranslatedPlaceId), error.placeIds());
+	}
+
 	private long insertReadyPlace(int index) {
 		jdbcTemplate.update(
 			"""

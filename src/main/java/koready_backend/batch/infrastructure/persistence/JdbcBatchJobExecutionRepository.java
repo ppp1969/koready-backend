@@ -204,7 +204,7 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 				success_count = 0, message = ?,
 				active_execution_slot = NULL, updated_at = ?
 			WHERE id = ? AND status = 'RUNNING'
-			""", safeFailureCode(failureCode), Timestamp.from(finishedAt), Timestamp.from(finishedAt), job.id());
+			""", Timestamp.from(finishedAt), safeFailureCode(failureCode), Timestamp.from(finishedAt), job.id());
 		jdbcTemplate.update("""
 			UPDATE batch_job_items
 			SET status = 'FAILED', error_message = 'Batch item failed.', updated_at = ?

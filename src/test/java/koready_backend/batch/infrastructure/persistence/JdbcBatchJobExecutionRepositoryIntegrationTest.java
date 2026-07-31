@@ -133,6 +133,7 @@ class JdbcBatchJobExecutionRepositoryIntegrationTest {
 		executionRepository.fail(failedClaim, failedAt, "BATCH_JOB_FAILED");
 		var failed = adminRepository.findJobById(failedJobId).orElseThrow();
 
+		assertEquals("BATCH_JOB_FAILED", failed.message());
 		assertEquals(failedAt, failed.finishedAt());
 		assertEquals(failedAt, failed.updatedAt());
 		assertEquals(failedAt, itemUpdatedAt(failedJobId));

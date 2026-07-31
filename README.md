@@ -328,6 +328,8 @@ docker build --tag koready-backend:local .
 - AWS Elastic Beanstalk의 `staging` 환경은 프론트·PM이 통합된 Swagger와 API를 확인하는 공유 환경이며 일상 개발 서버로 사용하지 않습니다.
 - EB는 Dockerfile을 빌드해 서울 리전의 single instance에서 실행하고, Aiven MySQL에 연결합니다. 실제 사용자 운영 전에는 다중 인스턴스·로드 밸런서·롤백 정책을 별도 확정합니다.
 - EB 환경 변수와 instance profile 연결 절차는 `docs/AWS_EB_INTEGRATION_ENVIRONMENT.md`에서 관리합니다. secret 값은 저장소에 기록하지 않습니다.
+- `api.koready.cloud`의 ACM, CloudFront, Route 53 HTTPS 연결과 검증 절차는
+  `docs/AWS_API_EDGE_HTTPS.md`에서 관리합니다. API 응답 캐시는 비활성화합니다.
 - Render 설정 `render.yaml`은 EB 검증이 끝날 때까지 롤백 기준으로만 유지하며, 새 기능의 공유 배포 기준은 EB입니다.
 - Aiven 연결 및 IP 허용목록 절차는 `docs/AIVEN_STAGING.md`에서 관리합니다.
 - KTO 페이지·동시성·JVM 메모리 기준은 `docs/KTO_BATCH_OPERATIONS.md`에서 관리합니다.

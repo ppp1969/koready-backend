@@ -1,0 +1,127 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: HTTPS edge and DNS for the KoReady staging API.
+
+Parameters:
+  ApiDomainName:
+    Type: String
+    Default: api.koready.cloud
+    AllowedPattern: '(?=^.{1,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)'
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+  CertificateArn:
+    Type: String
+    AllowedPattern: 'arn:aws:acm:us-east-1:[0-9]{12}:certificate/[a-zA-Z0-9-]+'
+  OriginDomainName:
+    Type: String
+    AllowedPattern: '(?=^.{1,253}$)(^((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63}$)'
+  EnvironmentName:
+    Type: String
+    Default: staging
+    AllowedValues:
+      - staging
+      - prod
+
+Resources:
+  ApiDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - Ref: ApiDomainName
+        Comment:
+          Fn::Sub: KoReady ${EnvironmentName} API HTTPS edge
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - DELETE
+            - GET
+            - HEAD
+            - OPTIONS
+            - PATCH
+            - POST
+            - PUT
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          Compress: true
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          TargetOriginId: eb-staging-origin
+          ViewerProtocolPolicy: redirect-to-https
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        Origins:
+          - CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginKeepaliveTimeout: 5
+              OriginProtocolPolicy: http-only
+              OriginReadTimeout: 30
+              OriginSSLProtocols:
+                - TLSv1.2
+            DomainName:
+              Ref: OriginDomainName
+            Id: eb-staging-origin
+        PriceClass: PriceClass_200
+        ViewerCertificate:
+          AcmCertificateArn:
+            Ref: CertificateArn
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+      Tags:
+        - Key: Project
+          Value: KoReady
+        - Key: Environment
+          Value:
+            Ref: EnvironmentName
+        - Key: Purpose
+          Value: ApiHttpsEdge
+
+  ApiIpv4Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName:
+          Fn::GetAtt:
+            - ApiDistribution
+            - DomainName
+        EvaluateTargetHealth: false
+        HostedZoneId: Z2FDTNDATAQYW2
+      HostedZoneId:
+        Ref: HostedZoneId
+      Name:
+        Ref: ApiDomainName
+      Type: A
+
+  ApiIpv6Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName:
+          Fn::GetAtt:
+            - ApiDistribution
+            - DomainName
+        EvaluateTargetHealth: false
+        HostedZoneId: Z2FDTNDATAQYW2
+      HostedZoneId:
+        Ref: HostedZoneId
+      Name:
+        Ref: ApiDomainName
+      Type: AAAA
+
+Outputs:
+  ApiBaseUrl:
+    Description: Public HTTPS base URL for the KoReady API.
+    Value:
+      Fn::Sub: https://${ApiDomainName}
+  CloudFrontDistributionId:
+    Description: CloudFront distribution identifier.
+    Value:
+      Ref: ApiDistribution
+  CloudFrontDomainName:
+    Description: CloudFront-generated domain name.
+    Value:
+      Fn::GetAtt:
+        - ApiDistribution
+        - DomainName

@@ -50,6 +50,7 @@ PR, 스크린샷에는 값 자체를 적지 않는다.
 | 구분 | 변수 | 설정 기준 |
 |---|---|---|
 | profile | `SPRING_PROFILES_ACTIVE` | `staging` |
+| web | `CORS_ALLOWED_ORIGINS` | 프론트 미배포 개발 단계는 `*`, 운영 전 실제 HTTPS origin 목록 |
 | DB | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Aiven service 정보 |
 | DB | `DB_SSL_MODE` | `require` |
 | DB | `DB_POOL_SIZE`, `DB_MIN_IDLE` | `5`, `1` |
@@ -75,6 +76,10 @@ PR, 스크린샷에는 값 자체를 적지 않는다.
 않는다. 관련 관광지 과거 데이터 수집이 끝난 뒤 상세 일일 예산을 활성화해 두 작업의
 호출량이 경쟁하지 않게 한다.
 page size와 concurrency는 빠른 수집보다 Aiven 안정성을 우선해 유지한다.
+
+`CORS_ALLOWED_ORIGINS=*`는 프론트 주소가 확정되지 않은 staging 개발 단계에서만 사용한다.
+이 설정은 쿠키 credential을 허용하지 않으며 API 인증을 우회하지 않는다. 프론트 배포 후에는
+쉼표로 구분한 정확한 HTTPS origin 목록으로 교체한다.
 
 ## 배포와 전환 순서
 

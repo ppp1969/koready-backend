@@ -238,6 +238,13 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 프로필에서는 같은 값을 보내도 401이며, 임의 사용자명이나 role을 조립할 수 없다. 로컬에서도
 실제 인증 흐름을 확인할 때는 `LOCAL_DEV_AUTH_ENABLED=false`로 끈다.
 
+### 프론트 개발 CORS
+
+프론트 배포 도메인이 확정되기 전에는 `CORS_ALLOWED_ORIGINS=*`로 모든 개발 origin의
+브라우저 호출과 preflight를 허용한다. 쿠키 credential은 허용하지 않으며 사용자·관리자
+API의 인증과 권한 검사는 그대로 적용된다. 운영 전에는 쉼표로 구분한 실제 프론트 HTTPS
+origin 목록으로 이 값을 축소한다.
+
 현재 로그인 없이 사용할 수 있는 구현 API는 다음과 같습니다.
 
 - `GET /api/v1/monthly-recommendations`: 연월·날짜·권역·관광유형별 축제 추천

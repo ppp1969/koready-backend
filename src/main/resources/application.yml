@@ -35,6 +35,9 @@ springdoc:
     url: /openapi/koready.yaml
 
 koready:
+  web:
+    cors:
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
   security:
     staging-operator:
       enabled: ${KOREADY_STAGING_OPERATOR_ENABLED:false}

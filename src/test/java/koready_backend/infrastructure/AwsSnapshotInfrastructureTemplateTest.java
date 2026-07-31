@@ -47,7 +47,7 @@ class AwsSnapshotInfrastructureTemplateTest {
 		assertTrue(roleYaml.contains("s3:GetObject"));
 		assertTrue(roleYaml.contains("s3:GetBucketLocation"));
 		assertTrue(roleYaml.contains("s3:ListBucket"));
-		assertFalse(roleYaml.contains("s3:DeleteObject"));
+		assertSnapshotObjectsCannotBeDeleted(role);
 		assertBucketLocationIsNotSubjectToThePrefixCondition(role);
 
 		Map<String, Object> policy = resourceProperties(resources, "SnapshotBucketPolicy");
@@ -56,18 +56,55 @@ class AwsSnapshotInfrastructureTemplateTest {
 		assertTrue(policyYaml.contains("s3:if-none-match"));
 	}
 
+	@Test
+	void provisionsASeparatePrivateProfileImageBucketWithDirectUploadCors()
+		throws IOException {
+		Map<String, Object> template = new Yaml().load(Files.readString(TEMPLATE));
+		Map<String, Object> resources = map(template.get("Resources"));
+		Map<String, Object> bucket =
+			resourceProperties(resources, "ProfileImageBucket");
+		String bucketYaml = new Yaml().dump(bucket);
+
+		assertTrue(bucketYaml.contains("AES256"));
+		assertTrue(bucketYaml.contains("BucketOwnerEnforced"));
+		assertTrue(bucketYaml.contains("BlockPublicAcls: true"));
+		assertTrue(bucketYaml.contains("AllowedMethods"));
+		assertTrue(bucketYaml.contains("PUT"));
+		assertTrue(bucketYaml.contains("AllowedOrigins"));
+
+		Map<String, Object> role = resourceProperties(resources, "SnapshotWriterRole");
+		List<Map<String, Object>> statements = statements(role);
+		Map<String, Object> profileObjects = statements.stream()
+			.filter(statement -> "ProfileImageObjects".equals(statement.get("Sid")))
+			.findFirst()
+			.orElseThrow();
+		assertTrue(profileObjects.toString().contains("s3:DeleteObject"));
+		assertTrue(profileObjects.toString().contains("profile-images/*"));
+	}
+
+	private void assertSnapshotObjectsCannotBeDeleted(Map<String, Object> role) {
+		Map<String, Object> snapshotObjects = statements(role).stream()
+			.filter(statement -> "SnapshotObjects".equals(statement.get("Sid")))
+			.findFirst()
+			.orElseThrow();
+		assertFalse(snapshotObjects.toString().contains("s3:DeleteObject"));
+	}
+
 	private void assertBucketLocationIsNotSubjectToThePrefixCondition(
 		Map<String, Object> role
 	) {
-		List<Map<String, Object>> policies = list(role.get("Policies"));
-		Map<String, Object> policyDocument = map(policies.getFirst().get("PolicyDocument"));
-		List<Map<String, Object>> statements = list(policyDocument.get("Statement"));
-		Map<String, Object> bucketLocation = statements.stream()
+		Map<String, Object> bucketLocation = statements(role).stream()
 			.filter(statement -> "BucketLocation".equals(statement.get("Sid")))
 			.findFirst()
 			.orElseThrow();
 		assertEquals(List.of("s3:GetBucketLocation"), bucketLocation.get("Action"));
 		assertFalse(bucketLocation.containsKey("Condition"));
+	}
+
+	private List<Map<String, Object>> statements(Map<String, Object> role) {
+		List<Map<String, Object>> policies = list(role.get("Policies"));
+		Map<String, Object> policyDocument = map(policies.getFirst().get("PolicyDocument"));
+		return list(policyDocument.get("Statement"));
 	}
 
 	@SuppressWarnings("unchecked")

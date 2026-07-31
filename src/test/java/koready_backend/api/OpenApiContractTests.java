@@ -45,6 +45,9 @@ class OpenApiContractTests {
 		"DELETE /users/me/saved-places/{placeId}",
 		"GET /users/me/buddy-profile",
 		"PUT /users/me/buddy-profile",
+		"POST /users/me/profile-image/upload-url",
+		"POST /users/me/profile-image/complete",
+		"GET /profile-images/{imageId}",
 		"GET /places/{placeId}/mates",
 		"GET /buddy-profiles/{profileId}",
 		"GET /message-threads",
@@ -105,7 +108,8 @@ class OpenApiContractTests {
 		"GET /places",
 		"GET /places/search",
 		"GET /places/{placeId}",
-		"GET /profile-options");
+		"GET /profile-options",
+		"GET /profile-images/{imageId}");
 
 	@Test
 	void frontendContractIsCompleteAndInternallyConsistent() throws IOException {
@@ -154,7 +158,7 @@ class OpenApiContractTests {
 			}
 		}
 
-		assertEquals(86, operationCount, "Unexpected API operation count");
+		assertEquals(89, operationCount, "Unexpected API operation count");
 		collectReferences(contract, references);
 		for (String reference : references) {
 			assertLocalReferenceResolves(contract, reference);
@@ -807,9 +811,9 @@ class OpenApiContractTests {
 		assertEquals(2048, asMap(properties.get("profileImageUrl"), "profileImageUrl")
 			.get("maxLength"));
 		assertEquals(30, asMap(properties.get("nickname"), "nickname").get("maxLength"));
-		assertEquals(100, asMap(properties.get("nationality"), "nationality")
+		assertEquals(2, asMap(properties.get("nationalityCode"), "nationalityCode")
 			.get("maxLength"));
-		assertEquals(500, asMap(properties.get("bio"), "bio").get("maxLength"));
+		assertEquals(120, asMap(properties.get("bio"), "bio").get("maxLength"));
 
 		Map<String, Object> languages = asMap(
 			properties.get("availableLanguages"), "availableLanguages");
@@ -819,12 +823,12 @@ class OpenApiContractTests {
 		Map<String, Object> travelStyles = asMap(
 			properties.get("travelStyles"), "travelStyles");
 		assertEquals(1, travelStyles.get("minItems"));
-		assertEquals(4, travelStyles.get("maxItems"));
+		assertEquals(7, travelStyles.get("maxItems"));
 		assertEquals(true, travelStyles.get("uniqueItems"));
 		Map<String, Object> styles = asMap(properties.get("buddyStyles"), "buddyStyles");
 		assertEquals(6, styles.get("maxItems"));
 		assertEquals(true, styles.get("uniqueItems"));
-		assertEquals(20,
+		assertEquals(2,
 			asMap(properties.get("socialLinks"), "socialLinks").get("maxItems"));
 
 		assertEquals(

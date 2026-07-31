@@ -27,6 +27,7 @@ import koready_backend.buddy.domain.KoreanLevel;
 import koready_backend.buddy.domain.SocialLinkType;
 import koready_backend.place.application.exception.PlaceNotFoundException;
 import koready_backend.buddy.domain.ProfileLanguage;
+import koready_backend.place.domain.TravelStyle;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -116,9 +117,10 @@ class BuddyMateControllerTest {
 			51L,
 			null,
 			"Target",
-			"France",
+			"FR",
 			List.of(ProfileLanguage.EN),
 			KoreanLevel.BEGINNER,
+			List.of(TravelStyle.LOCAL_FOOD),
 			"Travel mate",
 			List.of(BuddyStyle.FOODIE),
 			List.of(new BuddySocialLink(SocialLinkType.INSTAGRAM, "@target")),

@@ -95,6 +95,10 @@ class LocalDevBuddySeedIntegrationTest {
 			"SELECT nickname FROM buddy_profiles WHERE id = ?",
 			String.class,
 			profileId));
+		assertEquals("US", jdbcTemplate.queryForObject(
+			"SELECT nationality_code FROM buddy_profiles WHERE id = ?",
+			String.class,
+			profileId));
 		assertEquals("INTERMEDIATE", jdbcTemplate.queryForObject(
 			"SELECT korean_level FROM buddy_profiles WHERE id = ?",
 			String.class,
@@ -118,6 +122,13 @@ class LocalDevBuddySeedIntegrationTest {
 			""",
 			String.class,
 			profileId));
+		assertEquals(List.of("LOCAL_FOOD", "NATURE"), jdbcTemplate.queryForList(
+			"""
+			SELECT travel_style FROM user_travel_styles
+			WHERE user_id = ? ORDER BY display_order
+			""",
+			String.class,
+			demoUserId));
 		assertEquals(List.of("FOODIE", "PHOTOGRAPHY"), jdbcTemplate.queryForList(
 			"""
 			SELECT buddy_style FROM buddy_profile_styles

@@ -1,7 +1,9 @@
 package koready_backend.buddy.application;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 
@@ -16,6 +18,7 @@ public class ProfileOptionService {
 
 	public ProfileOptions getOptions() {
 		return new ProfileOptions(
+			countries(),
 			Arrays.stream(ProfileLanguage.values())
 				.map(language -> new ProfileOption(
 					language.name(),
@@ -50,6 +53,28 @@ public class ProfileOptionService {
 				option(SocialLinkType.ETC, "기타", "Other", 5)));
 	}
 
+	private static List<CountryOption> countries() {
+		List<CountryOption> sorted = Arrays.stream(Locale.getISOCountries())
+			.map(code -> {
+				Locale country = new Locale.Builder().setRegion(code).build();
+				return new CountryOption(
+					code,
+					country.getDisplayCountry(Locale.KOREAN),
+					country.getDisplayCountry(Locale.ENGLISH),
+					0);
+			})
+			.sorted(Comparator.comparing(CountryOption::labelEn)
+				.thenComparing(CountryOption::code))
+			.toList();
+		return java.util.stream.IntStream.range(0, sorted.size())
+			.mapToObj(index -> new CountryOption(
+				sorted.get(index).code(),
+				sorted.get(index).labelKo(),
+				sorted.get(index).labelEn(),
+				index + 1))
+			.toList();
+	}
+
 	private static ProfileOption option(
 		Enum<?> value,
 		String labelKo,
@@ -60,6 +85,7 @@ public class ProfileOptionService {
 	}
 
 	public record ProfileOptions(
+		List<CountryOption> countries,
 		List<ProfileOption> languages,
 		List<ProfileOption> koreanLevels,
 		List<ProfileOption> travelStyles,
@@ -69,6 +95,14 @@ public class ProfileOptionService {
 	}
 
 	public record ProfileOption(
+		String code,
+		String labelKo,
+		String labelEn,
+		int displayOrder
+	) {
+	}
+
+	public record CountryOption(
 		String code,
 		String labelKo,
 		String labelEn,

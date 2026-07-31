@@ -27,40 +27,4 @@ public record BuddyProfileView(
 	boolean blockedByMe,
 	Instant updatedAt
 ) {
-
-	public BuddyProfileView(
-		long profileId,
-		String profileImageUrl,
-		String nickname,
-		String nationality,
-		List<ProfileLanguage> availableLanguages,
-		KoreanLevel koreanLevel,
-		String bio,
-		List<BuddyStyle> buddyStyles,
-		List<BuddySocialLink> socialLinks,
-		boolean profilePublic,
-		boolean snsPublic,
-		boolean allowsMessages,
-		boolean canMessage,
-		boolean blockedByMe,
-		Instant updatedAt
-	) {
-		this(
-			profileId,
-			profileImageUrl,
-			nickname,
-			nationality,
-			availableLanguages,
-			koreanLevel,
-			List.of(),
-			bio,
-			buddyStyles,
-			socialLinks,
-			profilePublic,
-			snsPublic,
-			allowsMessages,
-			canMessage,
-			blockedByMe,
-			updatedAt);
-	}
 }

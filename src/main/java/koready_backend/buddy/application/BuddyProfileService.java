@@ -24,15 +24,24 @@ public class BuddyProfileService {
 	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
 	private final BuddyProfileRepository repository;
+	private final ProfileImageService profileImages;
 	private final Clock clock;
 
 	@Autowired
-	public BuddyProfileService(BuddyProfileRepository repository) {
-		this(repository, Clock.system(SEOUL_ZONE));
+	public BuddyProfileService(
+		BuddyProfileRepository repository,
+		ProfileImageService profileImages
+	) {
+		this(repository, profileImages, Clock.system(SEOUL_ZONE));
 	}
 
-	BuddyProfileService(BuddyProfileRepository repository, Clock clock) {
+	BuddyProfileService(
+		BuddyProfileRepository repository,
+		ProfileImageService profileImages,
+		Clock clock
+	) {
 		this.repository = repository;
+		this.profileImages = profileImages;
 		this.clock = clock;
 	}
 
@@ -49,6 +58,11 @@ public class BuddyProfileService {
 	public BuddyProfileView upsertMyProfile(String userPublicId, UpsertCommand command) {
 		long userId = repository.findActiveUserIdForUpdate(userPublicId)
 			.orElseThrow(BuddyUserUnavailableException::new);
+		if (command.profileImageUrl() != null
+			&& !profileImages.isReadyOwnedBy(userId, command.profileImageUrl())) {
+			throw new IllegalArgumentException(
+				"Profile image must be a completed upload owned by the user");
+		}
 		BuddyProfileDraft draft = new BuddyProfileDraft(
 			command.profileImageUrl(),
 			command.nickname(),

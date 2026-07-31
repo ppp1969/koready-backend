@@ -23,9 +23,13 @@ class DockerDeploymentConfigurationTest {
 	void dockerCiBootsTheApplicationWithTheRenderMemoryBoundary() throws IOException {
 		Map<String, Object> compose = yaml(COMPOSE_FILE);
 		Map<String, Object> services = map(compose.get("services"), "services");
+		Map<String, Object> mysql = map(services.get("mysql"), "services.mysql");
 		Map<String, Object> app = map(services.get("app"), "services.app");
+		Map<String, Object> healthcheck = map(mysql.get("healthcheck"), "services.mysql.healthcheck");
 
 		assertEquals("512m", app.get("mem_limit"));
+		assertTrue(healthcheck.get("test").toString().contains("--protocol=tcp"));
+		assertTrue(healthcheck.get("test").toString().contains("-h 127.0.0.1"));
 		assertTrue(Files.isRegularFile(SMOKE_SCRIPT));
 
 		String workflow = Files.readString(CI_WORKFLOW);

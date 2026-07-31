@@ -307,9 +307,10 @@ class BuddyMessageSchemaIntegrationTest {
 		jdbcTemplate.update(
 			"""
 			INSERT INTO buddy_profiles
-			    (user_id, nickname, korean_level, profile_public, sns_public,
-			     allows_messages, created_at, updated_at)
-			VALUES (?, ?, 'BEGINNER', ?, FALSE, ?, NOW(6), NOW(6))
+			    (user_id, nickname, nationality_code, korean_level,
+			     profile_public, sns_public, allows_messages,
+			     created_at, updated_at)
+			VALUES (?, ?, 'US', 'BEGINNER', ?, FALSE, ?, NOW(6), NOW(6))
 			""",
 			userId,
 			nickname,

@@ -39,7 +39,9 @@ class BuddyProfileServiceTest {
 	private static final Clock CLOCK = Clock.fixed(NOW, ZoneId.of("Asia/Seoul"));
 
 	private final BuddyProfileRepository repository = mock(BuddyProfileRepository.class);
-	private final BuddyProfileService service = new BuddyProfileService(repository, CLOCK);
+	private final ProfileImageService profileImages = mock(ProfileImageService.class);
+	private final BuddyProfileService service =
+		new BuddyProfileService(repository, profileImages, CLOCK);
 
 	@Test
 	void returnsAnExplicitAbsentStateWhenTheUserHasNoProfile() {
@@ -55,11 +57,12 @@ class BuddyProfileServiceTest {
 	@Test
 	void returnsAllPrivateEditingValuesForTheOwnersProfile() {
 		BuddyProfileDraft draft = new BuddyProfileDraft(
-			"https://cdn.example.com/emma.jpg",
+			"/api/v1/profile-images/img_11111111222233334444555555555555",
 			"Emma",
-			"France",
+			"FR",
 			List.of(ProfileLanguage.EN, ProfileLanguage.KO),
 			KoreanLevel.BEGINNER,
+			List.of(TravelStyle.LOCAL_FOOD),
 			"Local food fan",
 			List.of(BuddyStyle.FOODIE),
 			List.of(new BuddySocialLink(SocialLinkType.INSTAGRAM, "@emma")),
@@ -93,7 +96,7 @@ class BuddyProfileServiceTest {
 			new BuddyProfileService.UpsertCommand(
 				null,
 				"  Emma  ",
-				"  France  ",
+				"  fr  ",
 				List.of(ProfileLanguage.EN, ProfileLanguage.KO),
 				KoreanLevel.INTERMEDIATE,
 				List.of(TravelStyle.LOCAL_FOOD, TravelStyle.CULTURE_EXPERIENCE),
@@ -108,7 +111,7 @@ class BuddyProfileServiceTest {
 			ArgumentCaptor.forClass(BuddyProfileDraft.class);
 		verify(repository).save(eq(7L), draft.capture(), eq(NOW));
 		assertEquals("Emma", draft.getValue().nickname());
-		assertEquals("France", draft.getValue().nationality());
+		assertEquals("FR", draft.getValue().nationality());
 		assertEquals("Hello Korea", draft.getValue().bio());
 		assertEquals(
 			List.of(TravelStyle.LOCAL_FOOD, TravelStyle.CULTURE_EXPERIENCE),
@@ -145,9 +148,10 @@ class BuddyProfileServiceTest {
 			new BuddyProfileService.UpsertCommand(
 				null,
 				"Emma",
-				null,
+				"FR",
 				List.of(ProfileLanguage.EN),
 				KoreanLevel.BEGINNER,
+				List.of(TravelStyle.LOCAL_FOOD),
 				null,
 				List.of(),
 				List.of(
@@ -156,6 +160,75 @@ class BuddyProfileServiceTest {
 				true,
 				true,
 				true)));
+	}
+
+	@Test
+	void allowsAllSevenTravelStylesButRejectsMoreThanTwoSocialLinks() {
+		when(repository.findActiveUserIdForUpdate("usr_emma"))
+			.thenReturn(Optional.of(7L));
+		when(repository.save(eq(7L), any(BuddyProfileDraft.class), eq(NOW)))
+			.thenAnswer(invocation -> new BuddyProfileRecord(
+				51L, 7L, invocation.getArgument(1), CREATED_AT, NOW));
+
+		BuddyProfileView result = service.upsertMyProfile(
+			"usr_emma",
+			new BuddyProfileService.UpsertCommand(
+				null,
+				"Emma",
+				"FR",
+				List.of(ProfileLanguage.EN),
+				KoreanLevel.BEGINNER,
+				List.of(TravelStyle.values()),
+				"Hello Korea",
+				List.of(),
+				List.of(
+					new BuddySocialLink(SocialLinkType.INSTAGRAM, "@emma"),
+					new BuddySocialLink(SocialLinkType.KAKAOTALK, "emma")),
+				true,
+				true,
+				true));
+
+		assertEquals(7, result.travelStyles().size());
+		assertThrows(IllegalArgumentException.class, () -> service.upsertMyProfile(
+			"usr_emma",
+			new BuddyProfileService.UpsertCommand(
+				null,
+				"Emma",
+				"FR",
+				List.of(ProfileLanguage.EN),
+				KoreanLevel.BEGINNER,
+				List.of(TravelStyle.LOCAL_FOOD),
+				"Hello Korea",
+				List.of(),
+				List.of(
+					new BuddySocialLink(SocialLinkType.INSTAGRAM, "@emma"),
+					new BuddySocialLink(SocialLinkType.KAKAOTALK, "emma"),
+					new BuddySocialLink(SocialLinkType.THREADS, "@emma")),
+				true,
+				true,
+				true)));
+	}
+
+	@Test
+	void rejectsNonIsoNationalityAndBioLongerThanOneLineLimit() {
+		when(repository.findActiveUserIdForUpdate("usr_emma"))
+			.thenReturn(Optional.of(7L));
+		when(repository.save(eq(7L), any(BuddyProfileDraft.class), eq(NOW)))
+			.thenAnswer(invocation -> new BuddyProfileRecord(
+				51L, 7L, invocation.getArgument(1), CREATED_AT, NOW));
+
+		assertThrows(IllegalArgumentException.class, () -> service.upsertMyProfile(
+			"usr_emma",
+			new BuddyProfileService.UpsertCommand(
+				null, "Emma", "France", List.of(ProfileLanguage.EN),
+				KoreanLevel.BEGINNER, List.of(TravelStyle.LOCAL_FOOD),
+				"Hello Korea", List.of(), List.of(), true, true, true)));
+		assertThrows(IllegalArgumentException.class, () -> service.upsertMyProfile(
+			"usr_emma",
+			new BuddyProfileService.UpsertCommand(
+				null, "Emma", "FR", List.of(ProfileLanguage.EN),
+				KoreanLevel.BEGINNER, List.of(TravelStyle.LOCAL_FOOD),
+				"x".repeat(121), List.of(), List.of(), true, true, true)));
 	}
 
 	@Test
@@ -172,6 +245,26 @@ class BuddyProfileServiceTest {
 		assertThrows(IllegalArgumentException.class, () -> service.upsertMyProfile(
 			"usr_emma",
 			imageCommand("javascript:alert(1)")));
+	}
+
+	@Test
+	void acceptsOnlyACompletedProfileImageOwnedByTheAuthenticatedUser() {
+		String imageUrl =
+			"/api/v1/profile-images/img_11111111222233334444555555555555";
+		when(repository.findActiveUserIdForUpdate("usr_emma"))
+			.thenReturn(Optional.of(7L));
+		when(repository.save(eq(7L), any(BuddyProfileDraft.class), eq(NOW)))
+			.thenAnswer(invocation -> new BuddyProfileRecord(
+				51L, 7L, invocation.getArgument(1), CREATED_AT, NOW));
+
+		assertThrows(IllegalArgumentException.class, () -> service.upsertMyProfile(
+			"usr_emma", imageCommand(imageUrl)));
+
+		when(profileImages.isReadyOwnedBy(7L, imageUrl)).thenReturn(true);
+
+		BuddyProfileView saved =
+			service.upsertMyProfile("usr_emma", imageCommand(imageUrl));
+		assertEquals(imageUrl, saved.profileImageUrl());
 	}
 
 	@Test
@@ -192,13 +285,15 @@ class BuddyProfileServiceTest {
 		List<BuddyStyle> styles
 	) {
 		return new BuddyProfileService.UpsertCommand(
-			null, "Emma", null, languages, KoreanLevel.BEGINNER, null,
+			null, "Emma", "FR", languages, KoreanLevel.BEGINNER,
+			List.of(TravelStyle.LOCAL_FOOD), null,
 			styles, List.of(), true, false, true);
 	}
 
 	private static BuddyProfileService.UpsertCommand imageCommand(String imageUrl) {
 		return new BuddyProfileService.UpsertCommand(
-			imageUrl, "Emma", null, List.of(ProfileLanguage.EN), KoreanLevel.BEGINNER,
-			null, List.of(), List.of(), true, false, true);
+			imageUrl, "Emma", "FR", List.of(ProfileLanguage.EN), KoreanLevel.BEGINNER,
+			List.of(TravelStyle.LOCAL_FOOD), null, List.of(), List.of(),
+			true, false, true);
 	}
 }

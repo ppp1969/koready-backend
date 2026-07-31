@@ -1,11 +1,10 @@
 package koready_backend.buddy.domain;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 import koready_backend.place.domain.TravelStyle;
 
@@ -24,10 +23,13 @@ public record BuddyProfileDraft(
 	boolean allowsMessages
 ) {
 
+	private static final Set<String> ISO_COUNTRY_CODES =
+		Set.of(Locale.getISOCountries());
+
 	public BuddyProfileDraft {
 		profileImageUrl = imageUrl(profileImageUrl);
 		nickname = required(nickname, 30, "Nickname");
-		nationality = optional(nationality, 100, "Nationality");
+		nationality = countryCode(nationality);
 		availableLanguages = copyDistinct(
 			availableLanguages, true, "Available languages");
 		if (availableLanguages.size() > 5) {
@@ -35,14 +37,18 @@ public record BuddyProfileDraft(
 				"Available languages must not contain more than 5 values");
 		}
 		koreanLevel = Objects.requireNonNull(koreanLevel, "Korean level is required");
-		travelStyles = copyDistinct(travelStyles, false, "Travel styles");
-		if (travelStyles.size() > 4) {
+		travelStyles = copyDistinct(travelStyles, true, "Travel styles");
+		if (travelStyles.size() > 7) {
 			throw new IllegalArgumentException(
-				"Travel styles must not contain more than 4 values");
+				"Travel styles must not contain more than 7 values");
 		}
-		bio = optional(bio, 500, "Bio");
+		bio = optional(bio, 120, "Bio");
 		buddyStyles = copyDistinct(buddyStyles, false, "Buddy styles");
 		socialLinks = copy(socialLinks, "Social links");
+		if (socialLinks.size() > 2) {
+			throw new IllegalArgumentException(
+				"Social links must not contain more than 2 values");
+		}
 		if (socialLinks.stream().map(BuddySocialLink::type).distinct().count()
 			!= socialLinks.size()) {
 			throw new IllegalArgumentException(
@@ -50,32 +56,14 @@ public record BuddyProfileDraft(
 		}
 	}
 
-	public BuddyProfileDraft(
-		String profileImageUrl,
-		String nickname,
-		String nationality,
-		List<ProfileLanguage> availableLanguages,
-		KoreanLevel koreanLevel,
-		String bio,
-		List<BuddyStyle> buddyStyles,
-		List<BuddySocialLink> socialLinks,
-		boolean profilePublic,
-		boolean snsPublic,
-		boolean allowsMessages
-	) {
-		this(
-			profileImageUrl,
-			nickname,
-			nationality,
-			availableLanguages,
-			koreanLevel,
-			List.of(),
-			bio,
-			buddyStyles,
-			socialLinks,
-			profilePublic,
-			snsPublic,
-			allowsMessages);
+	private static String countryCode(String value) {
+		String normalized = Objects.requireNonNull(
+			value, "Nationality is required").trim().toUpperCase(Locale.ROOT);
+		if (!ISO_COUNTRY_CODES.contains(normalized)) {
+			throw new IllegalArgumentException(
+				"Nationality must be an ISO 3166-1 alpha-2 country code");
+		}
+		return normalized;
 	}
 
 	private static String required(String value, int maxLength, String field) {
@@ -107,20 +95,12 @@ public record BuddyProfileDraft(
 		if (normalized == null) {
 			return null;
 		}
-		try {
-			URI uri = new URI(normalized);
-			String scheme = uri.getScheme() == null
-				? ""
-				: uri.getScheme().toLowerCase(Locale.ROOT);
-			if (!(scheme.equals("http") || scheme.equals("https")) || uri.getHost() == null) {
-				throw new IllegalArgumentException(
-					"Profile image URL must be an absolute HTTP(S) URL");
-			}
-			return normalized;
-		} catch (URISyntaxException exception) {
+		if (!normalized.matches(
+			"^/api/v1/profile-images/img_[0-9a-f]{32}$")) {
 			throw new IllegalArgumentException(
-				"Profile image URL must be an absolute HTTP(S) URL", exception);
+				"Profile image URL must come from a completed upload");
 		}
+		return normalized;
 	}
 
 	private static <T> List<T> copyDistinct(

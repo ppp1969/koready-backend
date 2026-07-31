@@ -149,9 +149,7 @@ public final class KtoDetailApiClient implements KtoDetailClient {
 		}
 		if (exception instanceof KtoProviderException providerException) {
 			String code = providerException.providerCode();
-			return "22".equals(code)
-				|| "HTTP_429".equals(code)
-				|| code.matches("HTTP_5\\d\\d");
+			return code.matches("HTTP_5\\d\\d");
 		}
 		return false;
 	}

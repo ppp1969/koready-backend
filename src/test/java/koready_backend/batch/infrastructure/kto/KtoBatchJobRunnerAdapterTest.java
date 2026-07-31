@@ -306,7 +306,8 @@ class KtoBatchJobRunnerAdapterTest {
 	@Test
 	void schedulesTheNextDetailPlaceRangeOnlyWhenExplicitlyEnabled() {
 		when(detailEnrichmentService.enrich(any(), any()))
-			.thenReturn(new KtoDetailEnrichmentResult(10, 40, 140L, true, true));
+			.thenReturn(new KtoDetailEnrichmentResult(
+				10, 10, 0, 40, 140L, true, true, true));
 
 		var result = adapter().run(new ClaimedJob(
 			31L,
@@ -334,7 +335,8 @@ class KtoBatchJobRunnerAdapterTest {
 	@Test
 	void endsTheDailyDetailChainWhenTheRemainingBudgetIsConsumed() {
 		when(detailEnrichmentService.enrich(any(), any()))
-			.thenReturn(new KtoDetailEnrichmentResult(50, 200, 170L, true, true));
+			.thenReturn(new KtoDetailEnrichmentResult(
+				50, 50, 0, 200, 170L, true, true, true));
 
 		var result = adapter().run(new ClaimedJob(
 			31L,
@@ -351,9 +353,56 @@ class KtoBatchJobRunnerAdapterTest {
 	}
 
 	@Test
+	void continuesTheDailyDetailChainAfterARecoverablePlaceFailure() {
+		when(detailEnrichmentService.enrich(any(), any()))
+			.thenReturn(new KtoDetailEnrichmentResult(
+				50, 49, 1, 196, 170L, true, true, true));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_DETAIL_ENRICHMENT,
+			Map.of(
+				"startAfterPlaceId", 120L,
+				"maxPlaces", 50,
+				"remainingDailyPlaces", 800,
+				"scheduleDate", "2026-07-20",
+				"autoContinue", true),
+			47L));
+
+		assertEquals(50, result.processedCount());
+		assertEquals(49, result.successCount());
+		assertEquals(1, result.failureCount());
+		assertEquals(
+			750,
+			result.continuation().parameters().get("remainingDailyPlaces"));
+	}
+
+	@Test
+	void stopsTheDailyDetailChainWhenNoPlaceSucceeds() {
+		when(detailEnrichmentService.enrich(any(), any()))
+			.thenReturn(new KtoDetailEnrichmentResult(
+				3, 0, 3, 0, 123L, true, true, false));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_DETAIL_ENRICHMENT,
+			Map.of(
+				"startAfterPlaceId", 120L,
+				"maxPlaces", 50,
+				"remainingDailyPlaces", 800,
+				"scheduleDate", "2026-07-20",
+				"autoContinue", true),
+			47L));
+
+		assertNull(result.continuation());
+		assertEquals(3, result.failureCount());
+	}
+
+	@Test
 	void stopsTheDetailRangeWhenAutomaticContinuationIsDisabled() {
 		when(detailEnrichmentService.enrich(any(), any()))
-			.thenReturn(new KtoDetailEnrichmentResult(10, 40, 140L, true, false));
+			.thenReturn(new KtoDetailEnrichmentResult(
+				10, 10, 0, 40, 140L, true, false, true));
 
 		var result = adapter().run(new ClaimedJob(
 			31L,

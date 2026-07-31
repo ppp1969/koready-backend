@@ -42,6 +42,8 @@ public class BatchJobCommandService {
 	private static final int MAX_PAGES = 20;
 	private static final int DEFAULT_DETAIL_PLACES = 10;
 	private static final int MAX_DETAIL_PLACES = 50;
+	private static final int MAX_DAILY_DETAIL_PLACES = 900;
+	private static final int MAX_DAILY_DETAIL_CHUNK_PLACES = 50;
 	private static final int DEFAULT_QUALITY_RECORDS = 50;
 	private static final int MAX_QUALITY_RECORDS = 200;
 	private static final int DEFAULT_RELATED_TOUR_REGIONS = 2;
@@ -96,17 +98,22 @@ public class BatchJobCommandService {
 	@Transactional
 	public DailyScheduleResult scheduleDailyDetail(
 		LocalDate scheduleDate,
-		int maxPlaces
+		int dailyPlaces,
+		int chunkPlaces
 	) {
-		if (scheduleDate == null || maxPlaces < 1
-			|| maxPlaces > MAX_DETAIL_PLACES) {
+		if (scheduleDate == null || dailyPlaces < 1
+			|| dailyPlaces > MAX_DAILY_DETAIL_PLACES
+			|| chunkPlaces < 1
+			|| chunkPlaces > MAX_DAILY_DETAIL_CHUNK_PLACES
+			|| chunkPlaces > dailyPlaces) {
 			throw new IllegalArgumentException(
 				"KTO daily detail schedule is invalid");
 		}
 		Map<String, Object> parameters = Map.of(
 			"startAfterPlaceId", 0L,
-			"maxPlaces", maxPlaces,
-			"autoContinue", false,
+			"maxPlaces", Math.min(dailyPlaces, chunkPlaces),
+			"remainingDailyPlaces", dailyPlaces,
+			"autoContinue", true,
 			"scheduleDate", scheduleDate.toString());
 		String scheduleKey =
 			BatchJobType.KTO_DETAIL_ENRICHMENT.name()
@@ -120,11 +127,11 @@ public class BatchJobCommandService {
 				parameters,
 				scheduleKey,
 				createdAt));
-			repository.recordAudit(new BatchAuditRecord(
+				repository.recordAudit(new BatchAuditRecord(
 				"SYSTEM:KTO_DETAIL_DAILY",
 				"BATCH_JOB_SCHEDULED",
 				jobId,
-				"Schedule the bounded daily KTO detail budget.",
+				"Schedule the bounded daily KTO detail budget in resumable chunks.",
 				parameters,
 				createdAt));
 			return new DailyScheduleResult(true, jobId);

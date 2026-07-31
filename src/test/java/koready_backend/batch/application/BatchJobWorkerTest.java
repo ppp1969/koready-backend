@@ -2,6 +2,7 @@ package koready_backend.batch.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,6 +24,7 @@ import koready_backend.batch.application.port.BatchJobExecutionRepository.Claime
 import koready_backend.batch.application.port.KtoBatchJobRunner;
 import koready_backend.batch.application.model.BatchJobContinuation;
 import koready_backend.batch.domain.BatchJobType;
+import koready_backend.kto.application.exception.KtoProviderException;
 
 @ExtendWith(MockitoExtension.class)
 class BatchJobWorkerTest {
@@ -42,7 +44,7 @@ class BatchJobWorkerTest {
 		worker().processNext();
 
 		verify(repository).complete(any(), any());
-		verify(repository, never()).fail(any(), any());
+		verify(repository, never()).fail(any(), any(), any());
 	}
 
 	@Test
@@ -70,8 +72,19 @@ class BatchJobWorkerTest {
 
 		worker().processNext();
 
-		verify(repository).fail(any(), any());
+		verify(repository).fail(any(), any(), eq("BATCH_JOB_FAILED"));
 		verify(repository, never()).complete(any(), any());
+	}
+
+	@Test
+	void recordsQuotaExhaustionWithoutPersistingTheProviderPayload() {
+		ClaimedJob job = job();
+		when(repository.claimNextQueued()).thenReturn(Optional.of(job));
+		when(runner.run(job)).thenThrow(new KtoProviderException("22"));
+
+		worker().processNext();
+
+		verify(repository).fail(any(), any(), eq("KTO_QUOTA_EXCEEDED"));
 	}
 
 	@Test

@@ -130,7 +130,7 @@ class JdbcBatchJobExecutionRepositoryIntegrationTest {
 		var failedClaim = executionRepository.claimNextQueued().orElseThrow();
 		Instant failedAt = Instant.parse("2026-07-27T03:13:00.123456Z");
 
-		executionRepository.fail(failedClaim, failedAt);
+		executionRepository.fail(failedClaim, failedAt, "BATCH_JOB_FAILED");
 		var failed = adminRepository.findJobById(failedJobId).orElseThrow();
 
 		assertEquals(failedAt, failed.finishedAt());

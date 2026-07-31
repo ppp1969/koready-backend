@@ -20,6 +20,7 @@ import koready_backend.kto.application.KtoRelatedTourImportService;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDailySyncRequest;
 import koready_backend.kto.application.model.KtoDetailEnrichmentRequest;
+import koready_backend.kto.application.model.KtoDetailEnrichmentResult;
 import koready_backend.kto.application.model.KtoEnglishSyncRequest;
 import koready_backend.kto.application.model.KtoEnglishQualityBackfillRequest;
 import koready_backend.kto.application.model.KtoFestivalImportRequest;
@@ -67,18 +68,14 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 				job.parameters(), "startAfterPlaceId");
 			int maxPlaces = integer(job.parameters(), "maxPlaces");
 			boolean autoContinue = flag(job.parameters(), "autoContinue");
+			Integer remainingDailyPlaces = optionalInteger(
+				job.parameters(), "remainingDailyPlaces");
 			var result = detailEnrichmentService.enrich(
 				new KtoDetailEnrichmentRequest(
 					startAfterPlaceId, maxPlaces, autoContinue),
 				batchExecution);
-			var continuation = result.hasMore() && result.autoContinue()
-				? new BatchJobContinuation(
-					BatchJobType.KTO_DETAIL_ENRICHMENT,
-					Map.of(
-						"startAfterPlaceId", result.lastProcessedPlaceId(),
-						"maxPlaces", maxPlaces,
-						"autoContinue", true))
-				: null;
+			var continuation = detailContinuation(
+				job.parameters(), result, maxPlaces, remainingDailyPlaces);
 			return new RunResult(
 				result.processedPlaces(),
 				result.processedPlaces(),
@@ -248,6 +245,49 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 			throw new IllegalArgumentException("Batch job parameter is invalid");
 		}
 		return number.longValue();
+	}
+
+	private static BatchJobContinuation detailContinuation(
+		Map<String, Object> parameters,
+		KtoDetailEnrichmentResult result,
+		int maxPlaces,
+		Integer remainingDailyPlaces
+	) {
+		if (!result.hasMore() || !result.autoContinue()) {
+			return null;
+		}
+		if (remainingDailyPlaces == null) {
+			return new BatchJobContinuation(
+				BatchJobType.KTO_DETAIL_ENRICHMENT,
+				Map.of(
+					"startAfterPlaceId", result.lastProcessedPlaceId(),
+					"maxPlaces", maxPlaces,
+					"autoContinue", true));
+		}
+		int remaining = remainingDailyPlaces - result.processedPlaces();
+		if (remaining <= 0 || result.processedPlaces() == 0) {
+			return null;
+		}
+		return new BatchJobContinuation(
+			BatchJobType.KTO_DETAIL_ENRICHMENT,
+			Map.of(
+				"startAfterPlaceId", result.lastProcessedPlaceId(),
+				"maxPlaces", Math.min(maxPlaces, remaining),
+				"remainingDailyPlaces", remaining,
+				"scheduleDate", string(parameters, "scheduleDate"),
+				"autoContinue", true));
+	}
+
+	private static Integer optionalInteger(Map<String, Object> parameters, String name) {
+		Object value = parameters.get(name);
+		if (value == null) {
+			return null;
+		}
+		if (!(value instanceof Number number) || number.intValue() < 1
+			|| number.intValue() != number.doubleValue()) {
+			throw new IllegalArgumentException("Batch job parameter is invalid");
+		}
+		return number.intValue();
 	}
 
 	private static boolean flag(Map<String, Object> parameters, String name) {

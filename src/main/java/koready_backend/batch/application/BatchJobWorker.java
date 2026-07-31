@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import koready_backend.batch.application.port.BatchJobExecutionRepository;
 import koready_backend.batch.application.port.BatchJobExecutionRepository.Completion;
 import koready_backend.batch.application.port.KtoBatchJobRunner;
+import koready_backend.kto.application.exception.KtoProviderException;
 
 @Component
 @ConditionalOnProperty(
@@ -52,9 +53,18 @@ public class BatchJobWorker {
 				log.error(
 					"Batch job failed. jobId={}, jobType={}, exceptionType={}",
 					job.id(), job.jobType(), exception.getClass().getSimpleName());
-				repository.fail(job, Instant.now(clock));
+				repository.fail(job, Instant.now(clock), failureCode(exception));
 			}
 		});
+	}
+
+	private static String failureCode(RuntimeException exception) {
+		if (exception instanceof KtoProviderException providerException
+			&& ("22".equals(providerException.providerCode())
+				|| "HTTP_429".equals(providerException.providerCode()))) {
+			return "KTO_QUOTA_EXCEEDED";
+		}
+		return "BATCH_JOB_FAILED";
 	}
 
 	@EventListener(ApplicationReadyEvent.class)

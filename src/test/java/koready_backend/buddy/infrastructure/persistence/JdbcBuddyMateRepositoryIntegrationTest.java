@@ -156,9 +156,9 @@ class JdbcBuddyMateRepositoryIntegrationTest {
 		jdbcTemplate.update(
 			"""
 			INSERT INTO buddy_profiles
-			    (user_id, nickname, nationality, korean_level, bio, profile_public,
+			    (user_id, nickname, nationality_code, korean_level, bio, profile_public,
 			     sns_public, allows_messages, created_at, updated_at)
-			VALUES (?, ?, 'France', 'BEGINNER', 'Travel mate', ?, ?, ?, NOW(6), NOW(6))
+			VALUES (?, ?, 'FR', 'BEGINNER', 'Travel mate', ?, ?, ?, NOW(6), NOW(6))
 			""",
 			userId,
 			nickname,

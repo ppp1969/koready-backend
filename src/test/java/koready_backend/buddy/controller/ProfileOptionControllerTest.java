@@ -30,6 +30,8 @@ class ProfileOptionControllerTest {
 			.andExpect(jsonPath("$.data.languages[4].code").value("VI"))
 			.andExpect(jsonPath("$.data.koreanLevels[0].code").value("BEGINNER"))
 			.andExpect(jsonPath("$.data.travelStyles[0].code").value("LOCAL_FOOD"))
-			.andExpect(jsonPath("$.data.socialPlatforms[0].code").value("INSTAGRAM"));
+			.andExpect(jsonPath("$.data.socialPlatforms[0].code").value("INSTAGRAM"))
+			.andExpect(jsonPath("$.data.countries[?(@.code == 'KR')]").exists())
+			.andExpect(jsonPath("$.data.countries[?(@.code == 'FR')]").exists());
 	}
 }

@@ -47,6 +47,8 @@ public class SecurityConfig {
 				.permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/v1/profile-options")
 				.permitAll()
+				.requestMatchers(HttpMethod.GET, "/api/v1/profile-images/**")
+				.permitAll()
 				.anyRequest().authenticated());
 
 		localDevAuthenticationFilter.ifAvailable(filter ->

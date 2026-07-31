@@ -33,6 +33,19 @@ KoReady는 2026 관광공모전 참가를 위해 개발하는 외국인 유학�
 
 `staging`은 `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`가 없으면 시작하지 않습니다. Aiven 연결에는 기본적으로 `sslmode=require`를 적용합니다.
 
+## 통합 버디 프로필
+
+사용자 프로필은 별도 일반 프로필 없이 Buddy 프로필 하나로 관리합니다.
+
+- `GET /api/v1/profile-options`: 국적, 사용 언어, 한국어 수준, 7가지 여행 스타일, SNS 플랫폼 선택지 조회
+- `GET /api/v1/users/me/buddy-profile`: 본인의 전체 프로필 설정 조회
+- `PUT /api/v1/users/me/buddy-profile`: 닉네임, ISO 국가 코드, 복수 사용 언어, 한국어 수준, 한 줄 소개, 여행 스타일, SNS 최대 2개, 공개 설정 저장
+- `POST /api/v1/users/me/profile-image/upload-url`: JPEG, PNG, WebP 형식의 5 MiB 이하 사진 업로드 주소 발급
+- `POST /api/v1/users/me/profile-image/complete`: 업로드된 사진의 실제 형식과 크기 검증 및 사용 가능 상태 확정
+- `GET /api/v1/profile-images/{imageId}`: 공개 프로필 사진 또는 로그인한 본인의 사진을 짧은 유효기간의 S3 주소로 연결
+
+프로필 이미지 버킷은 KTO 원본 스냅샷 버킷과 분리하며 외부 공개를 차단합니다. 브라우저는 백엔드에서 발급한 제한 시간 PUT 주소로 S3에 직접 업로드하므로 애플리케이션 서버 메모리에 이미지 전체를 적재하지 않습니다.
+
 ## Local Development
 
 Java 21과 Docker가 필요합니다. 빠른 개발 피드백은 로컬 Docker MySQL과 로컬 Spring 서버를 기준으로 합니다.

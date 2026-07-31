@@ -42,6 +42,12 @@ koready:
     staging-operator:
       enabled: ${KOREADY_STAGING_OPERATOR_ENABLED:false}
       token: ${KOREADY_STAGING_OPERATOR_TOKEN:}
+  profile-image:
+    storage: ${PROFILE_IMAGE_STORAGE:disabled}
+    bucket: ${PROFILE_IMAGE_S3_BUCKET:}
+    region: ${AWS_REGION:ap-northeast-2}
+    upload-expiration: ${PROFILE_IMAGE_UPLOAD_EXPIRATION:10m}
+    view-expiration: ${PROFILE_IMAGE_VIEW_EXPIRATION:5m}
   location:
     search:
       provider: ${LOCATION_SEARCH_PROVIDER:disabled}

@@ -16,7 +16,7 @@ INSERT INTO buddy_profiles (
     user_id,
     profile_image_url,
     nickname,
-    nationality,
+    nationality_code,
     korean_level,
     bio,
     profile_public,
@@ -29,7 +29,7 @@ VALUES (
     @local_buddy_user_id,
     NULL,
     'KoReady Demo Buddy',
-    NULL,
+    'US',
     'INTERMEDIATE',
     'Demo profile for local frontend testing.',
     TRUE,
@@ -41,7 +41,7 @@ VALUES (
 ON DUPLICATE KEY UPDATE
     profile_image_url = NULL,
     nickname = 'KoReady Demo Buddy',
-    nationality = NULL,
+    nationality_code = 'US',
     korean_level = 'INTERMEDIATE',
     bio = 'Demo profile for local frontend testing.',
     profile_public = TRUE,
@@ -66,6 +66,14 @@ INSERT INTO buddy_profile_languages (profile_id, language_code, display_order)
 VALUES
     (@local_buddy_profile_id, 'EN', 1),
     (@local_buddy_profile_id, 'KO', 2);
+
+DELETE FROM user_travel_styles
+WHERE user_id = @local_buddy_user_id;
+
+INSERT INTO user_travel_styles (user_id, travel_style, display_order)
+VALUES
+    (@local_buddy_user_id, 'LOCAL_FOOD', 1),
+    (@local_buddy_user_id, 'NATURE', 2);
 
 DELETE FROM buddy_profile_styles
 WHERE profile_id = @local_buddy_profile_id;

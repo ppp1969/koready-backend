@@ -11,12 +11,14 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import jakarta.servlet.http.HttpServletRequest;
 import koready_backend.buddy.application.exception.BuddyProfileNotFoundException;
 import koready_backend.buddy.application.exception.BuddyUserUnavailableException;
+import koready_backend.buddy.application.exception.ProfileImageStorageUnavailableException;
 import koready_backend.common.controller.ApiErrorResponse;
 import koready_backend.common.controller.TraceIdFilter;
 
 @RestControllerAdvice(assignableTypes = {
 	BuddyProfileController.class,
-	BuddyPublicProfileController.class
+	BuddyPublicProfileController.class,
+	ProfileImageController.class
 })
 public class BuddyProfileExceptionHandler {
 
@@ -26,6 +28,18 @@ public class BuddyProfileExceptionHandler {
 		HttpServletRequest request
 	) {
 		return error(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", exception.getMessage(), request);
+	}
+
+	@ExceptionHandler(ProfileImageStorageUnavailableException.class)
+	ResponseEntity<ApiErrorResponse> handleStorageUnavailable(
+		ProfileImageStorageUnavailableException exception,
+		HttpServletRequest request
+	) {
+		return error(
+			HttpStatus.SERVICE_UNAVAILABLE,
+			"PROFILE_IMAGE_STORAGE_UNAVAILABLE",
+			"Profile image storage is temporarily unavailable.",
+			request);
 	}
 
 	@ExceptionHandler(BuddyProfileNotFoundException.class)

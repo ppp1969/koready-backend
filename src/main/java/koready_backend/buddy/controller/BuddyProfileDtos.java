@@ -6,6 +6,7 @@ import java.util.List;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import koready_backend.buddy.application.BuddyProfileService;
 import koready_backend.buddy.application.model.BuddyProfileView;
@@ -52,15 +53,15 @@ final class BuddyProfileDtos {
 	record BuddyProfileRequest(
 		@Size(max = 2048) String profileImageUrl,
 		@NotBlank @Size(max = 30) String nickname,
-		@Size(max = 100) String nationality,
+		@NotBlank @Pattern(regexp = "(?i)[A-Z]{2}") String nationalityCode,
 		@NotNull @Size(min = 1, max = 5)
 		List<@NotNull ProfileLanguage> availableLanguages,
 		@NotNull KoreanLevel koreanLevel,
-		@NotNull @Size(min = 1, max = 4)
+		@NotNull @Size(min = 1, max = 7)
 		List<@NotNull TravelStyle> travelStyles,
-		@Size(max = 500) String bio,
-		@NotNull @Size(max = 6) List<@NotNull BuddyStyle> buddyStyles,
-		@Size(max = 20) List<@NotNull @Valid SocialLinkInput> socialLinks,
+		@Size(max = 120) String bio,
+		@Size(max = 6) List<@NotNull BuddyStyle> buddyStyles,
+		@Size(max = 2) List<@NotNull @Valid SocialLinkInput> socialLinks,
 		@NotNull Boolean profilePublic,
 		@NotNull Boolean snsPublic,
 		@NotNull Boolean allowsMessages
@@ -72,12 +73,12 @@ final class BuddyProfileDtos {
 			return new BuddyProfileService.UpsertCommand(
 				profileImageUrl,
 				nickname,
-				nationality,
+				nationalityCode,
 				availableLanguages,
 				koreanLevel,
 				travelStyles,
 				bio,
-				buddyStyles,
+				buddyStyles == null ? List.of() : buddyStyles,
 				links,
 				profilePublic,
 				snsPublic,
@@ -104,7 +105,7 @@ final class BuddyProfileDtos {
 		long profileId,
 		String profileImageUrl,
 		String nickname,
-		String nationality,
+		String nationalityCode,
 		List<ProfileLanguage> availableLanguages,
 		KoreanLevel koreanLevel,
 		List<TravelStyle> travelStyles,

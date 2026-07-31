@@ -42,6 +42,57 @@ Resources:
         - Key: DataClassification
           Value: PrivateKtoSnapshot
 
+  ProfileImageBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - PUT
+              - GET
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            ExposedHeaders:
+              - ETag
+            MaxAge: 3000
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+          - Id: RemoveNoncurrentProfileImages
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Project
+          Value: KoReady
+        - Key: Environment
+          Value:
+            Ref: EnvironmentName
+        - Key: DataClassification
+          Value: PrivateUserProfileImage
+
   SnapshotWriterRole:
     Type: AWS::IAM::Role
     Properties:
@@ -68,9 +119,12 @@ Resources:
                 Action:
                   - s3:GetBucketLocation
                 Resource:
-                  Fn::GetAtt:
-                    - SnapshotBucket
-                    - Arn
+                  - Fn::GetAtt:
+                      - SnapshotBucket
+                      - Arn
+                  - Fn::GetAtt:
+                      - ProfileImageBucket
+                      - Arn
               - Sid: SnapshotPrefix
                 Effect: Allow
                 Action:
@@ -90,6 +144,14 @@ Resources:
                   - s3:PutObject
                 Resource:
                   Fn::Sub: '${SnapshotBucket.Arn}/kto/*'
+              - Sid: ProfileImageObjects
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  Fn::Sub: '${ProfileImageBucket.Arn}/profile-images/*'
 
   SnapshotWriterInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -127,6 +189,27 @@ Resources:
               StringNotEquals:
                 s3:if-none-match: '*'
 
+  ProfileImageBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: ProfileImageBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - Fn::GetAtt:
+                  - ProfileImageBucket
+                  - Arn
+              - Fn::Sub: '${ProfileImageBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
 Outputs:
   SnapshotBucketName:
     Description: Private bucket for KTO gzip snapshots.
@@ -142,3 +225,7 @@ Outputs:
     Description: Instance profile name for a future EB environment.
     Value:
       Ref: SnapshotWriterInstanceProfile
+  ProfileImageBucketName:
+    Description: Private bucket for user profile images.
+    Value:
+      Ref: ProfileImageBucket

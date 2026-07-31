@@ -22,6 +22,9 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import koready_backend.buddy.application.port.BuddyProfileRepository;
 import koready_backend.buddy.application.port.BuddyProfileRepository.BuddyProfileRecord;
+import koready_backend.buddy.application.port.ProfileImageRepository;
+import koready_backend.buddy.application.port.ProfileImageRepository.ImageRecord;
+import koready_backend.buddy.application.port.ProfileImageRepository.ImageStatus;
 import koready_backend.buddy.domain.BuddyProfileDraft;
 import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.BuddyStyle;
@@ -50,6 +53,9 @@ class JdbcBuddyProfileRepositoryIntegrationTest {
 
 	@Autowired
 	private BuddyProfileRepository repository;
+
+	@Autowired
+	private ProfileImageRepository profileImages;
 
 	@Test
 	void createsAndFullyReplacesOneProfilePerUser() {
@@ -103,11 +109,41 @@ class JdbcBuddyProfileRepositoryIntegrationTest {
 		assertTrue(repository.findActiveById(loaded.profileId()).isEmpty());
 	}
 
+	@Test
+	void exposesAReadyImageOnlyToItsOwnerOrThroughAPublicProfile() {
+		long userId = user("usr_profile_image");
+		String imageId = "img_11111111222233334444555555555555";
+		String imagePath = "/api/v1/profile-images/" + imageId;
+		profileImages.savePending(new ImageRecord(
+			imageId,
+			userId,
+			"profile-images/usr_profile_image/image.jpg",
+			"image/jpeg",
+			1_024L,
+			null,
+			ImageStatus.PENDING,
+			FIRST,
+			null));
+		profileImages.markReady(imageId, 1_000L, SECOND);
+		repository.save(userId, draft(imagePath, false), SECOND);
+
+		assertTrue(profileImages.findViewable(imageId, null).isEmpty());
+		assertTrue(profileImages.findViewable(imageId, "usr_other").isEmpty());
+		assertEquals(ImageStatus.READY,
+			profileImages.findViewable(imageId, "usr_profile_image")
+				.orElseThrow()
+				.status());
+
+		repository.save(userId, draft(imagePath, true), SECOND.plusSeconds(1));
+		assertEquals(ImageStatus.READY,
+			profileImages.findViewable(imageId, null).orElseThrow().status());
+	}
+
 	private BuddyProfileDraft firstDraft() {
 		return new BuddyProfileDraft(
-			"https://cdn.example.com/emma.jpg",
+			"/api/v1/profile-images/img_11111111222233334444555555555555",
 			"Emma",
-			"France",
+			"FR",
 			List.of(ProfileLanguage.VI, ProfileLanguage.KO),
 			KoreanLevel.BEGINNER,
 			List.of(TravelStyle.LOCAL_FOOD, TravelStyle.CULTURE_EXPERIENCE),
@@ -125,7 +161,7 @@ class JdbcBuddyProfileRepositoryIntegrationTest {
 		return new BuddyProfileDraft(
 			null,
 			"Emma Updated",
-			null,
+			"FR",
 			List.of(ProfileLanguage.KO),
 			KoreanLevel.ADVANCED,
 			List.of(TravelStyle.NATURE),
@@ -135,6 +171,22 @@ class JdbcBuddyProfileRepositoryIntegrationTest {
 			false,
 			false,
 			false);
+	}
+
+	private BuddyProfileDraft draft(String imagePath, boolean profilePublic) {
+		return new BuddyProfileDraft(
+			imagePath,
+			"Image Owner",
+			"FR",
+			List.of(ProfileLanguage.EN),
+			KoreanLevel.INTERMEDIATE,
+			List.of(TravelStyle.NATURE),
+			"Looking for a travel buddy",
+			List.of(),
+			List.of(),
+			profilePublic,
+			false,
+			true);
 	}
 
 	private long user(String publicId) {

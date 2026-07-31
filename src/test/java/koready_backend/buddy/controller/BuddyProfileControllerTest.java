@@ -83,6 +83,7 @@ class BuddyProfileControllerTest {
 			.andExpect(jsonPath("$.code").value("BUDDY_PROFILE_SAVED"))
 			.andExpect(jsonPath("$.data.profileId").value(51))
 			.andExpect(jsonPath("$.data.nickname").value("Emma"))
+			.andExpect(jsonPath("$.data.nationalityCode").value("FR"))
 			.andExpect(jsonPath("$.data.availableLanguages[0]").value("VI"))
 			.andExpect(jsonPath("$.data.koreanLevel").value("BEGINNER"))
 			.andExpect(jsonPath("$.data.travelStyles[0]").value("LOCAL_FOOD"))
@@ -92,6 +93,39 @@ class BuddyProfileControllerTest {
 			.andExpect(jsonPath("$.data.socialLinks[0].url").doesNotExist())
 			.andExpect(jsonPath("$.data.canMessage").value(false))
 			.andExpect(jsonPath("$.data.blockedByMe").value(false));
+	}
+
+	@Test
+	void acceptsSevenTravelStylesAndRejectsThreeSocialLinks() throws Exception {
+		when(service.upsertMyProfile(eq("usr_emma"), any()))
+			.thenReturn(profile());
+		String allTravelStyles = """
+			["LOCAL_FOOD","LOCAL_FESTIVAL","TRADITIONAL_MARKET",
+			 "CULTURE_EXPERIENCE","NATURE","EXHIBITION_MUSEUM","DRAMA_LOCATION"]
+			""".replaceAll("\\s+", "");
+
+		mockMvc.perform(put("/api/v1/users/me/buddy-profile")
+				.with(user("usr_emma").roles("USER"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(validRequest().replace(
+					"[\"LOCAL_FOOD\", \"CULTURE_EXPERIENCE\"]",
+					allTravelStyles)))
+			.andExpect(status().isOk());
+
+		mockMvc.perform(put("/api/v1/users/me/buddy-profile")
+				.with(user("usr_emma").roles("USER"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(validRequest().replace(
+					"[{\"type\":\"INSTAGRAM\",\"value\":\"@emma\"}]",
+					"""
+					[
+					  {"type":"INSTAGRAM","value":"@emma"},
+					  {"type":"KAKAOTALK","value":"emma"},
+					  {"type":"THREADS","value":"@emma"}
+					]
+					""")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 	}
 
 	@Test
@@ -110,7 +144,7 @@ class BuddyProfileControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
-		String longBio = "x".repeat(501);
+		String longBio = "x".repeat(121);
 		mockMvc.perform(put("/api/v1/users/me/buddy-profile")
 				.with(user("usr_emma").roles("USER"))
 				.contentType(MediaType.APPLICATION_JSON)
@@ -133,9 +167,9 @@ class BuddyProfileControllerTest {
 	private static BuddyProfileView profile() {
 		return new BuddyProfileView(
 			51L,
-			"https://cdn.example.com/emma.jpg",
+			"/api/v1/profile-images/img_11111111222233334444555555555555",
 			"Emma",
-			"France",
+			"FR",
 			List.of(ProfileLanguage.VI, ProfileLanguage.KO),
 			KoreanLevel.BEGINNER,
 			List.of(TravelStyle.LOCAL_FOOD, TravelStyle.CULTURE_EXPERIENCE),
@@ -153,9 +187,9 @@ class BuddyProfileControllerTest {
 	private static String validRequest() {
 		return """
 			{
-			  "profileImageUrl": "https://cdn.example.com/emma.jpg",
+			  "profileImageUrl": null,
 			  "nickname": "Emma",
-			  "nationality": "France",
+			  "nationalityCode": "FR",
 			  "availableLanguages": ["VI", "KO"],
 			  "koreanLevel": "BEGINNER",
 			  "travelStyles": ["LOCAL_FOOD", "CULTURE_EXPERIENCE"],

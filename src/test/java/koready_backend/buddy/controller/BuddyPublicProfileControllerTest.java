@@ -26,6 +26,7 @@ import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.KoreanLevel;
 import koready_backend.buddy.domain.SocialLinkType;
 import koready_backend.buddy.domain.ProfileLanguage;
+import koready_backend.place.domain.TravelStyle;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -95,11 +96,12 @@ class BuddyPublicProfileControllerTest {
 	private static BuddyProfileView profile() {
 		return new BuddyProfileView(
 			51L,
-			"https://cdn.example.com/target.jpg",
+			"/api/v1/profile-images/img_11111111222233334444555555555555",
 			"Target",
-			"France",
+			"FR",
 			List.of(ProfileLanguage.EN, ProfileLanguage.KO),
 			KoreanLevel.BEGINNER,
+			List.of(TravelStyle.LOCAL_FOOD),
 			"Local food fan",
 			List.of(BuddyStyle.FOODIE),
 			List.of(new BuddySocialLink(SocialLinkType.INSTAGRAM, "@target")),

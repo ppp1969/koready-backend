@@ -42,7 +42,7 @@ public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
 	public Optional<BuddyProfileRecord> findByUserId(long userId) {
 		List<ProfileRow> rows = jdbcTemplate.query(
 			"""
-			SELECT id, user_id, profile_image_url, nickname, nationality,
+			SELECT id, user_id, profile_image_url, nickname, nationality_code,
 			       korean_level, bio, profile_public, sns_public, allows_messages,
 			       created_at, updated_at
 			FROM buddy_profiles
@@ -58,7 +58,7 @@ public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
 		List<ProfileRow> rows = jdbcTemplate.query(
 			"""
 			SELECT profile.id, profile.user_id, profile.profile_image_url,
-			       profile.nickname, profile.nationality, profile.korean_level,
+			       profile.nickname, profile.nationality_code, profile.korean_level,
 			       profile.bio, profile.profile_public, profile.sns_public,
 			       profile.allows_messages, profile.created_at, profile.updated_at
 			FROM buddy_profiles profile
@@ -102,13 +102,13 @@ public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
 		jdbcTemplate.update(
 			"""
 			INSERT INTO buddy_profiles
-			    (user_id, profile_image_url, nickname, nationality, korean_level, bio,
+			    (user_id, profile_image_url, nickname, nationality_code, korean_level, bio,
 			     profile_public, sns_public, allows_messages, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON DUPLICATE KEY UPDATE
 			    profile_image_url = VALUES(profile_image_url),
 			    nickname = VALUES(nickname),
-			    nationality = VALUES(nationality),
+			    nationality_code = VALUES(nationality_code),
 			    korean_level = VALUES(korean_level),
 			    bio = VALUES(bio),
 			    profile_public = VALUES(profile_public),
@@ -287,7 +287,7 @@ public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
 			resultSet.getLong("user_id"),
 			resultSet.getString("profile_image_url"),
 			resultSet.getString("nickname"),
-			resultSet.getString("nationality"),
+			resultSet.getString("nationality_code"),
 			KoreanLevel.valueOf(resultSet.getString("korean_level")),
 			resultSet.getString("bio"),
 			resultSet.getBoolean("profile_public"),

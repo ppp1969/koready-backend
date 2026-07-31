@@ -23,14 +23,14 @@ class KtoDetailDailySchedulerTest {
 	@Test
 	void schedulesTheKoreanBusinessDateWithTheConfiguredBudget() {
 		when(commandService.scheduleDailyDetail(
-			java.time.LocalDate.parse("2026-07-20"), 50))
+			java.time.LocalDate.parse("2026-07-20"), 800, 50))
 			.thenReturn(
 				new BatchJobCommandService.DailyScheduleResult(
 					false, null));
 		var scheduler = new KtoDetailDailyScheduler(
 			commandService,
 			new KtoDetailDailyScheduleProperties(
-				50, "Asia/Seoul"),
+				800, 50, "Asia/Seoul"),
 			Clock.fixed(
 				Instant.parse("2026-07-19T15:30:00Z"),
 				ZoneOffset.UTC));
@@ -38,6 +38,6 @@ class KtoDetailDailySchedulerTest {
 		scheduler.schedule();
 
 		verify(commandService).scheduleDailyDetail(
-			java.time.LocalDate.parse("2026-07-20"), 50);
+			java.time.LocalDate.parse("2026-07-20"), 800, 50);
 	}
 }

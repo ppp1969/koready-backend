@@ -55,7 +55,7 @@ PR, 스크린샷에는 값 자체를 적지 않는다.
 | DB | `DB_POOL_SIZE`, `DB_MIN_IDLE` | `5`, `1` |
 | KTO | `KTO_SERVICE_KEY` | data.go.kr 발급 key |
 | KTO | `KTO_BATCH_PAGE_SIZE`, `KTO_BATCH_FLUSH_SIZE`, `KTO_BATCH_MAX_CONCURRENCY` | `200`, `50`, `1` |
-| KTO 상세 일일 예산 | `KTO_DETAIL_DAILY_SCHEDULE_ENABLED`, `KTO_DETAIL_DAILY_MAX_PLACES` | `true`, `50` |
+| KTO 상세 일일 예산 | `KTO_DETAIL_DAILY_SCHEDULE_ENABLED`, `KTO_DETAIL_DAILY_PLACES`, `KTO_DETAIL_DAILY_CHUNK_PLACES` | `true`, `800`, `50` |
 | KTO 연관 관광지 재개 | `KTO_RELATED_TOUR_RESUME_SCHEDULE_ENABLED`, `KTO_RELATED_TOUR_RESUME_SCHEDULE_CRON` | `true`, `0 15 0 * * *` |
 | KTO | `KTO_MAX_RESPONSE_BYTES`, `KTO_CONNECT_TIMEOUT`, `KTO_READ_TIMEOUT` | `4194304`, `3s`, `10s` |
 | S3 | `KTO_SNAPSHOT_STORAGE`, `KTO_SNAPSHOT_S3_BUCKET`, `AWS_REGION` | `s3`, CloudFormation bucket 출력값, `ap-northeast-2` |
@@ -65,8 +65,10 @@ PR, 스크린샷에는 값 자체를 적지 않는다.
 
 `KTO_MANUAL_BATCH_WORKER_ENABLED=true`은 기본값이므로 필요할 때만 명시한다. KTO의
 상세 자동 보강은 기본값이 꺼져 있으므로 EB에서만
-`KTO_DETAIL_DAILY_SCHEDULE_ENABLED=true`로 켠다. 기본 50곳은 KTO 상세 API
-최대 200회/일에 해당하며, Render에서는 이 값을 `false`로 유지한다.
+`KTO_DETAIL_DAILY_SCHEDULE_ENABLED=true`로 켠다. 기본 800곳은 KTO 상세 API 각
+오퍼레이션 최대 800회/일에 해당하며, 개발계정의 오퍼레이션별 1,000회 한도에서 재시도
+여유 200회를 남긴다. 50곳 단위 작업으로 나누어 이어 실행하며, Render에서는 이 값을
+`false`로 유지한다.
 연관 관광지 전체 수집이 KTO 일일 한도에서 멈춘 동안에는 EB에서
 `KTO_RELATED_TOUR_RESUME_SCHEDULE_ENABLED=true`를 켠다. 한국 시간 00시 15분에
 최신 실패 작업만 하루 한 번 재개하며, 전체 체인이 완료되면 더 이상 작업을 만들지

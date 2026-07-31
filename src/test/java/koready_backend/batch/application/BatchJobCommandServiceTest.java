@@ -277,12 +277,12 @@ class BatchJobCommandServiceTest {
 	}
 
 	@Test
-	void schedulesOneBoundedDailyDetailJobWithAnIdempotencyKey() {
+	void schedulesTheFirstDailyDetailChunkWithTheDailyBudgetAndAnIdempotencyKey() {
 		when(repository.enqueue(any())).thenReturn(101L);
 		BatchJobCommandService service = service();
 
 		var result = service.scheduleDailyDetail(
-			LocalDate.parse("2026-07-20"), 50);
+			LocalDate.parse("2026-07-20"), 800, 50);
 
 		assertTrue(result.scheduled());
 		assertEquals(101L, result.jobId());
@@ -305,7 +305,13 @@ class BatchJobCommandServiceTest {
 			50,
 			captor.getValue().parameters().get("maxPlaces"));
 		assertEquals(
-			false,
+			800,
+			captor.getValue().parameters().get("remainingDailyPlaces"));
+		assertEquals(
+			"2026-07-20",
+			captor.getValue().parameters().get("scheduleDate"));
+		assertEquals(
+			true,
 			captor.getValue().parameters().get("autoContinue"));
 	}
 
@@ -316,20 +322,24 @@ class BatchJobCommandServiceTest {
 		BatchJobCommandService service = service();
 
 		var result = service.scheduleDailyDetail(
-			LocalDate.parse("2026-07-20"), 50);
+			LocalDate.parse("2026-07-20"), 800, 50);
 
 		assertFalse(result.scheduled());
 		assertEquals(null, result.jobId());
 	}
 
 	@Test
-	void rejectsAnUnboundedDailyDetailBudget() {
+	void rejectsAnUnboundedDailyDetailBudgetOrChunk() {
 		BatchJobCommandService service = service();
 
 		assertThrows(
 			IllegalArgumentException.class,
 			() -> service.scheduleDailyDetail(
-				LocalDate.parse("2026-07-20"), 51));
+				LocalDate.parse("2026-07-20"), 901, 50));
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> service.scheduleDailyDetail(
+				LocalDate.parse("2026-07-20"), 800, 51));
 	}
 
 	@Test

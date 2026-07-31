@@ -80,20 +80,24 @@ AI 번역과 AI 소개문 생성은 이 배치의 범위가 아니다.
 
 ## EB 일일 호출 예산
 
-수동 전수 실행 대신 EB에서는 하루 최대 50곳을 자동 등록할 수 있다. 한 장소당
-KTO 상세 API를 네 번 호출하므로 기본 예산은 최대 200회/일이다.
+수동 전수 실행 대신 EB에서는 하루 최대 800곳을 자동 등록할 수 있다. TourAPI 개발계정의
+오퍼레이션별 일일 1,000건 한도에 여유를 남기는 기본값이며, 한 장소당 KTO 상세 API를
+네 번 호출한다. 각 API 오퍼레이션은 최대 800회/일로 예상한다.
 
 - `KTO_DETAIL_DAILY_SCHEDULE_ENABLED=true`: 자동 등록을 켠다. 기본값은 `false`다.
-- `KTO_DETAIL_DAILY_MAX_PLACES=50`: 하루에 처리할 장소 수다. 최댓값은 `50`이다.
+- `KTO_DETAIL_DAILY_PLACES=800`: 하루에 처리할 장소 수다. 최댓값은 `900`이다.
+- `KTO_DETAIL_DAILY_CHUNK_PLACES=50`: 한 batch job에서 처리할 장소 수다. 최댓값은 `50`이다.
 - `KTO_DETAIL_DAILY_SCHEDULE_ZONE=Asia/Seoul`: 일일 중복 판단 기준 시간대다.
 - `KTO_DETAIL_DAILY_SCHEDULE_CRON=0 */30 * * * *`: 30분마다 등록 가능 여부를
   확인한다.
 
 같은 날짜의 예약 키는 DB에서 한 번만 허용한다. 다른 KTO 배치가 실행 중이면 활성
-작업 슬롯 충돌로 등록하지 않고 다음 30분 주기에 다시 확인한다. 당일 작업이 이미
-완료됐으면 이후 확인에서도 중복 등록하지 않는다. 자동 작업은
-`startAfterPlaceId=0`, `autoContinue=false`로 실행하므로 기존 체크포인트가 다음
-미완료 또는 갱신 대상 장소를 선택하면서도 하루 예산을 넘어 연속 실행하지 않는다.
+작업 슬롯 충돌로 등록하지 않고 다음 30분 주기에 다시 확인한다. 자동 작업은
+`startAfterPlaceId=0`부터 시작하되, `remainingDailyPlaces`를 작업 파라미터에 저장해
+50개 단위로 다음 작업을 이어 등록한다. 완료 장소는 기존 체크포인트가 건너뛰므로 서버
+재시작 또는 다음 날 재실행에도 중복 적재하지 않는다. KTO quota 오류는
+`KTO_QUOTA_EXCEEDED`로 기록되고, 해당 작업은 이어 실행되지 않아 다음 날 새 일일 예산으로
+미완료 장소부터 재개한다.
 
 Render는 Swagger 공유 환경이므로 `KTO_MANUAL_BATCH_WORKER_ENABLED=false`와
 `KTO_DETAIL_DAILY_SCHEDULE_ENABLED=false`를 함께 유지한다.

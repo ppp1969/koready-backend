@@ -15,7 +15,7 @@ public interface BatchJobExecutionRepository {
 
 	void complete(ClaimedJob job, Completion completion);
 
-	void fail(ClaimedJob job, Instant finishedAt);
+	void fail(ClaimedJob job, Instant finishedAt, String failureCode);
 
 	record ClaimedJob(long id, BatchJobType jobType, Map<String, Object> parameters, long itemId) {
 	}

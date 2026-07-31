@@ -55,13 +55,12 @@ public class KtoDetailDailyScheduler {
 			clock.withZone(properties.zoneId()));
 		var result = commandService.scheduleDailyDetail(
 			scheduleDate,
-			properties.maxPlaces());
+			properties.dailyPlaces(),
+			properties.chunkPlaces());
 		if (result.scheduled()) {
 			log.info(
-				"Scheduled daily KTO detail budget. jobId={}, scheduleDate={}, maxPlaces={}",
-				result.jobId(),
-				scheduleDate,
-				properties.maxPlaces());
+				"Scheduled daily KTO detail budget. jobId={}, scheduleDate={}, dailyPlaces={}, chunkPlaces={}",
+				result.jobId(), scheduleDate, properties.dailyPlaces(), properties.chunkPlaces());
 		}
 	}
 }

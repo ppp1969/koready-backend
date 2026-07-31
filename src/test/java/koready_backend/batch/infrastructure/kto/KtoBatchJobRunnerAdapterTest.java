@@ -314,6 +314,8 @@ class KtoBatchJobRunnerAdapterTest {
 			Map.of(
 				"startAfterPlaceId", 120L,
 				"maxPlaces", 10,
+				"remainingDailyPlaces", 800,
+				"scheduleDate", "2026-07-20",
 				"autoContinue", true),
 			47L));
 
@@ -324,6 +326,28 @@ class KtoBatchJobRunnerAdapterTest {
 		assertEquals(
 			140L,
 			result.continuation().parameters().get("startAfterPlaceId"));
+		assertEquals(
+			790,
+			result.continuation().parameters().get("remainingDailyPlaces"));
+	}
+
+	@Test
+	void endsTheDailyDetailChainWhenTheRemainingBudgetIsConsumed() {
+		when(detailEnrichmentService.enrich(any(), any()))
+			.thenReturn(new KtoDetailEnrichmentResult(50, 200, 170L, true, true));
+
+		var result = adapter().run(new ClaimedJob(
+			31L,
+			BatchJobType.KTO_DETAIL_ENRICHMENT,
+			Map.of(
+				"startAfterPlaceId", 120L,
+				"maxPlaces", 50,
+				"remainingDailyPlaces", 50,
+				"scheduleDate", "2026-07-20",
+				"autoContinue", true),
+			47L));
+
+		assertNull(result.continuation());
 	}
 
 	@Test

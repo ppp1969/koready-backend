@@ -193,19 +193,30 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 	}
 
 	@Override
-	public void fail(ClaimedJob job, java.time.Instant finishedAt) {
+	public void fail(
+		ClaimedJob job,
+		java.time.Instant finishedAt,
+		String failureCode
+	) {
 		jdbcTemplate.update("""
 			UPDATE batch_jobs
 			SET status = 'FAILED', finished_at = ?, failure_count = 1, processed_count = 1,
-				success_count = 0, message = 'Batch job failed.',
+				success_count = 0, message = ?,
 				active_execution_slot = NULL, updated_at = ?
 			WHERE id = ? AND status = 'RUNNING'
-			""", Timestamp.from(finishedAt), Timestamp.from(finishedAt), job.id());
+			""", Timestamp.from(finishedAt), safeFailureCode(failureCode), Timestamp.from(finishedAt), job.id());
 		jdbcTemplate.update("""
 			UPDATE batch_job_items
 			SET status = 'FAILED', error_message = 'Batch item failed.', updated_at = ?
 			WHERE id = ?
 			""", Timestamp.from(finishedAt), job.itemId());
+	}
+
+	private static String safeFailureCode(String failureCode) {
+		if (failureCode == null || !failureCode.matches("[A-Z0-9_]{3,80}")) {
+			return "BATCH_JOB_FAILED";
+		}
+		return failureCode;
 	}
 
 	private ClaimedJob mapClaimed(ResultSet resultSet, int rowNumber) throws SQLException {

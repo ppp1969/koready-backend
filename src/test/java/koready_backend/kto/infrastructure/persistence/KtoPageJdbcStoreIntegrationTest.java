@@ -106,6 +106,7 @@ class KtoPageJdbcStoreIntegrationTest {
 		assertEquals("SEOUL", value("service_region_code", "100001"));
 		assertEquals("1", value("area_code", "100001"));
 		assertEquals(Boolean.TRUE, booleanValue("active", "100001"));
+		assertEquals(Boolean.FALSE, booleanValue("show_flag", "100001"));
 		assertEquals("서울특별시 테스트구 테스트로 1", value("address", "100001"));
 		assertNull(value("service_region_code", "100002"));
 		assertEquals("99", value("area_code", "100002"));
@@ -136,6 +137,18 @@ class KtoPageJdbcStoreIntegrationTest {
 		assertEquals("GYEONGGI", value("service_region_code", "200001"));
 		assertEquals(Boolean.FALSE, booleanValue("show_flag", "200001"));
 		assertEquals(Boolean.FALSE, booleanValue("active", "200001"));
+	}
+
+	@Test
+	void doesNotExposeAnUnenrichedPlaceWhenTheBaseCatalogIsSyncedAgain() {
+		KtoSyncPage first = page(1, "a", item("200002", "first title", "1", "1", "c", "126", "37"));
+		KtoSyncPage newer = page(1, "f", item("200002", "newer title", "1", "1", "d", "127", "38"));
+
+		pageStore.store(command(first, "first-hidden", "b"));
+		pageStore.store(command(newer, "newer-hidden", "e"));
+
+		assertEquals(Boolean.TRUE, booleanValue("active", "200002"));
+		assertEquals(Boolean.FALSE, booleanValue("show_flag", "200002"));
 	}
 
 	@Test

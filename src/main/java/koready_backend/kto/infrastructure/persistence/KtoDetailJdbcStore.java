@@ -64,6 +64,7 @@ public class KtoDetailJdbcStore implements KtoDetailStore {
 						entry -> entry.getValue().id())),
 				storedDetailImageCount(command.target().placeId()),
 				latestCapturedAt(command));
+			markPublished(command.target().placeId());
 			return;
 		}
 
@@ -93,6 +94,13 @@ public class KtoDetailJdbcStore implements KtoDetailStore {
 			snapshotIds,
 			imageCount,
 			latestCapturedAt(command));
+		markPublished(command.target().placeId());
+	}
+
+	private void markPublished(long placeId) {
+		jdbcTemplate.update(
+			"UPDATE places SET show_flag = TRUE WHERE id = ? AND active = TRUE",
+			placeId);
 	}
 
 	private Map<KtoDetailOperation, ExistingSnapshot> existing(

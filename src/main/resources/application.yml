@@ -109,7 +109,7 @@ koready:
         enabled: ${KTO_DETAIL_DAILY_SCHEDULE_ENABLED:false}
         cron: ${KTO_DETAIL_DAILY_SCHEDULE_CRON:0 */30 * * * *}
         zone: ${KTO_DETAIL_DAILY_SCHEDULE_ZONE:Asia/Seoul}
-        daily-places: ${KTO_DETAIL_DAILY_PLACES:50}
+        daily-places: ${KTO_DETAIL_DAILY_PLACES:800}
         chunk-places: ${KTO_DETAIL_DAILY_CHUNK_PLACES:50}
     related-tour-resume:
       schedule:

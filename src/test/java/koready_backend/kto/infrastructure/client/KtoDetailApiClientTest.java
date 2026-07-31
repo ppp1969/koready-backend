@@ -17,6 +17,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import koready_backend.kto.application.exception.KtoProviderException;
 import koready_backend.kto.application.exception.KtoResponseTooLargeException;
 import koready_backend.kto.domain.KtoDetailOperation;
 import koready_backend.kto.domain.KtoDetailTarget;
@@ -80,6 +81,32 @@ class KtoDetailApiClientTest {
 			() -> client.fetch(
 				KtoDetailOperation.COMMON,
 				new KtoDetailTarget(41L, "100", "12")));
+		server.verify();
+	}
+
+	@Test
+	void doesNotRetryAQuotaExceededResponse() {
+		String quotaExceeded = """
+			{"response":{"header":{"resultCode":"22","resultMsg":"LIMITED NUMBER OF SERVICE REQUESTS EXCEEDS ERROR."}}}
+			""";
+		KtoApiProperties properties = properties(4 * 1024 * 1024);
+		RestClient.Builder builder = RestClient.builder()
+			.baseUrl(properties.baseUrl());
+		MockRestServiceServer server =
+			MockRestServiceServer.bindTo(builder).build();
+		KtoDetailApiClient client = client(builder.build(), properties);
+		server.expect(request -> { })
+			.andRespond(withSuccess(
+				quotaExceeded,
+				MediaType.APPLICATION_JSON));
+
+		KtoProviderException exception = assertThrows(
+			KtoProviderException.class,
+			() -> client.fetch(
+				KtoDetailOperation.COMMON,
+				new KtoDetailTarget(41L, "100", "12")));
+
+		assertEquals("22", exception.providerCode());
 		server.verify();
 	}
 

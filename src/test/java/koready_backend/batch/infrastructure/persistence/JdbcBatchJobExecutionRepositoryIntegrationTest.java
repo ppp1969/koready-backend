@@ -75,6 +75,40 @@ class JdbcBatchJobExecutionRepositoryIntegrationTest {
 	}
 
 	@Test
+	void queuesTheNextDetailChunkAfterARecoverablePartialFailure() {
+		long firstJobId = commandRepository.enqueue(new EnqueueCommand(
+			BatchJobType.KTO_DETAIL_ENRICHMENT,
+			BatchTriggerSource.SCHEDULED,
+			null,
+			Map.of(
+				"startAfterPlaceId", 0,
+				"maxPlaces", 50,
+				"remainingDailyPlaces", 800,
+				"autoContinue", true),
+			Instant.parse("2026-07-22T00:00:00Z")));
+		var claimed = executionRepository.claimNextQueued().orElseThrow();
+
+		executionRepository.complete(claimed, new Completion(
+			50,
+			49,
+			1,
+			Instant.parse("2026-07-22T00:10:00Z"),
+			new BatchJobContinuation(
+				BatchJobType.KTO_DETAIL_ENRICHMENT,
+				Map.of(
+					"startAfterPlaceId", 50,
+					"maxPlaces", 50,
+					"remainingDailyPlaces", 750,
+					"autoContinue", true))));
+
+		var completed = adminRepository.findJobById(firstJobId).orElseThrow();
+		assertEquals(koready_backend.batch.domain.BatchJobStatus.PARTIAL_FAILED, completed.status());
+		var next = executionRepository.claimNextQueued();
+		assertTrue(next.isPresent());
+		assertEquals(50, next.orElseThrow().parameters().get("startAfterPlaceId"));
+	}
+
+	@Test
 	void keepsClaimAndCompletionTimesAsUtcInstantsAcrossDatabaseTimeZones() {
 		long jobId = commandRepository.enqueue(new EnqueueCommand(
 			BatchJobType.KTO_FESTIVAL_SYNC,

@@ -107,7 +107,7 @@ public class JdbcBatchJobExecutionRepository implements BatchJobExecutionReposit
 			completion.failureCount() == 0 ? "COMPLETED" : "FAILED",
 			Timestamp.from(completion.finishedAt()),
 			job.itemId());
-		if (completion.failureCount() == 0 && completion.continuation() != null) {
+		if (completion.continuation() != null) {
 			enqueueContinuation(job, completion.continuation(), completion.finishedAt());
 		}
 	}

@@ -1,9 +1,14 @@
 package koready_backend.kto.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +28,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import koready_backend.kto.application.exception.KtoProviderException;
+import koready_backend.kto.application.exception.KtoTransportException;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDetailEnrichmentRequest;
 import koready_backend.kto.application.model.KtoFetchedDetailOperation;
@@ -84,9 +91,12 @@ class KtoDetailEnrichmentServiceTest {
 		}
 		order.verify(detailStore).store(any());
 		assertEquals(1, result.processedPlaces());
+		assertEquals(1, result.successfulPlaces());
+		assertEquals(0, result.failedPlaces());
 		assertEquals(4, result.successfulOperations());
 		assertEquals(41L, result.lastProcessedPlaceId());
 		assertTrue(result.hasMore());
+		assertTrue(result.continuationAllowed());
 	}
 
 	@Test
@@ -119,6 +129,79 @@ class KtoDetailEnrichmentServiceTest {
 			ArgumentCaptor.forClass(KtoStoreDetailCommand.class);
 		verify(detailStore).store(command.capture());
 		assertEquals(4, command.getValue().operations().size());
+	}
+
+	@Test
+	void continuesWithTheNextPlaceAfterOneTransportFailure() throws Exception {
+		KtoDetailTarget first = new KtoDetailTarget(41L, "100", "12");
+		KtoDetailTarget failed = new KtoDetailTarget(42L, "101", "12");
+		KtoDetailTarget third = new KtoDetailTarget(43L, "102", "12");
+		when(targetSource.findAfter(40L, 3))
+			.thenReturn(List.of(first, failed, third));
+		when(targetSource.existsAfter(43L)).thenReturn(true);
+		for (KtoDetailOperation operation : KtoDetailOperation.values()) {
+			when(client.fetch(operation, first)).thenReturn(fetched(operation));
+			when(client.fetch(operation, third)).thenReturn(fetched(operation));
+		}
+		when(client.fetch(KtoDetailOperation.COMMON, failed))
+			.thenThrow(new KtoTransportException());
+		when(snapshotStore.store(any())).thenReturn(new KtoStoredSnapshotMetadata(
+			"kto/kor/detail/test.json.gz",
+			"a".repeat(64),
+			30,
+			Instant.parse("2026-07-27T00:00:02Z")));
+
+		var result = service().enrich(
+			new KtoDetailEnrichmentRequest(40L, 3, true),
+			new KtoBatchExecutionReference(31L, 47L));
+
+		assertEquals(3, result.processedPlaces());
+		assertEquals(2, result.successfulPlaces());
+		assertEquals(1, result.failedPlaces());
+		assertEquals(43L, result.lastProcessedPlaceId());
+		assertTrue(result.continuationAllowed());
+		verify(detailStore, times(2)).store(any());
+	}
+
+	@Test
+	void stopsAfterThreeConsecutiveRecoverableFailures() {
+		KtoDetailTarget first = new KtoDetailTarget(41L, "100", "12");
+		KtoDetailTarget second = new KtoDetailTarget(42L, "101", "12");
+		KtoDetailTarget third = new KtoDetailTarget(43L, "102", "12");
+		KtoDetailTarget fourth = new KtoDetailTarget(44L, "103", "12");
+		when(targetSource.findAfter(40L, 4))
+			.thenReturn(List.of(first, second, third, fourth));
+		when(targetSource.existsAfter(43L)).thenReturn(true);
+		for (KtoDetailTarget failed : List.of(first, second, third)) {
+			when(client.fetch(KtoDetailOperation.COMMON, failed))
+				.thenThrow(new KtoTransportException());
+		}
+
+		var result = service().enrich(
+			new KtoDetailEnrichmentRequest(40L, 4, true),
+			new KtoBatchExecutionReference(31L, 47L));
+
+		assertEquals(3, result.processedPlaces());
+		assertEquals(0, result.successfulPlaces());
+		assertEquals(3, result.failedPlaces());
+		assertFalse(result.continuationAllowed());
+		verify(client, never()).fetch(any(), eq(fourth));
+	}
+
+	@Test
+	void immediatelyPropagatesAQuotaExceededResponse() {
+		when(targetSource.findAfter(40L, 1)).thenReturn(List.of(target));
+		when(client.fetch(KtoDetailOperation.COMMON, target))
+			.thenThrow(new KtoProviderException("22"));
+
+		KtoProviderException exception = assertThrows(
+			KtoProviderException.class,
+			() -> service().enrich(
+				new KtoDetailEnrichmentRequest(40L, 1, true),
+				new KtoBatchExecutionReference(31L, 47L)));
+
+		assertEquals("22", exception.providerCode());
+		verify(targetSource, never()).existsAfter(any(Long.class));
 	}
 
 	private KtoDetailEnrichmentService service() {

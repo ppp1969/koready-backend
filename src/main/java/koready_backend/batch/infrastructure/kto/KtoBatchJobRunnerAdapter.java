@@ -78,8 +78,8 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 				job.parameters(), result, maxPlaces, remainingDailyPlaces);
 			return new RunResult(
 				result.processedPlaces(),
-				result.processedPlaces(),
-				0,
+				result.successfulPlaces(),
+				result.failedPlaces(),
 				continuation);
 		}
 		if (job.jobType() == BatchJobType.KTO_EN_QUALITY_BACKFILL) {
@@ -253,7 +253,10 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 		int maxPlaces,
 		Integer remainingDailyPlaces
 	) {
-		if (!result.hasMore() || !result.autoContinue()) {
+		if (!result.hasMore()
+			|| !result.autoContinue()
+			|| !result.continuationAllowed()
+			|| result.successfulPlaces() == 0) {
 			return null;
 		}
 		if (remainingDailyPlaces == null) {

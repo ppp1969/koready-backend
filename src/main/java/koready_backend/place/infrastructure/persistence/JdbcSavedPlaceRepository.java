@@ -46,7 +46,7 @@ public class JdbcSavedPlaceRepository implements SavedPlaceRepository {
 		     WHERE style.place_id = place.id
 		     ORDER BY style.confidence DESC, style.travel_style ASC
 		     LIMIT 1) AS travel_style,
-		    COALESCE(requested.overview, korean.overview) AS overview,
+		    requested.overview AS overview,
 		    place.data_quality_score
 		FROM user_saved_places saved
 		JOIN places place ON place.id = saved.place_id
@@ -60,6 +60,14 @@ public class JdbcSavedPlaceRepository implements SavedPlaceRepository {
 		  AND place.active = TRUE
 		  AND place.show_flag = TRUE
 		  AND COALESCE(requested.id, korean.id) IS NOT NULL
+		  AND EXISTS (
+		      SELECT 1
+		      FROM place_localizations publication_en
+		      WHERE publication_en.place_id = place.id
+		        AND publication_en.language = 'EN'
+		        AND publication_en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+		        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+		  )
 		""";
 
 	private static final String OCCURRENCES_FOR_PLACES = """
@@ -114,6 +122,15 @@ public class JdbcSavedPlaceRepository implements SavedPlaceRepository {
 			    SELECT 1
 			    FROM places
 			    WHERE id = ? AND active = TRUE AND show_flag = TRUE
+			      AND EXISTS (
+			          SELECT 1
+			          FROM place_localizations publication_en
+			          WHERE publication_en.place_id = places.id
+			            AND publication_en.language = 'EN'
+			            AND publication_en.translation_source
+			                IN ('KTO_EN', 'MANUAL_EDITED')
+			            AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+			      )
 			)
 			""",
 			Boolean.class,

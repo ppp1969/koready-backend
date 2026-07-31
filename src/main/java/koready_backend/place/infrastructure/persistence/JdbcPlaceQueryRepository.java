@@ -52,7 +52,7 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		     WHERE style.place_id = p.id
 		     ORDER BY style.confidence DESC, style.travel_style ASC
 		     LIMIT 1) AS travel_style,
-		    COALESCE(requested.overview, korean.overview) AS overview,
+		    requested.overview AS overview,
 		    p.data_quality_score,
 		    %s AS deadline_sort_date
 		FROM places p
@@ -64,6 +64,14 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		WHERE p.active = TRUE
 		  AND p.show_flag = TRUE
 		  AND COALESCE(requested.id, korean.id) IS NOT NULL
+		  AND EXISTS (
+		      SELECT 1
+		      FROM place_localizations publication_en
+		      WHERE publication_en.place_id = p.id
+		        AND publication_en.language = 'EN'
+		        AND publication_en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+		        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+		  )
 		%s
 		""";
 
@@ -109,7 +117,7 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		    p.latitude,
 		    p.longitude,
 		    NULLIF(TRIM(p.first_image_url), '') AS image_url,
-		    COALESCE(requested.overview, korean.overview) AS overview,
+		    requested.overview AS overview,
 		    COALESCE(requested.translation_source, korean.translation_source)
 		        AS translation_source
 		FROM places p
@@ -122,6 +130,14 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		  AND p.active = TRUE
 		  AND p.show_flag = TRUE
 		  AND COALESCE(requested.id, korean.id) IS NOT NULL
+		  AND EXISTS (
+		      SELECT 1
+		      FROM place_localizations publication_en
+		      WHERE publication_en.place_id = p.id
+		        AND publication_en.language = 'EN'
+		        AND publication_en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+		        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+		  )
 		""";
 
 	private static final String PLACE_IMAGES = """
@@ -204,8 +220,7 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		        ),
 		        related.first_image_url
 		    ) AS image_url,
-		    COALESCE(requested.overview, korean.overview)
-		        AS short_description
+		    requested.overview AS short_description
 		FROM (
 		    SELECT
 		        related_place_id,
@@ -227,6 +242,14 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		    ON korean.place_id = related.id
 		   AND korean.language = 'KO'
 		WHERE COALESCE(requested.id, korean.id) IS NOT NULL
+		  AND EXISTS (
+		      SELECT 1
+		      FROM place_localizations publication_en
+		      WHERE publication_en.place_id = related.id
+		        AND publication_en.language = 'EN'
+		        AND publication_en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+		        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+		  )
 		ORDER BY
 		    relation.relation_rank ASC,
 		    relation.relation_id ASC

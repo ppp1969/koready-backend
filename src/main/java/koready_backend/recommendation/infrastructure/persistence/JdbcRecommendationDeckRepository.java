@@ -48,7 +48,7 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		        CASE WHEN ? = 'EN' THEN region.name_en ELSE region.name_ko END
 		    ) AS location_text,
 		    place.first_image_url,
-		    COALESCE(requested.overview, korean.overview) AS overview,
+		    requested.overview AS overview,
 		    place.data_quality_score
 		FROM places place
 		JOIN service_regions region ON region.code = place.service_region_code
@@ -59,6 +59,14 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		WHERE place.active = TRUE
 		  AND place.show_flag = TRUE
 		  AND COALESCE(requested.title, korean.title) IS NOT NULL
+		  AND EXISTS (
+		      SELECT 1
+		      FROM place_localizations publication_en
+		      WHERE publication_en.place_id = place.id
+		        AND publication_en.language = 'EN'
+		        AND publication_en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+		        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+		  )
 		  AND NOT EXISTS (
 		      SELECT 1
 		      FROM user_place_recommendation_states state

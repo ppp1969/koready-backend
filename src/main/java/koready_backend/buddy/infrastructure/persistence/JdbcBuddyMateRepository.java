@@ -90,6 +90,15 @@ public class JdbcBuddyMateRepository implements BuddyMateRepository {
 			    SELECT 1
 			    FROM places
 			    WHERE id = ? AND active = TRUE AND show_flag = TRUE
+			      AND EXISTS (
+			          SELECT 1
+			          FROM place_localizations publication_en
+			          WHERE publication_en.place_id = places.id
+			            AND publication_en.language = 'EN'
+			            AND publication_en.translation_source
+			                IN ('KTO_EN', 'MANUAL_EDITED')
+			            AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+			      )
 			)
 			""",
 			Boolean.class,

@@ -32,7 +32,17 @@ public class JdbcKtoDetailTargetSource implements KtoDetailTargetSource {
 			      sync_status.place_id IS NULL
 			      OR sync_status.next_refresh_at <= CURRENT_TIMESTAMP(6)
 			  )
-			ORDER BY place.id ASC
+			ORDER BY
+			    CASE WHEN EXISTS (
+			        SELECT 1
+			        FROM place_localizations publication_en
+			        WHERE publication_en.place_id = place.id
+			          AND publication_en.language = 'EN'
+			          AND publication_en.translation_source
+			              IN ('KTO_EN', 'MANUAL_EDITED')
+			          AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+			    ) THEN 0 ELSE 1 END,
+			    place.id ASC
 			LIMIT ?
 			""",
 			(resultSet, rowNumber) -> new KtoDetailTarget(

@@ -151,8 +151,22 @@ public class JdbcHoriTipRepository implements HoriTipRepository {
 		}
 		String placeholders = String.join(",", Collections.nCopies(placeIds.size(), "?"));
 		List<Long> rows = jdbcTemplate.query(
-			"SELECT id FROM places WHERE active = TRUE AND show_flag = TRUE AND id IN ("
-				+ placeholders + ")",
+			"""
+			SELECT id
+			FROM places
+			WHERE active = TRUE
+			  AND show_flag = TRUE
+			  AND EXISTS (
+			      SELECT 1
+			      FROM place_localizations publication_en
+			      WHERE publication_en.place_id = places.id
+			        AND publication_en.language = 'EN'
+			        AND publication_en.translation_source
+			            IN ('KTO_EN', 'MANUAL_EDITED')
+			        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+			  )
+			  AND id IN (
+			""" + placeholders + ")",
 			(resultSet, rowNumber) -> resultSet.getLong("id"),
 			placeIds.toArray());
 		return Set.copyOf(rows);

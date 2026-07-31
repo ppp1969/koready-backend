@@ -66,6 +66,7 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		    item.editor_note,
 		    korean.title AS title_ko,
 		    english.title AS title_en,
+		    english.translation_source AS title_en_source,
 		    place.first_image_url,
 		    place.service_region_code,
 		    region.name_ko AS service_region_name_ko,
@@ -256,6 +257,8 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			    place.active,
 			    place.show_flag,
 			    korean.title AS title_ko,
+			    english.title AS title_en,
+			    english.translation_source AS title_en_source,
 			    COALESCE(place.road_address, place.address, korean.address_text) AS address_text,
 			    place.latitude,
 			    place.longitude,
@@ -278,6 +281,8 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			FROM places place
 			LEFT JOIN place_localizations korean
 			    ON korean.place_id = place.id AND korean.language = 'KO'
+			LEFT JOIN place_localizations english
+			    ON english.place_id = place.id AND english.language = 'EN'
 			WHERE place.id IN (%s)
 			""".formatted(placeholders);
 		Map<Long, PlaceRow> places = new HashMap<>();
@@ -395,6 +400,8 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			resultSet.getBoolean("active"),
 			resultSet.getBoolean("show_flag"),
 			resultSet.getString("title_ko"),
+			resultSet.getString("title_en"),
+			resultSet.getString("title_en_source"),
 			resultSet.getString("address_text"),
 			resultSet.getObject("latitude"),
 			resultSet.getObject("longitude"),
@@ -427,6 +434,8 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			resultSet.getBoolean("active"),
 			resultSet.getBoolean("show_flag"),
 			resultSet.getString("title_ko"),
+			resultSet.getString("title_en"),
+			resultSet.getString("title_en_source"),
 			resultSet.getString("address_text"),
 			resultSet.getObject("latitude"),
 			resultSet.getObject("longitude"),
@@ -450,6 +459,10 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		}
 		if (isBlank(place.titleKo())) {
 			reasons.add("MISSING_TITLE_KO");
+		}
+		if (isBlank(place.titleEn())
+			|| !List.of("KTO_EN", "MANUAL_EDITED").contains(place.titleEnSource())) {
+			reasons.add("MISSING_TRUSTED_TITLE_EN");
 		}
 		if (isBlank(place.address())) {
 			reasons.add("MISSING_ADDRESS");
@@ -513,6 +526,8 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		boolean active,
 		boolean showFlag,
 		String titleKo,
+		String titleEn,
+		String titleEnSource,
 		String address,
 		Object latitude,
 		Object longitude,

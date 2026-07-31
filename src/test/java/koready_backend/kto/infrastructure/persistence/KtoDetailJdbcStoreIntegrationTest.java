@@ -142,6 +142,10 @@ class KtoDetailJdbcStoreIntegrationTest {
 		long placeId = place("100", "12");
 
 		store.store(command(placeId));
+		assertTrue(jdbcTemplate.queryForObject(
+			"SELECT show_flag FROM places WHERE id = ?",
+			Boolean.class,
+			placeId));
 
 		Map<String, Object> checkpoint = jdbcTemplate.queryForMap(
 			"""
@@ -187,6 +191,21 @@ class KtoDetailJdbcStoreIntegrationTest {
 			Integer.class,
 			placeId));
 		assertFalse(targetSource.existsAfter(0));
+	}
+
+	@Test
+	void doesNotPublishAnInactivePlaceAfterDetailStorage() throws Exception {
+		long placeId = place("100", "12");
+		jdbcTemplate.update(
+			"UPDATE places SET active = FALSE WHERE id = ?",
+			placeId);
+
+		store.store(command(placeId));
+
+		assertFalse(jdbcTemplate.queryForObject(
+			"SELECT show_flag FROM places WHERE id = ?",
+			Boolean.class,
+			placeId));
 	}
 
 	@Test
@@ -339,7 +358,7 @@ class KtoDetailJdbcStoreIntegrationTest {
 			INSERT INTO places
 				(kto_content_id, kto_content_type_id, service_region_code,
 				 show_flag, active)
-			VALUES (?, ?, 'SEOUL', TRUE, TRUE)
+			VALUES (?, ?, 'SEOUL', FALSE, TRUE)
 			""",
 			contentId,
 			contentTypeId);

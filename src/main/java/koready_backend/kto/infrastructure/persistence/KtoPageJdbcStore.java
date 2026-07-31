@@ -64,7 +64,7 @@ public class KtoPageJdbcStore implements KtoPageStore {
 			tel = VALUES(tel),
 			first_image_url = VALUES(first_image_url),
 			source_modified_time = VALUES(source_modified_time),
-			show_flag = VALUES(show_flag),
+			show_flag = show_flag,
 			active = VALUES(active)
 		""";
 
@@ -334,7 +334,7 @@ public class KtoPageJdbcStore implements KtoPageStore {
 			item.phoneNumber(),
 			item.primaryImageUrl(),
 			modifiedTime(item.modifiedTime()),
-			item.visible(),
+			false,
 			item.visible() && title != null,
 			title,
 			item.sourceHash());

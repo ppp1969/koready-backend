@@ -48,6 +48,12 @@ KTO 접근 키와 private S3 권한이 있는 EB 환경에서만 실행한다.
 ## 저장 및 재실행
 
 - 네 응답의 압축 원문을 private S3에 각각 저장하고 hash와 메타데이터만 DB에 기록한다.
+- KTO 기본 목록으로 새로 들어온 장소는 `show_flag=false`로 저장한다. 네 상세 API 응답과
+  S3·DB 저장이 같은 트랜잭션에서 모두 완료된 뒤에만 `show_flag=true`로 전환되어 공개 장소
+  목록, 검색, 추천, 상세 API에 노출된다.
+- 갱신 대상이었던 기존 공개 장소는 갱신 실패 시에도 마지막 검증 데이터를 계속 노출한다.
+  실패·대기 중인 신규 장소는 공개 API에 나타나지 않으며, 관리자는 batch job과
+  `GET /api/v1/admin/kto/detail-coverage`로 상태를 확인한다.
 - 한 장소의 네 응답을 모두 확보한 뒤 하나의 DB transaction으로 반영한다.
 - 성공한 장소는 네 snapshot ID, 이미지 수, 완료 시각, 다음 갱신 시각을
   `kto_place_detail_sync_status`에 기록한다.

@@ -16,7 +16,7 @@ KoReady는 2026 관광공모전 참가를 위해 개발하는 외국인 유학�
 
 - Java 21
 - Spring Boot 4.1, Spring Framework 7
-- Spring Web MVC, Validation, Security, OAuth2 Client
+- Spring Web MVC, Validation, Security, Google ID Token 검증, KoReady JWT
 - Spring JDBC, Flyway
 - MySQL 8.x, H2 test runtime, Testcontainers
 - Gradle Wrapper
@@ -234,7 +234,7 @@ Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
 
 ### 로컬 Swagger 인증
 
-실제 Google·Apple 로그인과 JWT가 연결되기 전까지 `local` 프로필에서는 Swagger 상단의
+실제 Google 로그인과 JWT를 사용하지 않는 로컬 화면 개발을 위해 `local` 프로필에서는 Swagger 상단의
 **Authorize**에 아래 공개 개발값 중 하나를 입력해 보호 API를 호출할 수 있습니다. Swagger가
 `Bearer` 접두사를 붙이므로 값만 입력합니다.
 
@@ -312,7 +312,7 @@ origin 목록으로 이 값을 축소한다.
 - `PUT /api/v1/admin/kto/english-match-reviews/{sourceRecordId}/decision`: 후보 기반 수동 확정 또는 거절
 - `GET /api/v1/admin/data-quality/summary`: 관광지 준비도·누락 항목·번역 출처의 읽기 전용 집계
 
-소셜 로그인과 JWT 발급은 후속 범위이므로 `prod`에서 위 보호 API를 익명 또는 로컬 개발값으로 호출하면 `401`입니다. 로컬에서만 위 개발 인증 하네스를 사용할 수 있습니다. `staging`에서는 소셜 로그인 도입 전의 제한된 운영 작업을 위해 `KOREADY_STAGING_OPERATOR_ENABLED=true`와 충분히 긴 `KOREADY_STAGING_OPERATOR_TOKEN`을 secret 환경변수로 함께 설정할 수 있습니다. 이 토큰은 `X-Koready-Operator-Token` 헤더가 있는 `/api/v1/admin/**` 요청에만 `OPERATOR` 권한을 부여하며, 값은 로그·문서·클라이언트 코드에 기록하지 않습니다. 위치 검색도 로컬에서는 비식별 fixture를 사용하며 실제 Kakao 호출은 `LOCATION_SEARCH_PROVIDER=kakao`, `KAKAO_REST_API_KEY`, 32바이트 이상의 `LOCATION_SEARCH_TOKEN_SECRET`을 secret 환경변수로 설정한 환경에서만 활성화합니다. private S3 snapshot은 `POST /api/v1/admin/open-api/snapshots/{snapshotId}/download-url`로 기본 5분짜리 GET URL을 발급합니다. `KTO_SNAPSHOT_STORAGE=s3`일 때 보관 정책과 만료 시각이 허용되는 KTO snapshot만 `downloadable=true`이며 URL과 AWS 자격증명은 감사 로그에 저장하지 않습니다. KTO 영문 수동 확정은 matcher가 제시한 국문 장소 후보만 허용하고, 기존 `MANUAL_EDITED` 영문을 보호하며, 인증 작업자·사유·버전·전후 상태를 감사 이력에 남깁니다. KTO 수동 배치는 일일 동기화와 축제 수집만 접수하며, `PENDING` 또는 `RUNNING` 작업이 있으면 새 작업을 `409`로 막습니다. 접수 응답 `202`는 완료가 아니라 대기열 등록이므로 `jobId`로 상태를 조회합니다. 일일 동기화는 `startPage`·`maxPages`, 축제 수집은 여기에 `eventStartDate`를 추가로 받으며 실패 또는 부분 실패 작업만 새 retry job으로 재시도할 수 있습니다. 공모전 증빙 ZIP은 `POST /api/v1/admin/evidence-bundles`로 접수하며 서버가 한 번에 하나씩 생성합니다. ZIP에는 마스킹된 호출·배치·cursor·품질 집계와 허용된 KTO 원본 표본만 들어가고, TMAP 원본·사용자 정보·토큰은 제외합니다. local 저장소에서는 생성·상태 조회까지 가능하며, `KTO_SNAPSHOT_STORAGE=s3` 환경에서만 완성 번들의 5분 signed URL을 발급합니다. sync cursor 변경 API는 외부 호출이나 배치를 시작하지 않고 관리 상태만 변경하며 실행자·사유·전후 값을 감사 로그에 남깁니다. 데이터 품질 요약은 외부 API를 새로 호출하지 않고 저장된 DB의 집계값만 반환합니다. 추천 덱은 테스트 principal과 MySQL fixture로 사용자별 고정 순서, 30일 재노출 제한, 소유권을 검증합니다. 온보딩 완료도 테스트 principal과 MySQL fixture로 검증하며, 태그 점수 정책 승인 전에는 `preferenceTags=[]`를 반환합니다. Buddy 프로필 PUT은 현재 form 전체를 교체합니다. 공개 상세와 장소별 메이트 목록은 프로필·SNS 공개 설정과 양방향 차단을 서버에서 적용하고 메시지 가능 여부를 계산합니다. 메이트 후보는 해당 장소의 활성 저장 기록만 사용하며 온보딩 취향 선택은 공개하지 않습니다. 차단 관계는 방향성 있게 저장하고 반복 PUT에서도 최초 차단 시각을 유지하며, 반복 DELETE는 기록 유무와 관계없이 204를 반환합니다. 첫 쪽지와 답장은 발신자별 `Idempotency-Key`를 DB에서 유일하게 보장하고 공개·수신 허용·양방향 차단을 전송 시점에 다시 검증합니다. 프로필 이미지 업로드, 소셜 로그인/JWT, TMAP Route와 관리자 제재 처리는 후속 범위입니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
+Google 로그인은 `POST /api/v1/auth/google`에서 Google ID Token을 검증하고 KoReady Access/Refresh Token을 발급합니다. 계정 연결에는 이메일이 아니라 Google `sub`를 사용하며 Refresh Token은 해시만 저장하고 사용할 때마다 회전합니다. `prod`에서 보호 API를 익명 또는 로컬 개발값으로 호출하면 `401`이며, 로컬에서만 개발 인증 하네스를 사용할 수 있습니다. `staging`에서는 제한된 운영 작업을 위해 `KOREADY_STAGING_OPERATOR_ENABLED=true`와 충분히 긴 `KOREADY_STAGING_OPERATOR_TOKEN`을 secret 환경변수로 함께 설정할 수 있습니다. 이 토큰은 `X-Koready-Operator-Token` 헤더가 있는 `/api/v1/admin/**` 요청에만 `OPERATOR` 권한을 부여하며, 값은 로그·문서·클라이언트 코드에 기록하지 않습니다. 위치 검색도 로컬에서는 비식별 fixture를 사용하며 실제 Kakao 호출은 `LOCATION_SEARCH_PROVIDER=kakao`, `KAKAO_REST_API_KEY`, 32바이트 이상의 `LOCATION_SEARCH_TOKEN_SECRET`을 secret 환경변수로 설정한 환경에서만 활성화합니다. private S3 snapshot은 `POST /api/v1/admin/open-api/snapshots/{snapshotId}/download-url`로 기본 5분짜리 GET URL을 발급합니다. `KTO_SNAPSHOT_STORAGE=s3`일 때 보관 정책과 만료 시각이 허용되는 KTO snapshot만 `downloadable=true`이며 URL과 AWS 자격증명은 감사 로그에 저장하지 않습니다. KTO 영문 수동 확정은 matcher가 제시한 국문 장소 후보만 허용하고, 기존 `MANUAL_EDITED` 영문을 보호하며, 인증 작업자·사유·버전·전후 상태를 감사 이력에 남깁니다. KTO 수동 배치는 일일 동기화와 축제 수집만 접수하며, `PENDING` 또는 `RUNNING` 작업이 있으면 새 작업을 `409`로 막습니다. 접수 응답 `202`는 완료가 아니라 대기열 등록이므로 `jobId`로 상태를 조회합니다. 일일 동기화는 `startPage`·`maxPages`, 축제 수집은 여기에 `eventStartDate`를 추가로 받으며 실패 또는 부분 실패 작업만 새 retry job으로 재시도할 수 있습니다. 공모전 증빙 ZIP은 `POST /api/v1/admin/evidence-bundles`로 접수하며 서버가 한 번에 하나씩 생성합니다. ZIP에는 마스킹된 호출·배치·cursor·품질 집계와 허용된 KTO 원본 표본만 들어가고, TMAP 원본·사용자 정보·토큰은 제외합니다. local 저장소에서는 생성·상태 조회까지 가능하며, `KTO_SNAPSHOT_STORAGE=s3` 환경에서만 완성 번들의 5분 signed URL을 발급합니다. sync cursor 변경 API는 외부 호출이나 배치를 시작하지 않고 관리 상태만 변경하며 실행자·사유·전후 값을 감사 로그에 남깁니다. 데이터 품질 요약은 외부 API를 새로 호출하지 않고 저장된 DB의 집계값만 반환합니다. 추천 덱은 테스트 principal과 MySQL fixture로 사용자별 고정 순서, 30일 재노출 제한, 소유권을 검증합니다. 온보딩 완료도 테스트 principal과 MySQL fixture로 검증하며, 태그 점수 정책 승인 전에는 `preferenceTags=[]`를 반환합니다. Buddy 프로필 PUT은 현재 form 전체를 교체합니다. 공개 상세와 장소별 메이트 목록은 프로필·SNS 공개 설정과 양방향 차단을 서버에서 적용하고 메시지 가능 여부를 계산합니다. 메이트 후보는 해당 장소의 활성 저장 기록만 사용하며 온보딩 취향 선택은 공개하지 않습니다. 차단 관계는 방향성 있게 저장하고 반복 PUT에서도 최초 차단 시각을 유지하며, 반복 DELETE는 기록 유무와 관계없이 204를 반환합니다. 첫 쪽지와 답장은 발신자별 `Idempotency-Key`를 DB에서 유일하게 보장하고 공개·수신 허용·양방향 차단을 전송 시점에 다시 검증합니다. TMAP Route와 관리자 제재 처리는 후속 범위입니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
 
 `local`과 `staging` 프로필에서는 `/swagger-ui.html`에서 프론트 연동용 Swagger UI를 제공합니다. UI는 `docs/koready-backend-design/openapi.yaml`을 빌드 시 포함한 단일 계약 파일을 표시합니다.
 

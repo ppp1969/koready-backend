@@ -39,6 +39,16 @@ koready:
     cors:
       allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
   security:
+    google:
+      issuer: ${GOOGLE_OAUTH_ISSUER:https://accounts.google.com}
+      jwk-set-uri: ${GOOGLE_OAUTH_JWK_SET_URI:https://www.googleapis.com/oauth2/v3/certs}
+      client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
+    jwt:
+      secret: ${JWT_SECRET:}
+      issuer: ${JWT_ISSUER:https://api.koready.cloud}
+      audience: ${JWT_AUDIENCE:koready-api}
+      access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:15m}
+      refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:30d}
     staging-operator:
       enabled: ${KOREADY_STAGING_OPERATOR_ENABLED:false}
       token: ${KOREADY_STAGING_OPERATOR_TOKEN:}

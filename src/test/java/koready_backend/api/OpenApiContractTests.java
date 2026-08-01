@@ -23,6 +23,9 @@ class OpenApiContractTests {
 	private static final Set<String> HTTP_METHODS = Set.of(
 		"get", "post", "put", "patch", "delete", "options", "head", "trace");
 	private static final Set<String> IMPLEMENTED_OPERATIONS = Set.of(
+		"POST /auth/google",
+		"POST /auth/refresh",
+		"POST /auth/logout",
 		"GET /home",
 		"GET /locations/search",
 		"GET /users/me/locations",
@@ -194,6 +197,44 @@ class OpenApiContractTests {
 		assertTrue(description.contains("local-auditor"));
 		assertTrue(description.contains("local-admin"));
 		assertTrue(description.contains("다른 프로필에서는 모두 401"));
+	}
+
+	@Test
+	void googleAuthContractIsImplementedWithoutAppleOrEmailLinking() throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> google = asMap(
+			asMap(paths.get("/auth/google"), "google auth path").get("post"),
+			"google auth operation");
+		Map<String, Object> refresh = asMap(
+			asMap(paths.get("/auth/refresh"), "refresh path").get("post"),
+			"refresh operation");
+		Map<String, Object> logout = asMap(
+			asMap(paths.get("/auth/logout"), "logout path").get("post"),
+			"logout operation");
+
+		assertEquals("IMPLEMENTED", google.get("x-implementation-status"));
+		assertEquals("IMPLEMENTED", refresh.get("x-implementation-status"));
+		assertEquals("IMPLEMENTED", logout.get("x-implementation-status"));
+		assertEquals(List.of(), asList(google.get("security"), "google security"));
+		assertEquals(List.of(), asList(refresh.get("security"), "refresh security"));
+		assertFalse(logout.containsKey("security"));
+		assertTrue(asMap(google.get("responses"), "google responses")
+			.keySet().containsAll(Set.of("200", "400", "401", "503")));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		assertFalse(schemas.containsKey("SocialProvider"));
+		assertFalse(schemas.containsKey("SocialLoginRequest"));
+		Map<String, Object> request = asMap(
+			schemas.get("GoogleLoginRequest"), "GoogleLoginRequest");
+		assertEquals(
+			List.of("idToken", "deviceId"),
+			asList(request.get("required"), "GoogleLoginRequest.required"));
+		Map<String, Object> properties = asMap(
+			request.get("properties"), "GoogleLoginRequest.properties");
+		assertEquals(Set.of("idToken", "deviceId"), properties.keySet());
+		assertTrue(String.valueOf(google.get("description")).contains("Google `sub`"));
+		assertTrue(String.valueOf(google.get("description")).contains("이메일"));
 	}
 
 	@Test

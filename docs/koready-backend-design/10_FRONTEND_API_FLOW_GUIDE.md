@@ -157,7 +157,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 ```mermaid
 flowchart TD
-    A[앱 시작] --> B[소셜 로그인]
+    A[앱 시작] --> B[Google 로그인]
     B --> C{nextStep}
     C -->|TERMS| D[약관]
     C -->|LANGUAGE| E[언어]
@@ -180,42 +180,47 @@ flowchart TD
     O --> R[메이트와 쪽지]
 ```
 
-로그인과 TMAP은 현재 후순위다. 프론트는 Swagger mock 예제로 화면을 만들 수 있지만 `PLANNED` API를 테스트 서버에서 실제 호출하면 안 된다.
+Google 로그인, token 재발급, 로그아웃은 구현 완료다. Android OAuth 클라이언트가
+생성되면 Expo 개발 빌드에서 실제 Google ID Token으로 staging 연동을 검증한다.
+TMAP처럼 `PLANNED`인 API는 Swagger 예제로만 화면을 만들고 테스트 서버에서 실제
+호출하지 않는다.
 
 ## 4. 앱 시작·로그인·약관 흐름
 
-### 4.1 소셜 로그인
+### 4.1 Google 로그인
 
 ```text
-1. 사용자가 Google 또는 Apple 버튼을 누른다.
-2. 플랫폼 SDK에서 idToken 또는 authorizationCode를 받는다.
-3. POST /auth/social/login을 호출한다.
-4. accessToken/refreshToken은 보안 저장소에 저장한다.
-5. nextStep 값으로 다음 화면을 결정한다.
+1. 앱 설치 시 임의의 deviceId를 한 번 생성해 OS 보안 저장소에 보관한다.
+2. 사용자가 Google 로그인 버튼을 누른다.
+3. Expo 앱의 Google SDK에서 idToken을 받는다.
+4. POST /auth/google로 idToken과 deviceId를 보낸다.
+5. Google idToken은 재사용 목적으로 저장하지 않는다.
+6. 응답의 KoReady accessToken/refreshToken은 OS 보안 저장소에 저장한다.
+7. nextStep 값으로 다음 화면을 결정한다.
 ```
 
-`POST /auth/social/login`
+`POST /auth/google`
 
 ```json
 {
-  "provider": "GOOGLE",
-  "idToken": "provider-id-token",
-  "authorizationCode": null,
-  "deviceId": "device-uuid",
-  "expoPushToken": null
+  "idToken": "google-id-token",
+  "deviceId": "installation-random-id"
 }
 ```
 
 ```json
 {
-  "accessToken": "opaque-access-token",
-  "refreshToken": "opaque-refresh-token",
-  "expiresInSeconds": 3600,
+  "tokenType": "Bearer",
+  "accessToken": "koready-access-jwt",
+  "refreshToken": "rft_rotating-opaque-token",
+  "accessTokenExpiresAt": "2026-08-01T12:15:00Z",
+  "refreshTokenExpiresAt": "2026-08-31T12:00:00Z",
   "user": {
     "userId": 1,
+    "publicId": "usr_1234567890abcdef1234567890abcdef",
     "email": "emma@example.com",
-    "profileImageUrl": "https://...",
-    "preferredLanguage": null
+    "profileImageUrl": null,
+    "preferredLanguage": "KO"
   },
   "nextStep": "TERMS"
 }
@@ -223,11 +228,25 @@ flowchart TD
 
 `nextStep`은 `TERMS | LANGUAGE | ONBOARDING | COMPLETED`다. 신규 가입 여부를 프론트가 임의로 계산하지 않는다.
 
+프론트는 Google Access Token, authorization code, Client Secret을 이 API에 보내지
+않는다. 서버는 Google ID Token의 서명, issuer, Web Client ID audience, 만료,
+`sub`, `email_verified`를 검증한다. 이메일 주소가 같아도 `sub`가 다르면 같은
+KoReady 계정으로 자동 연결하지 않는다.
+
+| 상태 | code | 프론트 처리 |
+|---|---|---|
+| 400 | `INVALID_REQUEST` | idToken/deviceId 생성 및 요청 body 확인 |
+| 401 | `GOOGLE_ID_TOKEN_INVALID` | Google 로그인을 다시 실행하고 새 idToken으로 한 번 재시도 |
+| 503 | `AUTH_UNAVAILABLE` | token을 저장하지 말고 잠시 후 재시도 안내 |
+
 ### 4.2 토큰 재발급과 로그아웃
 
 - `POST /auth/refresh`: `{refreshToken, deviceId}`를 보내고 새 token 쌍으로 둘 다 교체한다.
 - `POST /auth/logout`: 같은 값을 보내고 성공한 `204` 뒤 로컬 token과 사용자 cache를 지운다.
 - refresh token 원문은 일반 앱 로그, Redux persist, URL query에 넣지 않는다.
+- refresh 성공 직후 이전 refresh token은 폐기된다. 동시에 여러 API가 401이어도 refresh
+  요청은 하나만 실행하고 나머지는 같은 Promise를 기다린다.
+- refresh가 401이면 이전 token을 다시 보내지 않고 로그인 상태를 모두 지운다.
 
 ### 4.3 약관
 
@@ -261,8 +280,8 @@ PUT /users/me/term-agreements
 `ONBOARDING`, 온보딩 중이면 계속 `ONBOARDING`, 가입 완료 사용자는 `COMPLETED`다.
 프론트는 저장 전 화면이나 로컬 값으로 다음 단계를 다시 계산하지 않는다.
 
-이 API는 구현 완료지만 소셜 로그인·token 발급 전까지 실행 환경에서는 유효한 인증
-principal이 있어야 호출할 수 있다.
+이 API는 구현 완료이며 Google 로그인 또는 token 재발급으로 받은 access token을
+`Authorization: Bearer {accessToken}`에 넣어 호출한다.
 
 ### 5.2 온보딩 재진입
 

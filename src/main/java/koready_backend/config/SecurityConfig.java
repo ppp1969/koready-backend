@@ -13,6 +13,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
+import koready_backend.auth.infrastructure.security.AccessTokenAuthenticationFilter;
+
 @Configuration
 @EnableMethodSecurity
 @ConditionalOnWebApplication(type = Type.SERVLET)
@@ -23,7 +25,8 @@ public class SecurityConfig {
 		HttpSecurity http,
 		ApiSecurityErrorHandler securityErrorHandler,
 		ObjectProvider<LocalDevAuthenticationFilter> localDevAuthenticationFilter,
-		ObjectProvider<StagingOperatorAuthenticationFilter> stagingOperatorAuthenticationFilter
+		ObjectProvider<StagingOperatorAuthenticationFilter> stagingOperatorAuthenticationFilter,
+		AccessTokenAuthenticationFilter accessTokenAuthenticationFilter
 	) throws Exception {
 		http
 			.csrf(csrf -> csrf.disable())
@@ -39,6 +42,11 @@ public class SecurityConfig {
 					"/openapi/**", "/v3/api-docs/**",
 					"/swagger-ui.html", "/swagger-ui/**")
 				.permitAll()
+				.requestMatchers(
+					HttpMethod.POST,
+					"/api/v1/auth/google",
+					"/api/v1/auth/refresh")
+				.permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/v1/places/*/mates")
 				.authenticated()
 				.requestMatchers(HttpMethod.GET, "/api/v1/places", "/api/v1/places/**")
@@ -51,6 +59,9 @@ public class SecurityConfig {
 				.permitAll()
 				.anyRequest().authenticated());
 
+		http.addFilterBefore(
+			accessTokenAuthenticationFilter,
+			AnonymousAuthenticationFilter.class);
 		localDevAuthenticationFilter.ifAvailable(filter ->
 			http.addFilterBefore(filter, AnonymousAuthenticationFilter.class));
 		stagingOperatorAuthenticationFilter.ifAvailable(filter ->

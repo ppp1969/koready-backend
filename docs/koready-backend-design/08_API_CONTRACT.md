@@ -108,7 +108,6 @@
 
 ```text
 LanguageCode = KO | EN
-SocialProvider = GOOGLE | APPLE
 ExternalApiProvider = KTO | TMAP | KAKAO | AI
 TranslationSource = KTO_KO | KTO_EN | AI_TRANSLATED | MANUAL_EDITED
 
@@ -146,34 +145,38 @@ BuddyStyle =
 
 ## 2. 인증과 약관
 
-## 2.1 소셜 로그인
+## 2.1 Google 로그인
 
-`POST /api/v1/auth/social/login`
+`POST /api/v1/auth/google`
 
 ```json
 {
-  "provider": "GOOGLE",
-  "idToken": "string",
-  "authorizationCode": null,
-  "deviceId": "device-uuid",
-  "expoPushToken": null
+  "idToken": "google-id-token",
+  "deviceId": "installation-random-id"
 }
 ```
 
 ```json
 {
-  "accessToken": "string",
-  "refreshToken": "string",
-  "expiresInSeconds": 3600,
+  "tokenType": "Bearer",
+  "accessToken": "koready-access-jwt",
+  "refreshToken": "rft_rotating-opaque-token",
+  "accessTokenExpiresAt": "2026-08-01T12:15:00Z",
+  "refreshTokenExpiresAt": "2026-08-31T12:00:00Z",
   "user": {
     "userId": 1,
+    "publicId": "usr_1234567890abcdef1234567890abcdef",
     "email": "emma@example.com",
-    "profileImageUrl": "https://...",
-    "preferredLanguage": null
+    "profileImageUrl": null,
+    "preferredLanguage": "KO"
   },
   "nextStep": "TERMS"
 }
 ```
+
+서버는 Google ID Token의 공개키 서명, issuer, Web Client ID audience, 만료,
+`sub`, `email_verified`를 확인한다. 사용자 유일값은 `(GOOGLE, sub)`이며 이메일이
+같다는 이유로 기존 사용자를 자동 연결하지 않는다.
 
 ```text
 nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
@@ -184,7 +187,7 @@ nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
 | Method | URI | 설명 |
 |---|---|---|
 | POST | `/auth/refresh` | refresh token 회전 및 access token 재발급 |
-| POST | `/auth/logout` | 현재 refresh token과 push token 비활성화 |
+| POST | `/auth/logout` | 현재 기기의 refresh token 세션 비활성화 |
 
 `POST /auth/refresh`
 
@@ -1175,7 +1178,7 @@ cursor는 요청자와 placeId에 묶인다. 다른 사용자·다른 장소에�
 
 | 도메인 | Method | URI |
 |---|---|---|
-| Auth | POST | `/auth/social/login` |
+| Auth | POST | `/auth/google` |
 | Auth | POST | `/auth/refresh` |
 | Auth | POST | `/auth/logout` |
 | Terms | GET | `/terms/required` |

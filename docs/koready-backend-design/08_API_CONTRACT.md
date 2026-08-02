@@ -232,6 +232,13 @@ nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
 ```
 
 필수 약관 미동의 시 `422 REQUIRED_TERMS_NOT_AGREED`를 반환한다.
+현재 게시된 약관이 아직 없으면 조회 응답은 빈 배열이며, 저장 요청도
+`{"agreements":[]}`로 보낸다. 이 경우 필수 약관이 없는 것으로 판단해 신규 사용자는
+`NEED_LANGUAGE`로 진행한다.
+
+서버는 현재 시점에 게시·시행된 약관 종류별 최신 버전만 허용한다. 조회 응답에 없는
+과거 버전, 미게시 버전 또는 중복 `termVersionId`를 제출하면
+`400 INVALID_TERM_AGREEMENT`를 반환하며 동의 이력과 가입 상태를 변경하지 않는다.
 
 ---
 

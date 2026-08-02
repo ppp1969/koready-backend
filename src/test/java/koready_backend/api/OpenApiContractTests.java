@@ -26,6 +26,8 @@ class OpenApiContractTests {
 		"POST /auth/google",
 		"POST /auth/refresh",
 		"POST /auth/logout",
+		"GET /terms/required",
+		"PUT /users/me/term-agreements",
 		"GET /home",
 		"GET /locations/search",
 		"GET /users/me/locations",
@@ -235,6 +237,41 @@ class OpenApiContractTests {
 		assertEquals(Set.of("idToken", "deviceId"), properties.keySet());
 		assertTrue(String.valueOf(google.get("description")).contains("Google `sub`"));
 		assertTrue(String.valueOf(google.get("description")).contains("이메일"));
+	}
+
+	@Test
+	void termsContractSupportsAnUnconfiguredInitialState() throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> requiredTerms = asMap(
+			asMap(paths.get("/terms/required"), "required terms path").get("get"),
+			"required terms operation");
+		Map<String, Object> updateAgreements = asMap(
+			asMap(
+				paths.get("/users/me/term-agreements"),
+				"term agreements path")
+				.get("put"),
+			"term agreements operation");
+		String combinedDescription = requiredTerms.get("description")
+			+ "\n" + updateAgreements.get("description");
+
+		assertTrue(combinedDescription.contains("terms=[]"));
+		assertTrue(combinedDescription.contains("agreements=[]"));
+		assertTrue(combinedDescription.contains("INVALID_TERM_AGREEMENT"));
+		assertTrue(asMap(
+			updateAgreements.get("responses"),
+			"term agreements responses").containsKey("400"));
+
+		Map<String, Object> request = asMap(
+			componentSchemas(contract).get("TermAgreementsRequest"),
+			"TermAgreementsRequest");
+		Map<String, Object> agreements = asMap(
+			asMap(
+				request.get("properties"),
+				"TermAgreementsRequest.properties")
+				.get("agreements"),
+			"TermAgreementsRequest.agreements");
+		assertFalse(agreements.containsKey("minItems"));
 	}
 
 	@Test

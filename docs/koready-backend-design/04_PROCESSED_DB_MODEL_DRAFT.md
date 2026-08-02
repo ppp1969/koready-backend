@@ -61,15 +61,15 @@ Refresh token 회전, 로그아웃, 기기별 세션 폐기를 위한 서버 저
 | revoked_at | 로그아웃/강제 폐기 시각 |
 | created_at / last_used_at | 생성/최근 사용 시각 |
 
-## 1.4 terms
+## 1.4 term_definitions
 
 | 컬럼 | 설명 |
 |---|---|
 | id | PK |
-| code | SERVICE_TERMS/PRIVACY_POLICY/MARKETING |
-| title | 약관명 |
-| required | 필수 여부 |
-| active | 사용 여부 |
+| code | 약관 종류를 식별하는 안정적인 unique 값 |
+| display_order | 화면 노출 순서 |
+| enabled | 약관 종류 전체의 사용 여부 |
+| created_at / updated_at | 생성/변경 시각 |
 
 ## 1.5 term_versions
 
@@ -77,10 +77,14 @@ Refresh token 회전, 로그아웃, 기기별 세션 폐기를 위한 서버 저
 |---|---|
 | id | PK |
 | term_id | FK |
-| version | 예: 1.0 |
-| content | 본문 또는 content_url |
-| effective_date | 시행일 |
-| active | 현재 활성 여부 |
+| version_label | 예: 1.0, term 안에서 unique |
+| title | 해당 버전 화면 제목 |
+| content_url | 약관 원문 URL. 초안은 null 가능, 게시 버전은 필수 |
+| required | 해당 버전의 필수 동의 여부 |
+| effective_at | 시행 시각 |
+| published_at | 게시 시각. null이면 초안으로 API에서 제외 |
+| withdrawn_at | 철회 시각. null이면 철회하지 않음 |
+| created_at / updated_at | 생성/변경 시각 |
 
 ## 1.6 user_term_agreements
 
@@ -88,10 +92,27 @@ Refresh token 회전, 로그아웃, 기기별 세션 폐기를 위한 서버 저
 |---|---|
 | id | PK |
 | user_id | FK |
-| term_id | FK |
 | term_version_id | FK |
 | agreed | 동의 여부 |
 | agreed_at | 동의 시각 |
+| created_at / updated_at | 최초 응답/마지막 변경 시각 |
+
+사용자와 약관 버전 조합은 unique다. 같은 버전에 다시 동의해도 최초 `agreed_at`을
+유지하고, 새 약관 버전은 별도 행으로 저장한다.
+
+### 약관 데이터 운영 방식
+
+1. 약관 문구가 확정되기 전에는 세 테이블에 초기 데이터를 넣지 않는다.
+2. 약관 종류가 확정되면 `term_definitions`에 code와 노출 순서를 등록한다.
+3. `term_versions`에 `published_at=null`로 초안을 만들 수 있다.
+4. 원문 URL과 시행 시각이 확정되면 `content_url`, `effective_at`, `published_at`을 설정한다.
+5. 같은 약관 종류에 더 최신 `effective_at`을 가진 게시 버전을 추가하면 API가 자동으로
+   그 버전을 선택하며 이전 버전 동의는 새 버전 동의로 인정하지 않는다.
+6. 특정 버전은 `withdrawn_at`, 약관 종류 전체는 `enabled=false`로 노출을 중단한다.
+
+현재 게시된 필수 약관이 0개이면 `GET /terms/required`는 빈 목록과
+`allRequiredAgreed=true`를 반환한다. `PUT /users/me/term-agreements`에 빈 배열을 보내면
+신규 사용자는 언어 선택 단계로 진행한다.
 
 ## 1.7 user_roles
 

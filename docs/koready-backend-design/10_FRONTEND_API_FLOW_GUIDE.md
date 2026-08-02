@@ -257,9 +257,13 @@ GET /terms/required
 PUT /users/me/term-agreements
   -> 성공하면 언어 화면
   -> REQUIRED_TERMS_NOT_AGREED면 필수 체크 위치로 스크롤
+  -> 약관 목록이 비어 있으면 agreements=[]로 제출
 ```
 
 약관 저장 요청은 `agreements[{termVersionId, agreed}]`다. 화면에 보이는 약관 순번이 아니라 API가 준 `termVersionId`를 그대로 보낸다.
+조회 API가 빈 목록을 반환하는 것은 아직 게시된 약관이 없다는 정상 상태다. 프론트는
+임시 약관 문구를 자체 생성하지 않고 빈 배열을 저장한 뒤 응답의 `nextStep=LANGUAGE`로
+이동한다.
 
 ## 5. 언어·온보딩 흐름
 

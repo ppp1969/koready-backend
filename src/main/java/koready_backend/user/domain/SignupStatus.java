@@ -6,6 +6,10 @@ public enum SignupStatus {
 	NEED_ONBOARDING,
 	COMPLETED;
 
+	public SignupStatus afterTermsAgreement() {
+		return this == NEED_TERMS ? NEED_LANGUAGE : this;
+	}
+
 	public SignupStatus afterLanguageSelection() {
 		return this == NEED_LANGUAGE ? NEED_ONBOARDING : this;
 	}

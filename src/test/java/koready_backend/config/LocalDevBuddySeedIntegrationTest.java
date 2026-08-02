@@ -62,7 +62,7 @@ class LocalDevBuddySeedIntegrationTest {
 			"""
 			INSERT INTO buddy_social_links
 			    (profile_id, link_type, link_value, display_order)
-			VALUES (?, 'THREADS', '@stale_demo', 2)
+			VALUES (?, 'LINE', 'stale_demo', 2)
 			""",
 			profileId);
 		jdbcTemplate.update(

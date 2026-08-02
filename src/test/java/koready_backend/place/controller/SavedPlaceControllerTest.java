@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,6 +26,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.place.application.SavedPlaceService;
+import koready_backend.place.application.port.ResponseLanguageResolver;
 import koready_backend.place.application.exception.PlaceNotFoundException;
 import koready_backend.place.application.exception.SavedPlaceUserUnavailableException;
 import koready_backend.place.domain.PlaceLanguage;
@@ -44,6 +46,17 @@ class SavedPlaceControllerTest {
 
 	@MockitoBean
 	private SavedPlaceService service;
+
+	@MockitoBean
+	private ResponseLanguageResolver languageResolver;
+
+	@BeforeEach
+	void languageDefaults() {
+		when(languageResolver.resolve("usr_saved", "en-US"))
+			.thenReturn(PlaceLanguage.EN);
+		when(languageResolver.resolve("usr_missing", null))
+			.thenReturn(PlaceLanguage.KO);
+	}
 
 	@Test
 	void requiresAuthentication() throws Exception {

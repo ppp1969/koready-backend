@@ -66,6 +66,7 @@ class UserLocationControllerTest {
 			.andExpect(jsonPath("$.data.items[0].locationId").value(101))
 			.andExpect(jsonPath("$.data.items[0].displayName").value("서울시청"))
 			.andExpect(jsonPath("$.data.items[0].customLabel").value("학교"))
+			.andExpect(jsonPath("$.data.items[0].postalCode").value("04524"))
 			.andExpect(jsonPath("$.data.items[0].serviceRegionCode").value("SEOUL"))
 			.andExpect(jsonPath("$.data.items[0].default").value(true));
 	}
@@ -169,6 +170,7 @@ class UserLocationControllerTest {
 			"학교",
 			"서울특별시 중구 세종대로 110",
 			"서울특별시 중구 태평로1가 31",
+			"04524",
 			37.5666,
 			126.9784,
 			ServiceRegionCode.SEOUL,

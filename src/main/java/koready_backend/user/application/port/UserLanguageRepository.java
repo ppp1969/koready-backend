@@ -8,6 +8,8 @@ import koready_backend.user.domain.SignupStatus;
 
 public interface UserLanguageRepository {
 
+	Optional<UserLanguageState> findByPublicId(String publicId);
+
 	Optional<UserLanguageState> findByPublicIdForUpdate(String publicId);
 
 	UserLanguageState update(

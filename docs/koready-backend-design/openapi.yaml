@@ -8,6 +8,9 @@ info:
     각 operation의 설명은 호출 화면, 선행 조건, 성공 후 프론트 행동을 포함합니다.
     `x-implementation-status=PLANNED`인 API는 Swagger 예제와 mock에만 사용하고 테스트 서버에서 호출하지 않습니다.
     전체 화면 흐름과 오류 처리 예제는 `10_FRONTEND_API_FLOW_GUIDE.md`를 참고합니다.
+    로그인 사용자의 다국어 응답은 프로필에 저장한 KO/EN 설정을 우선합니다.
+    비로그인 공개 조회 또는 아직 사용자 레코드가 없는 테스트 요청만 Accept-Language를 사용합니다.
+    장소 카드와 상세의 saved/isSaved는 로그인 사용자의 실제 저장 상태이며 비로그인 조회에서는 false입니다.
 servers:
   - url: /api/v1
 externalDocs:
@@ -3636,6 +3639,8 @@ components:
           $ref: '#/components/schemas/TravelStyle'
         tags:
           type: array
+          minItems: 2
+          maxItems: 3
           items:
             type: string
           example: [지역축제, 로컬음식, 체험]
@@ -3689,6 +3694,12 @@ components:
           type: string
           nullable: true
           example: 서울특별시 성북구 돈암동 173-1
+        postalCode:
+          type: string
+          nullable: true
+          maxLength: 20
+          description: 도로명주소에 연결된 우편번호. 검색 결과에 없으면 장소 저장 시 좌표 기반으로 보완 조회합니다.
+          example: '02844'
         latitude:
           type: number
           format: double
@@ -3734,6 +3745,11 @@ components:
         address:
           type: string
           nullable: true
+        postalCode:
+          type: string
+          nullable: true
+          maxLength: 20
+          description: 저장 시점에 확정한 우편번호
         latitude:
           type: number
           format: double
@@ -3929,9 +3945,10 @@ components:
           minimum: 1
         travelStyles:
           type: array
-          minItems: 1
+          minItems: 4
           maxItems: 4
           uniqueItems: true
+          description: 온보딩 완료 시 7개 여행 스타일 중 정확히 4개를 선택합니다.
           items:
             $ref: '#/components/schemas/TravelStyle'
         candidateSetId:
@@ -4002,7 +4019,8 @@ components:
           nullable: true
         displayTags:
           type: array
-          maxItems: 5
+          minItems: 2
+          maxItems: 3
           uniqueItems: true
           items:
             type: string
@@ -4452,7 +4470,7 @@ components:
         travelStyles:
           type: array
           minItems: 1
-          maxItems: 7
+          maxItems: 4
           uniqueItems: true
           description: 추천에 사용하는 여행 스타일. 온보딩에서 고른 기존 값을 전체 교체
           items:
@@ -4610,7 +4628,7 @@ components:
     SocialLinkType:
       type: string
       description: Buddy 프로필에서 사용자가 공개할 수 있는 SNS 종류
-      enum: [INSTAGRAM, KAKAOTALK, THREADS, TIKTOK, ETC]
+      enum: [INSTAGRAM, TIKTOK, WECHAT, XIAOHONGSHU, LINE, KAKAOTALK]
     AvailablePlaceTab:
       type: string
       description: 장소 상세에서 실제로 노출 가능한 탭
@@ -5684,7 +5702,7 @@ components:
           $ref: '#/components/schemas/KoreanLevel'
         travelStyles:
           type: array
-          maxItems: 7
+          maxItems: 4
           uniqueItems: true
           description: 추천에 사용하는 현재 여행 스타일. 기존 데이터에 아직 값이 없으면 빈 배열
           items:
@@ -6082,7 +6100,8 @@ components:
           nullable: true
         displayTags:
           type: array
-          maxItems: 5
+          minItems: 2
+          maxItems: 3
           items:
             type: string
         editorNote:

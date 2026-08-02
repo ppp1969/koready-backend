@@ -31,6 +31,7 @@ final class LocationSearchDtos {
 			item.sido(),
 			item.sigungu(),
 			item.dong(),
+			item.postalCode(),
 			item.serviceRegionCode());
 	}
 
@@ -50,6 +51,7 @@ final class LocationSearchDtos {
 		String sido,
 		String sigungu,
 		String dong,
+		String postalCode,
 		ServiceRegionCode serviceRegionCode
 	) {
 	}

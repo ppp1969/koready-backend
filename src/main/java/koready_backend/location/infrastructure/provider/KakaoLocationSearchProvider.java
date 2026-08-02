@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -29,6 +30,7 @@ public final class KakaoLocationSearchProvider implements LocationSearchProvider
 
 	private static final String ADDRESS_PATH = "/v2/local/search/address.json";
 	private static final String KEYWORD_PATH = "/v2/local/search/keyword.json";
+	private static final String COORDINATE_ADDRESS_PATH = "/v2/local/geo/coord2address.json";
 	private static final int ADDRESS_MAX_SIZE = 30;
 	private static final int KEYWORD_MAX_SIZE = 15;
 	private static final int READ_BUFFER_BYTES = 8 * 1024;
@@ -63,6 +65,55 @@ public final class KakaoLocationSearchProvider implements LocationSearchProvider
 			results.addAll(parseKeyword(fetch(
 				KEYWORD_PATH, query, Math.min(limit, KEYWORD_MAX_SIZE))));
 			return List.copyOf(results);
+		} catch (LocationProviderUnavailableException exception) {
+			throw exception;
+		} catch (Exception exception) {
+			throw new LocationProviderUnavailableException();
+		}
+	}
+
+	@Override
+	public Optional<String> resolvePostalCode(double latitude, double longitude) {
+		if (properties.restApiKey().isBlank()) {
+			throw new LocationProviderUnavailableException();
+		}
+		if (!Double.isFinite(latitude) || latitude < -90 || latitude > 90
+			|| !Double.isFinite(longitude) || longitude < -180 || longitude > 180) {
+			throw new IllegalArgumentException("Kakao coordinate request is invalid");
+		}
+
+		try {
+			byte[] payload = restClient.get()
+				.uri(uriBuilder -> uriBuilder
+					.path(COORDINATE_ADDRESS_PATH)
+					.queryParam("x", longitude)
+					.queryParam("y", latitude)
+					.queryParam("input_coord", "WGS84")
+					.build())
+				.header(HttpHeaders.AUTHORIZATION, "KakaoAK " + properties.restApiKey())
+				.accept(MediaType.APPLICATION_JSON)
+				.exchange((request, response) -> {
+					if (!response.getStatusCode().is2xxSuccessful()) {
+						throw new LocationProviderUnavailableException();
+					}
+					long contentLength = response.getHeaders().getContentLength();
+					if (contentLength > properties.maxResponseBytes()) {
+						throw new LocationProviderUnavailableException();
+					}
+					return readBounded(response.getBody());
+				});
+			KakaoSearchResponse response =
+				jsonMapper.readValue(payload, KakaoSearchResponse.class);
+			if (response == null || response.documents() == null) {
+				throw new LocationProviderUnavailableException();
+			}
+			return response.documents().stream()
+				.map(KakaoDocument::road_address)
+				.filter(java.util.Objects::nonNull)
+				.map(KakaoAddress::zone_no)
+				.filter(value -> value != null && !value.isBlank())
+				.map(String::strip)
+				.findFirst();
 		} catch (LocationProviderUnavailableException exception) {
 			throw exception;
 		} catch (Exception exception) {
@@ -143,7 +194,10 @@ public final class KakaoLocationSearchProvider implements LocationSearchProvider
 				coordinate(document.x()),
 				region.region_1depth_name(),
 				region.region_2depth_name(),
-				region.region_3depth_name());
+				region.region_3depth_name(),
+				document.road_address() == null
+					? null
+					: document.road_address().zone_no());
 		} catch (IllegalArgumentException exception) {
 			return null;
 		}
@@ -242,7 +296,8 @@ public final class KakaoLocationSearchProvider implements LocationSearchProvider
 		String region_1depth_name,
 		String region_2depth_name,
 		String region_3depth_name,
-		String building_name
+		String building_name,
+		String zone_no
 	) {
 	}
 }

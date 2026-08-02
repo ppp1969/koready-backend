@@ -28,6 +28,7 @@ import koready_backend.location.application.exception.UserLocationUserUnavailabl
 import koready_backend.location.application.exception.InvalidLocationSearchTokenException;
 import koready_backend.location.application.port.LocationSearchTokenCodec;
 import koready_backend.location.application.port.LocationSearchTokenCodec.TokenPayload;
+import koready_backend.location.application.port.LocationSearchProvider;
 import koready_backend.location.application.port.UserLocationRepository;
 import koready_backend.location.application.port.UserLocationRepository.NewLocation;
 import koready_backend.location.application.port.UserLocationRepository.UserAccount;
@@ -44,14 +45,17 @@ class UserLocationServiceTest {
 
 	private final UserLocationRepository repository = mock(UserLocationRepository.class);
 	private final LocationSearchTokenCodec tokenCodec = mock(LocationSearchTokenCodec.class);
+	private final LocationSearchProvider searchProvider = mock(LocationSearchProvider.class);
 	private final UserLocationService service = new UserLocationService(
-		repository, tokenCodec, CLOCK);
+		repository, tokenCodec, searchProvider, CLOCK);
 
 	@Test
 	void createsTheFirstLocationAsDefaultFromTheVerifiedToken() {
 		when(repository.findActiveUserForUpdate("usr_emma"))
 			.thenReturn(Optional.of(new UserAccount(7L, null)));
 		when(tokenCodec.verify("locsrch_valid")).thenReturn(tokenPayload());
+		when(searchProvider.resolvePostalCode(37.5666, 126.9784))
+			.thenReturn(Optional.of("04524"));
 		when(repository.create(eq(7L), any(NewLocation.class), eq(NOW)))
 			.thenReturn(location(101L, "학교"));
 
@@ -66,6 +70,7 @@ class UserLocationServiceTest {
 		assertEquals("서울시청", location.getValue().displayName());
 		assertEquals("학교", location.getValue().customLabel());
 		assertEquals("KAKAO", location.getValue().provider());
+		assertEquals("04524", location.getValue().postalCode());
 		assertEquals(37.5666, location.getValue().latitude());
 		assertEquals(ServiceRegionCode.SEOUL, location.getValue().serviceRegionCode());
 		verify(repository).updateDefaultLocation(7L, 101L, NOW);
@@ -242,6 +247,7 @@ class UserLocationServiceTest {
 			"kakao-100",
 			"서울특별시 중구 세종대로 110",
 			"서울특별시 중구 태평로1가 31",
+			"04524",
 			37.5666,
 			126.9784,
 			"서울특별시",

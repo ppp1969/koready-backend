@@ -77,6 +77,23 @@ class CandidateSetDraftTest {
 	}
 
 	@Test
+	void candidateItemsRequireTwoOrThreeDisplayTags() {
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> new CandidateSetItemDraft(
+				1, 1, null, "Message", null, List.of("one"), null));
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> new CandidateSetItemDraft(
+				1, 1, null, "Message", null,
+				List.of("one", "two", "three", "four"), null));
+		assertDoesNotThrow(() -> new CandidateSetItemDraft(
+			1, 1, null, "Message", null, List.of("one", "two"), null));
+		assertDoesNotThrow(() -> new CandidateSetItemDraft(
+			1, 1, null, "Message", null, List.of("one", "two", "three"), null));
+	}
+
+	@Test
 	void onlyDraftSetsCanBeEdited() {
 		assertDoesNotThrow(() -> CandidateSetStatus.DRAFT.requireEditable());
 
@@ -97,7 +114,7 @@ class CandidateSetDraftTest {
 			null,
 			"Korean curator message",
 			null,
-			List.of("tag" + displayOrder),
+			List.of("tag" + displayOrder, "local"),
 			null);
 	}
 }

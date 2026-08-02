@@ -31,7 +31,7 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 
 	private static final String LOCATION_COLUMNS = """
 		id, user_id, display_name, custom_label, provider, provider_place_id,
-		road_address, address, latitude, longitude, sido, sigungu, dong,
+		road_address, address, postal_code, latitude, longitude, sido, sigungu, dong,
 		service_region_code, created_at
 		""";
 
@@ -122,9 +122,9 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 				"""
 				INSERT INTO user_locations
 				    (user_id, display_name, custom_label, provider, provider_place_id,
-				     road_address, address, latitude, longitude, sido, sigungu, dong,
-				     service_region_code, created_at, updated_at, deleted_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+				     road_address, address, postal_code, latitude, longitude, sido, sigungu,
+				     dong, service_region_code, created_at, updated_at, deleted_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
 				""",
 				Statement.RETURN_GENERATED_KEYS);
 			statement.setLong(1, userId);
@@ -134,14 +134,15 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 			statement.setString(5, location.providerPlaceId());
 			statement.setString(6, location.roadAddress());
 			statement.setString(7, location.address());
-			statement.setDouble(8, location.latitude());
-			statement.setDouble(9, location.longitude());
-			statement.setString(10, location.sido());
-			statement.setString(11, location.sigungu());
-			statement.setString(12, location.dong());
-			statement.setString(13, location.serviceRegionCode().name());
-			statement.setTimestamp(14, timestamp);
+			statement.setString(8, location.postalCode());
+			statement.setDouble(9, location.latitude());
+			statement.setDouble(10, location.longitude());
+			statement.setString(11, location.sido());
+			statement.setString(12, location.sigungu());
+			statement.setString(13, location.dong());
+			statement.setString(14, location.serviceRegionCode().name());
 			statement.setTimestamp(15, timestamp);
+			statement.setTimestamp(16, timestamp);
 			return statement;
 		}, keyHolder);
 
@@ -197,6 +198,7 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 			resultSet.getString("provider_place_id"),
 			resultSet.getString("road_address"),
 			resultSet.getString("address"),
+			resultSet.getString("postal_code"),
 			resultSet.getDouble("latitude"),
 			resultSet.getDouble("longitude"),
 			resultSet.getString("sido"),

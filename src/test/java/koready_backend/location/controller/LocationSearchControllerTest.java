@@ -56,6 +56,7 @@ class LocationSearchControllerTest {
 					"서울특별시",
 					"성북구",
 					"돈암동",
+					"02844",
 					ServiceRegionCode.SEOUL))));
 
 		mockMvc.perform(get("/api/v1/locations/search")
@@ -67,6 +68,7 @@ class LocationSearchControllerTest {
 			.andExpect(jsonPath("$.data.items[0].resultType").value("PLACE"))
 			.andExpect(jsonPath("$.data.items[0].providerPlaceId").value("123456789"))
 			.andExpect(jsonPath("$.data.items[0].name").value("성신여자대학교"))
+			.andExpect(jsonPath("$.data.items[0].postalCode").value("02844"))
 			.andExpect(jsonPath("$.data.items[0].serviceRegionCode").value("SEOUL"));
 	}
 

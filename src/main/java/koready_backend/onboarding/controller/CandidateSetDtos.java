@@ -130,7 +130,8 @@ final class CandidateSetDtos {
 		@Positive Long representativeImageId,
 		@NotBlank @Size(max = 160) String curatorMessageKo,
 		@Size(max = 240) String curatorMessageEn,
-		@NotNull @Size(max = 5) List<@NotBlank @Size(max = 30) String> displayTags,
+		@NotNull @Size(min = 2, max = 3)
+		List<@NotBlank @Size(max = 30) String> displayTags,
 		@Size(max = 500) String editorNote
 	) {
 		CandidateSetItemDraft toDraft() {

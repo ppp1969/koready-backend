@@ -52,7 +52,7 @@ final class OnboardingDtos {
 
 	record CompletionRequest(
 		@NotNull @Positive Long currentLocationId,
-		@NotNull @Size(min = 1, max = 4)
+		@NotNull @Size(min = 4, max = 4)
 		List<@NotNull TravelStyle> travelStyles,
 		@NotBlank @Size(max = 100) String candidateSetId,
 		@NotNull @Min(1) @Max(Integer.MAX_VALUE) Integer candidateSetVersion,

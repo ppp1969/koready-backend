@@ -74,7 +74,8 @@ class HomeServiceTest {
 			eq(RecommendationSort.RECOMMENDED),
 			eq(null),
 			eq(5),
-			eq(PlaceLanguage.EN)))
+			eq(PlaceLanguage.EN),
+			eq(USER_PUBLIC_ID)))
 			.thenReturn(monthlyPage());
 
 		HomeService.Home result = service.getHome(USER_PUBLIC_ID);
@@ -113,6 +114,7 @@ class HomeServiceTest {
 			any(),
 			any(),
 			any(Integer.class),
+			any(),
 			any());
 	}
 

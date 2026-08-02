@@ -20,7 +20,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import koready_backend.common.controller.ApiEnvelope;
 import koready_backend.common.controller.TraceIdFilter;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.place.application.port.ResponseLanguageResolver;
 import koready_backend.recommendation.application.RecommendationDeckService;
 import koready_backend.recommendation.application.RecommendationEventService;
 
@@ -31,13 +31,16 @@ public class RecommendationDeckController {
 
 	private final RecommendationDeckService service;
 	private final RecommendationEventService eventService;
+	private final ResponseLanguageResolver languageResolver;
 
 	public RecommendationDeckController(
 		RecommendationDeckService service,
-		RecommendationEventService eventService
+		RecommendationEventService eventService,
+		ResponseLanguageResolver languageResolver
 	) {
 		this.service = service;
 		this.eventService = eventService;
+		this.languageResolver = languageResolver;
 	}
 
 	@PostMapping
@@ -53,7 +56,7 @@ public class RecommendationDeckController {
 			body.scope(),
 			body.originLocationId(),
 			body.size(),
-			PlaceLanguage.fromAcceptLanguage(acceptLanguage));
+			languageResolver.resolve(authentication.getName(), acceptLanguage));
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiEnvelope.success(
 			"RECOMMENDATION_DECK_CREATED",
 			RecommendationDeckDtos.from(page),

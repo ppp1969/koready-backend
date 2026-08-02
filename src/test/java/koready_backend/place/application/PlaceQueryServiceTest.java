@@ -29,6 +29,7 @@ import koready_backend.place.application.port.PlaceQueryRepository.PlaceDetailRo
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceListCriteria;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceRow;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceSearchCriteria;
+import koready_backend.place.application.port.SavedPlaceStatusPort;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.PlaceSort;
 import koready_backend.place.domain.ServiceRegionCode;
@@ -41,7 +42,42 @@ class PlaceQueryServiceTest {
 		Instant.parse("2026-07-18T03:00:00Z"), ZoneId.of("Asia/Seoul"));
 
 	private final PlaceQueryRepository repository = mock(PlaceQueryRepository.class);
-	private final PlaceQueryService service = new PlaceQueryService(repository, CLOCK);
+	private final SavedPlaceStatusPort savedPlaceStatusPort =
+		mock(SavedPlaceStatusPort.class);
+	private final PlaceQueryService service =
+		new PlaceQueryService(repository, savedPlaceStatusPort, CLOCK);
+
+	@Test
+	void reflectsTheAuthenticatedUsersSavedStateInListsAndDetails() {
+		when(repository.findByRegion(any())).thenReturn(List.of(
+			row(2, "90.00", null),
+			row(1, "80.00", null)));
+		when(repository.findDetail(2L, PlaceLanguage.KO)).thenReturn(Optional.of(
+			new PlaceDetailRow(
+				2L, "Saved Place", ServiceRegionCode.SEOUL, "Seoul", "Address",
+				null, null, null, "Overview", "KTO_KO")));
+		when(savedPlaceStatusPort.findSavedPlaceIds(
+			"usr_saved_state", List.of(2L, 1L)))
+			.thenReturn(java.util.Set.of(2L));
+		when(savedPlaceStatusPort.findSavedPlaceIds(
+			"usr_saved_state", List.of(2L)))
+			.thenReturn(java.util.Set.of(2L));
+
+		PlaceQueryService.PlacePage page = service.getPlaces(
+			ServiceRegionCode.SEOUL,
+			List.of(),
+			PlaceSort.RECOMMENDED,
+			null,
+			20,
+			PlaceLanguage.KO,
+			"usr_saved_state");
+		PlaceQueryService.PlaceDetail detail =
+			service.getPlace(2L, PlaceLanguage.KO, "usr_saved_state");
+
+		assertEquals(List.of(true, false),
+			page.items().stream().map(PlaceQueryService.PlaceCard::saved).toList());
+		assertTrue(detail.isSaved());
+	}
 
 	@Test
 	void createsOpaqueCursorAndDecodesItForTheNextRecommendedPage() {

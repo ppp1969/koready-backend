@@ -89,6 +89,7 @@ public class LocationSearchService {
 			candidate.sido(),
 			candidate.sigungu(),
 			candidate.dong(),
+			candidate.postalCode(),
 			mapped.region());
 	}
 
@@ -161,6 +162,7 @@ public class LocationSearchService {
 		String sido,
 		String sigungu,
 		String dong,
+		String postalCode,
 		ServiceRegionCode serviceRegionCode
 	) {
 	}

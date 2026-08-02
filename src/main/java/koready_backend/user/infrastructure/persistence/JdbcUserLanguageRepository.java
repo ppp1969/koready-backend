@@ -23,6 +23,18 @@ public class JdbcUserLanguageRepository implements UserLanguageRepository {
 	}
 
 	@Override
+	public Optional<UserLanguageState> findByPublicId(String publicId) {
+		return jdbcTemplate.query(
+			"""
+			SELECT id, preferred_language, signup_status, updated_at
+			FROM users
+			WHERE public_id = ? AND deleted_at IS NULL
+			""",
+			this::map,
+			publicId).stream().findFirst();
+	}
+
+	@Override
 	public Optional<UserLanguageState> findByPublicIdForUpdate(String publicId) {
 		return jdbcTemplate.query(
 			"""

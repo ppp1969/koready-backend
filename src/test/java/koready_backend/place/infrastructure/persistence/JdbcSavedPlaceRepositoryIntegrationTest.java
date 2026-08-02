@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -27,6 +28,7 @@ import koready_backend.place.application.port.SavedPlaceRepository.SavedPlaceCri
 import koready_backend.place.application.port.SavedPlaceRepository.SavedPlaceCursor;
 import koready_backend.place.application.port.SavedPlaceRepository.SavedPlaceRecord;
 import koready_backend.place.application.port.SavedPlaceRepository.SavedPlaceRow;
+import koready_backend.place.application.port.SavedPlaceStatusPort;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.SavedPlaceSource;
 
@@ -51,6 +53,9 @@ class JdbcSavedPlaceRepositoryIntegrationTest {
 
 	@Autowired
 	private SavedPlaceRepository repository;
+
+	@Autowired
+	private SavedPlaceStatusPort savedPlaceStatusPort;
 
 	@BeforeEach
 	void migrationIsApplied() {
@@ -124,6 +129,21 @@ class JdbcSavedPlaceRepositoryIntegrationTest {
 		assertEquals(active, repository.findActiveUserId("usr_saved_active").orElseThrow());
 		assertTrue(repository.findActiveUserId("usr_saved_deleted").isEmpty());
 		assertTrue(repository.findActiveUserId("usr_saved_missing").isEmpty());
+	}
+
+	@Test
+	void resolvesSavedStatusForSeveralCardsInOneQuery() {
+		long userId = user("usr_saved_status");
+		long saved = place("saved-status-yes", true, true, "Saved", "Saved");
+		long unsaved = place("saved-status-no", true, true, "Unsaved", "Unsaved");
+		repository.save(userId, saved, SavedPlaceSource.PLACE_DETAIL, FIRST);
+
+		assertEquals(
+			Set.of(saved),
+			savedPlaceStatusPort.findSavedPlaceIds(
+				"usr_saved_status", List.of(saved, unsaved)));
+		assertTrue(savedPlaceStatusPort.findSavedPlaceIds(
+			null, List.of(saved, unsaved)).isEmpty());
 	}
 
 	private long user(String publicId) {

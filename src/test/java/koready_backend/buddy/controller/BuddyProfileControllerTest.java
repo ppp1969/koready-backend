@@ -96,12 +96,11 @@ class BuddyProfileControllerTest {
 	}
 
 	@Test
-	void acceptsSevenTravelStylesAndRejectsThreeSocialLinks() throws Exception {
+	void acceptsFourTravelStylesAndRejectsFiveTravelStylesOrThreeSocialLinks() throws Exception {
 		when(service.upsertMyProfile(eq("usr_emma"), any()))
 			.thenReturn(profile());
-		String allTravelStyles = """
-			["LOCAL_FOOD","LOCAL_FESTIVAL","TRADITIONAL_MARKET",
-			 "CULTURE_EXPERIENCE","NATURE","EXHIBITION_MUSEUM","DRAMA_LOCATION"]
+		String fourTravelStyles = """
+			["LOCAL_FOOD","LOCAL_FESTIVAL","TRADITIONAL_MARKET","CULTURE_EXPERIENCE"]
 			""".replaceAll("\\s+", "");
 
 		mockMvc.perform(put("/api/v1/users/me/buddy-profile")
@@ -109,8 +108,21 @@ class BuddyProfileControllerTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(validRequest().replace(
 					"[\"LOCAL_FOOD\", \"CULTURE_EXPERIENCE\"]",
-					allTravelStyles)))
+					fourTravelStyles)))
 			.andExpect(status().isOk());
+
+		String fiveTravelStyles = """
+			["LOCAL_FOOD","LOCAL_FESTIVAL","TRADITIONAL_MARKET",
+			 "CULTURE_EXPERIENCE","NATURE"]
+			""".replaceAll("\\s+", "");
+		mockMvc.perform(put("/api/v1/users/me/buddy-profile")
+				.with(user("usr_emma").roles("USER"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(validRequest().replace(
+					"[\"LOCAL_FOOD\", \"CULTURE_EXPERIENCE\"]",
+					fiveTravelStyles)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
 		mockMvc.perform(put("/api/v1/users/me/buddy-profile")
 				.with(user("usr_emma").roles("USER"))
@@ -121,7 +133,7 @@ class BuddyProfileControllerTest {
 					[
 					  {"type":"INSTAGRAM","value":"@emma"},
 					  {"type":"KAKAOTALK","value":"emma"},
-					  {"type":"THREADS","value":"@emma"}
+					  {"type":"TIKTOK","value":"@emma"}
 					]
 					""")))
 			.andExpect(status().isBadRequest())

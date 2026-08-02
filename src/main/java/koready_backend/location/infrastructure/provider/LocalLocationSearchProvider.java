@@ -2,6 +2,7 @@ package koready_backend.location.infrastructure.provider;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -69,6 +70,11 @@ public final class LocalLocationSearchProvider implements LocationSearchProvider
 			.filter(candidate -> searchable(candidate).contains(normalized))
 			.limit(Math.max(limit, 1))
 			.toList();
+	}
+
+	@Override
+	public Optional<String> resolvePostalCode(double latitude, double longitude) {
+		return Optional.of("00000");
 	}
 
 	private static String searchable(LocationSearchCandidate candidate) {

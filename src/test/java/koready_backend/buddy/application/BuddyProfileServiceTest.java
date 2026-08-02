@@ -163,7 +163,7 @@ class BuddyProfileServiceTest {
 	}
 
 	@Test
-	void allowsAllSevenTravelStylesButRejectsMoreThanTwoSocialLinks() {
+	void allowsFourTravelStylesButRejectsFiveAndMoreThanTwoSocialLinks() {
 		when(repository.findActiveUserIdForUpdate("usr_emma"))
 			.thenReturn(Optional.of(7L));
 		when(repository.save(eq(7L), any(BuddyProfileDraft.class), eq(NOW)))
@@ -178,7 +178,11 @@ class BuddyProfileServiceTest {
 				"FR",
 				List.of(ProfileLanguage.EN),
 				KoreanLevel.BEGINNER,
-				List.of(TravelStyle.values()),
+				List.of(
+					TravelStyle.LOCAL_FOOD,
+					TravelStyle.LOCAL_FESTIVAL,
+					TravelStyle.TRADITIONAL_MARKET,
+					TravelStyle.CULTURE_EXPERIENCE),
 				"Hello Korea",
 				List.of(),
 				List.of(
@@ -188,7 +192,27 @@ class BuddyProfileServiceTest {
 				true,
 				true));
 
-		assertEquals(7, result.travelStyles().size());
+		assertEquals(4, result.travelStyles().size());
+		assertThrows(IllegalArgumentException.class, () -> service.upsertMyProfile(
+			"usr_emma",
+			new BuddyProfileService.UpsertCommand(
+				null,
+				"Emma",
+				"FR",
+				List.of(ProfileLanguage.EN),
+				KoreanLevel.BEGINNER,
+				List.of(
+					TravelStyle.LOCAL_FOOD,
+					TravelStyle.LOCAL_FESTIVAL,
+					TravelStyle.TRADITIONAL_MARKET,
+					TravelStyle.CULTURE_EXPERIENCE,
+					TravelStyle.NATURE),
+				"Hello Korea",
+				List.of(),
+				List.of(),
+				true,
+				true,
+				true)));
 		assertThrows(IllegalArgumentException.class, () -> service.upsertMyProfile(
 			"usr_emma",
 			new BuddyProfileService.UpsertCommand(
@@ -203,7 +227,7 @@ class BuddyProfileServiceTest {
 				List.of(
 					new BuddySocialLink(SocialLinkType.INSTAGRAM, "@emma"),
 					new BuddySocialLink(SocialLinkType.KAKAOTALK, "emma"),
-					new BuddySocialLink(SocialLinkType.THREADS, "@emma")),
+					new BuddySocialLink(SocialLinkType.LINE, "emma_line")),
 				true,
 				true,
 				true)));

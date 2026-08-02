@@ -23,7 +23,7 @@ import jakarta.validation.constraints.Size;
 import koready_backend.common.controller.ApiEnvelope;
 import koready_backend.common.controller.TraceIdFilter;
 import koready_backend.place.application.SavedPlaceService;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.place.application.port.ResponseLanguageResolver;
 
 @Validated
 @RestController
@@ -31,9 +31,14 @@ import koready_backend.place.domain.PlaceLanguage;
 public class SavedPlaceController {
 
 	private final SavedPlaceService service;
+	private final ResponseLanguageResolver languageResolver;
 
-	public SavedPlaceController(SavedPlaceService service) {
+	public SavedPlaceController(
+		SavedPlaceService service,
+		ResponseLanguageResolver languageResolver
+	) {
 		this.service = service;
+		this.languageResolver = languageResolver;
 	}
 
 	@GetMapping
@@ -49,7 +54,7 @@ public class SavedPlaceController {
 			authentication.getName(),
 			cursor,
 			size,
-			PlaceLanguage.fromAcceptLanguage(acceptLanguage));
+			languageResolver.resolve(authentication.getName(), acceptLanguage));
 		return ApiEnvelope.success(
 			"SAVED_PLACE_LIST_OK",
 			SavedPlaceDtos.from(page),

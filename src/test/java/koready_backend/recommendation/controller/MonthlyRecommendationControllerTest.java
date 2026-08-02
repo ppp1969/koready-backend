@@ -22,6 +22,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.common.controller.TraceIdFilter;
+import koready_backend.place.application.port.ResponseLanguageResolver;
+import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
 import koready_backend.recommendation.application.port.MonthlyRecommendationRepository;
@@ -38,8 +40,13 @@ class MonthlyRecommendationControllerTest {
 	@MockitoBean
 	private MonthlyRecommendationRepository repository;
 
+	@MockitoBean
+	private ResponseLanguageResolver languageResolver;
+
 	@BeforeEach
 	void repositoryDefaults() {
+		when(languageResolver.resolve(null, null)).thenReturn(PlaceLanguage.KO);
+		when(languageResolver.resolve(null, "en-US")).thenReturn(PlaceLanguage.EN);
 		when(repository.count(any())).thenReturn(1L);
 		when(repository.findPage(any())).thenReturn(List.of(new MonthlyRecommendationRow(
 			71L,

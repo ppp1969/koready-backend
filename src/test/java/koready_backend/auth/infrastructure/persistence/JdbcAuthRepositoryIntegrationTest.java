@@ -2,6 +2,7 @@ package koready_backend.auth.infrastructure.persistence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -21,6 +23,7 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import koready_backend.auth.application.port.AuthRepository;
 import koready_backend.auth.domain.GoogleIdentity;
+import koready_backend.auth.domain.UserRole;
 
 @Tag("integration")
 @SpringBootTest
@@ -66,6 +69,34 @@ class JdbcAuthRepositoryIntegrationTest {
 		assertEquals(2, jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM users WHERE public_id LIKE 'usr_google_%'",
 			Integer.class));
+	}
+
+	@Test
+	void defaultsNewUsersToUserAndRejectsUnknownRoles() {
+		var user = repository.createGoogleUser(
+			new GoogleIdentity("google-subject-role", "role@example.com"),
+			"usr_google_role",
+			NOW);
+
+		assertEquals("USER", jdbcTemplate.queryForObject(
+			"SELECT role FROM users WHERE id = ?",
+			String.class,
+			user.id()));
+		assertEquals(UserRole.USER, user.role());
+		jdbcTemplate.update(
+			"UPDATE users SET role = 'ADMIN' WHERE id = ?",
+			user.id());
+		assertEquals(
+			UserRole.ADMIN,
+			repository.findActiveUser(user.id()).orElseThrow().role());
+		var exception = assertThrows(
+			DataAccessException.class,
+			() -> jdbcTemplate.update(
+				"UPDATE users SET role = 'OWNER' WHERE id = ?",
+				user.id()));
+		assertTrue(exception.getMostSpecificCause()
+			.getMessage()
+			.contains("chk_users_role"));
 	}
 
 	@Test

@@ -7,6 +7,7 @@ public record AuthUser(
 	long id,
 	String publicId,
 	String email,
+	UserRole role,
 	PlaceLanguage preferredLanguage,
 	SignupStatus signupStatus,
 	String profileImageUrl

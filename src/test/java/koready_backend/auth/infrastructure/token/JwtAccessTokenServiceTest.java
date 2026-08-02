@@ -12,6 +12,7 @@ import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 
 import koready_backend.auth.application.exception.AuthUnavailableException;
+import koready_backend.auth.domain.UserRole;
 
 class JwtAccessTokenServiceTest {
 
@@ -23,7 +24,7 @@ class JwtAccessTokenServiceTest {
 	void issuesAndVerifiesAnAccessTokenWithThePublicUserId() {
 		var service = service(SECRET);
 
-		var issued = service.issue("usr_a1", NOW);
+		var issued = service.issue("usr_a1", UserRole.USER, NOW);
 		var authenticated = service.verify(issued.value()).orElseThrow();
 
 		assertEquals(NOW.plus(Duration.ofMinutes(15)), issued.expiresAt());
@@ -32,12 +33,23 @@ class JwtAccessTokenServiceTest {
 	}
 
 	@Test
+	void preservesTheDatabaseRoleInTheAccessToken() {
+		var service = service(SECRET);
+
+		var issued = service.issue("usr_admin", UserRole.ADMIN, NOW);
+		var authenticated = service.verify(issued.value()).orElseThrow();
+
+		assertEquals(java.util.Set.of("ADMIN"), authenticated.roles());
+	}
+
+	@Test
 	void aTokenSignedWithAnotherSecretIsRejected() {
 		var issuer = service(SECRET);
 		var verifier = service(
 			"another-test-secret-with-at-least-thirty-two-bytes");
 
-		assertTrue(verifier.verify(issuer.issue("usr_a1", NOW).value()).isEmpty());
+		assertTrue(verifier.verify(
+			issuer.issue("usr_a1", UserRole.USER, NOW).value()).isEmpty());
 	}
 
 	@Test
@@ -46,7 +58,7 @@ class JwtAccessTokenServiceTest {
 
 		assertThrows(
 			AuthUnavailableException.class,
-			() -> service.issue("usr_a1", NOW));
+			() -> service.issue("usr_a1", UserRole.USER, NOW));
 		assertTrue(service.verify("header.payload.signature").isEmpty());
 	}
 

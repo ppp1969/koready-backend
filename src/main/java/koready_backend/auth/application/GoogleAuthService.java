@@ -119,7 +119,7 @@ public class GoogleAuthService {
 
 	private AuthResult issue(AuthUser user, String deviceId, Instant now) {
 		AccessTokenPort.IssuedAccessToken accessToken =
-			accessTokens.issue(user.publicId(), now);
+			accessTokens.issue(user.publicId(), user.role(), now);
 		String refreshToken = refreshTokens.generate();
 		String refreshTokenHash = refreshTokens.hash(refreshToken);
 		String deviceHash = refreshTokens.hash(deviceId);

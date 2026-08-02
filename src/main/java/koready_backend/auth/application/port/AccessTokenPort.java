@@ -4,9 +4,14 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.Set;
 
+import koready_backend.auth.domain.UserRole;
+
 public interface AccessTokenPort {
 
-	IssuedAccessToken issue(String userPublicId, Instant issuedAt);
+	IssuedAccessToken issue(
+		String userPublicId,
+		UserRole role,
+		Instant issuedAt);
 
 	Optional<AuthenticatedAccessToken> verify(String token);
 

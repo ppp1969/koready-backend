@@ -64,6 +64,7 @@ class JdbcUserLocationRepositoryIntegrationTest {
 		assertEquals(created, locations.getFirst());
 		assertEquals(37.5666, created.latitude());
 		assertEquals(126.9784, created.longitude());
+		assertEquals("04524", created.postalCode());
 		assertEquals(ServiceRegionCode.SEOUL, created.serviceRegionCode());
 		assertEquals(created.locationId(), repository
 			.findActiveUser("usr_location_db").orElseThrow().defaultLocationId());
@@ -179,6 +180,7 @@ class JdbcUserLocationRepositoryIntegrationTest {
 			providerPlaceId,
 			"서울특별시 중구 세종대로 110",
 			"서울특별시 중구 태평로1가 31",
+			"04524",
 			37.5666,
 			126.9784,
 			"서울특별시",

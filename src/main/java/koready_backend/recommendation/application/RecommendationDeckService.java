@@ -11,11 +11,13 @@ import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import koready_backend.place.application.port.SavedPlaceStatusPort;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
@@ -43,15 +45,28 @@ public class RecommendationDeckService {
 	private static final Duration DECK_TTL = Duration.ofHours(24);
 
 	private final RecommendationDeckRepository repository;
+	private final SavedPlaceStatusPort savedPlaceStatusPort;
 	private final Clock clock;
 
 	@Autowired
-	public RecommendationDeckService(RecommendationDeckRepository repository) {
-		this(repository, Clock.systemUTC());
+	public RecommendationDeckService(
+		RecommendationDeckRepository repository,
+		SavedPlaceStatusPort savedPlaceStatusPort
+	) {
+		this(repository, savedPlaceStatusPort, Clock.systemUTC());
 	}
 
 	RecommendationDeckService(RecommendationDeckRepository repository, Clock clock) {
+		this(repository, (userPublicId, placeIds) -> Set.of(), clock);
+	}
+
+	RecommendationDeckService(
+		RecommendationDeckRepository repository,
+		SavedPlaceStatusPort savedPlaceStatusPort,
+		Clock clock
+	) {
 		this.repository = repository;
+		this.savedPlaceStatusPort = savedPlaceStatusPort;
 		this.clock = clock;
 	}
 
@@ -95,7 +110,7 @@ public class RecommendationDeckService {
 			now.plus(DECK_TTL),
 			items,
 			pages);
-		return page(repository.createDeck(plan));
+		return page(repository.createDeck(plan), userPublicId);
 	}
 
 	public RecommendationDeckPage getPage(
@@ -106,7 +121,7 @@ public class RecommendationDeckService {
 		StoredDeckPage stored = repository.findPage(
 			userPublicId, deckPublicId, cursor, clock.instant())
 			.orElseThrow(RecommendationDeckNotFoundException::new);
-		return page(stored);
+		return page(stored, userPublicId);
 	}
 
 	private List<CardSnapshot> selectCards(
@@ -199,7 +214,10 @@ public class RecommendationDeckService {
 		return List.copyOf(pages);
 	}
 
-	private static RecommendationDeckPage page(StoredDeckPage stored) {
+	private RecommendationDeckPage page(StoredDeckPage stored, String userPublicId) {
+		Set<Long> savedPlaceIds = savedPlaceStatusPort.findSavedPlaceIds(
+			userPublicId,
+			stored.cards().stream().map(CardSnapshot::placeId).toList());
 		return new RecommendationDeckPage(
 			stored.deckPublicId(),
 			stored.scope(),
@@ -207,20 +225,23 @@ public class RecommendationDeckService {
 				stored.originLocationId(),
 				stored.originDisplayName(),
 				stored.originServiceRegionCode()),
-			stored.cards().stream().map(RecommendationDeckService::card).toList(),
+			stored.cards().stream()
+				.map(snapshot -> card(
+					snapshot, savedPlaceIds.contains(snapshot.placeId())))
+				.toList(),
 			stored.nextCursor(),
 			stored.hasMore(),
 			REMAINING_THRESHOLD,
 			new Deduplication(true, stored.suppressionDays()));
 	}
 
-	private static RecommendationCard card(CardSnapshot snapshot) {
+	private static RecommendationCard card(CardSnapshot snapshot, boolean saved) {
 		return new RecommendationCard(
 			snapshot.placeId(),
 			snapshot.title(),
 			snapshot.locationText(),
 			snapshot.imageUrl(),
-			false,
+			saved,
 			snapshot.tags(),
 			snapshot.shortDescription(),
 			snapshot.serviceRegionCode(),

@@ -33,8 +33,8 @@ public record CandidateSetItemDraft(
 		if (tags == null) {
 			throw new IllegalArgumentException("Display tags are required");
 		}
-		if (tags.size() > 5) {
-			throw new IllegalArgumentException("At most five display tags are allowed");
+		if (tags.size() < 2 || tags.size() > 3) {
+			throw new IllegalArgumentException("Two or three display tags are required");
 		}
 		List<String> normalized = tags.stream()
 			.map(tag -> requiredText(tag, 30, "Display tag"))

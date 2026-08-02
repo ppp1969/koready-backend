@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import koready_backend.place.application.port.SavedPlaceStatusPort;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
@@ -43,13 +45,50 @@ class RecommendationDeckServiceTest {
 	@Mock
 	RecommendationDeckRepository repository;
 
+	@Mock
+	SavedPlaceStatusPort savedPlaceStatusPort;
+
 	private RecommendationDeckService service;
 
 	@BeforeEach
 	void setUp() {
 		service = new RecommendationDeckService(
 			repository,
+			savedPlaceStatusPort,
 			Clock.fixed(NOW, ZoneId.of("Asia/Seoul")));
+	}
+
+	@Test
+	void reflectsTheAuthenticatedUsersSavedStateOnTheReturnedDeckPage() {
+		when(repository.findUserContext(USER_PUBLIC_ID, null))
+			.thenReturn(Optional.of(context()));
+		when(repository.findEligibleCandidates(
+			eq(7L),
+			eq(NOW),
+			eq(PlaceLanguage.KO),
+			eq(RecommendationScope.NEARBY),
+			eq(ServiceRegionCode.SEOUL),
+			any(Integer.class)))
+			.thenReturn(List.of(
+				candidate(1L, ServiceRegionCode.SEOUL, TravelStyle.NATURE, "90.00"),
+				candidate(2L, ServiceRegionCode.SEOUL, TravelStyle.NATURE, "80.00")));
+		when(repository.createDeck(any())).thenAnswer(invocation ->
+			storedFirstPage(invocation.getArgument(0)));
+		when(savedPlaceStatusPort.findSavedPlaceIds(
+			USER_PUBLIC_ID, List.of(1L, 2L)))
+			.thenReturn(Set.of(2L));
+
+		var result = service.createDeck(
+			USER_PUBLIC_ID,
+			RecommendationScope.NEARBY,
+			null,
+			20,
+			PlaceLanguage.KO);
+
+		assertEquals(List.of(false, true),
+			result.cards().stream()
+				.map(RecommendationDeckService.RecommendationCard::saved)
+				.toList());
 	}
 
 	@Test

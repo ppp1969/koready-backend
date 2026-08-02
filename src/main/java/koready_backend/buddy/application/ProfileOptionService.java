@@ -47,10 +47,11 @@ public class ProfileOptionService {
 				option(BuddyStyle.QUIET_TRAVEL, "조용한 여행", "Quiet travel", 6)),
 			List.of(
 				option(SocialLinkType.INSTAGRAM, "인스타그램", "Instagram", 1),
-				option(SocialLinkType.KAKAOTALK, "카카오톡", "KakaoTalk", 2),
-				option(SocialLinkType.THREADS, "스레드", "Threads", 3),
-				option(SocialLinkType.TIKTOK, "틱톡", "TikTok", 4),
-				option(SocialLinkType.ETC, "기타", "Other", 5)));
+				option(SocialLinkType.TIKTOK, "틱톡", "TikTok", 2),
+				option(SocialLinkType.WECHAT, "위챗", "WeChat", 3),
+				option(SocialLinkType.XIAOHONGSHU, "샤오홍슈", "Xiaohongshu", 4),
+				option(SocialLinkType.LINE, "라인", "LINE", 5),
+				option(SocialLinkType.KAKAOTALK, "카카오톡", "KakaoTalk", 6)));
 	}
 
 	private static List<CountryOption> countries() {

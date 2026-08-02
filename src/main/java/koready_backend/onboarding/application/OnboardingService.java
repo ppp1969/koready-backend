@@ -171,10 +171,10 @@ public class OnboardingService {
 		if (command.currentLocationId() <= 0) {
 			throw error(Reason.LOCATION_INVALID, "The location ID must be positive.");
 		}
-		if (!validUniqueList(command.travelStyles(), 1, 4)) {
+		if (!validUniqueList(command.travelStyles(), 4, 4)) {
 			throw error(
 				Reason.TRAVEL_STYLES_INVALID,
-				"Travel styles must contain one to four unique values.");
+				"Travel styles must contain exactly four unique values.");
 		}
 		if (command.candidateSetId() == null || command.candidateSetId().isBlank()
 			|| command.candidateSetVersion() < 1) {

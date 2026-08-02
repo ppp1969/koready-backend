@@ -24,6 +24,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.common.controller.TraceIdFilter;
+import koready_backend.place.application.port.ResponseLanguageResolver;
+import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
 import koready_backend.recommendation.application.RecommendationDeckService;
@@ -44,8 +46,15 @@ class RecommendationDeckControllerTest {
 	@MockitoBean
 	RecommendationDeckService service;
 
+	@MockitoBean
+	ResponseLanguageResolver languageResolver;
+
 	@BeforeEach
 	void serviceDefaults() {
+		when(languageResolver.resolve(USER_PUBLIC_ID, "en-US"))
+			.thenReturn(PlaceLanguage.EN);
+		when(languageResolver.resolve(USER_PUBLIC_ID, null))
+			.thenReturn(PlaceLanguage.KO);
 		when(service.createDeck(
 			eq(USER_PUBLIC_ID),
 			eq(RecommendationScope.NEARBY),

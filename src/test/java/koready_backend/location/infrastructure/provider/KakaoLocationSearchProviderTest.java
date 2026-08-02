@@ -59,6 +59,7 @@ class KakaoLocationSearchProviderTest {
 
 		assertEquals(2, results.size());
 		assertEquals(LocationSearchResultType.ADDRESS, results.get(0).resultType());
+		assertEquals("02844", results.get(0).postalCode());
 		assertEquals("성신여자대학교", results.get(0).name());
 		assertEquals("서울특별시", results.get(0).sido());
 		assertEquals(LocationSearchResultType.PLACE, results.get(1).resultType());
@@ -66,6 +67,28 @@ class KakaoLocationSearchProviderTest {
 		assertEquals("서울", results.get(1).sido());
 		assertEquals("성북구", results.get(1).sigungu());
 		assertEquals("돈암동", results.get(1).dong());
+		server.verify();
+	}
+
+	@Test
+	void resolvesPostalCodeFromCoordinatesWhenAPlaceResultHasNoZoneNumber() {
+		KakaoLocationProperties properties = properties(REST_API_KEY, 512 * 1024);
+		RestClient.Builder builder = RestClient.builder().baseUrl(properties.baseUrl().toString());
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		KakaoLocationSearchProvider provider = provider(builder.build(), properties);
+
+		server.expect(request -> {
+			assertEquals(HttpMethod.GET, request.getMethod());
+			assertEquals("/v2/local/geo/coord2address.json", request.getURI().getPath());
+			assertEquals("KakaoAK " + REST_API_KEY,
+				request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION));
+			var query = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams();
+			assertEquals("127.0165", query.getFirst("x"));
+			assertEquals("37.5928", query.getFirst("y"));
+			assertEquals("WGS84", query.getFirst("input_coord"));
+		}).andRespond(withSuccess(coordinateAddressResponse(), MediaType.APPLICATION_JSON));
+
+		assertEquals("02844", provider.resolvePostalCode(37.5928, 127.0165).orElseThrow());
 		server.verify();
 	}
 
@@ -161,7 +184,8 @@ class KakaoLocationSearchProviderTest {
 			      "region_1depth_name": "서울특별시",
 			      "region_2depth_name": "성북구",
 			      "region_3depth_name": "돈암동",
-			      "building_name": "성신여자대학교"
+			      "building_name": "성신여자대학교",
+			      "zone_no": "02844"
 			    }
 			  }]
 			}
@@ -179,6 +203,30 @@ class KakaoLocationSearchProviderTest {
 			    "road_address_name": "서울 성북구 보문로34다길 2",
 			    "x": "127.0165",
 			    "y": "37.5928"
+			  }]
+			}
+			""";
+	}
+
+	private static String coordinateAddressResponse() {
+		return """
+			{
+			  "meta": {"total_count": 1},
+			  "documents": [{
+			    "address": {
+			      "address_name": "서울 성북구 돈암동 173-1",
+			      "region_1depth_name": "서울특별시",
+			      "region_2depth_name": "성북구",
+			      "region_3depth_name": "돈암동"
+			    },
+			    "road_address": {
+			      "address_name": "서울 성북구 보문로34다길 2",
+			      "region_1depth_name": "서울특별시",
+			      "region_2depth_name": "성북구",
+			      "region_3depth_name": "돈암동",
+			      "building_name": "성신여자대학교",
+			      "zone_no": "02844"
+			    }
 			  }]
 			}
 			""";

@@ -63,7 +63,11 @@ class JdbcOnboardingProfileRepositoryIntegrationTest {
 		candidateItem(candidateSetId, secondPlaceId, 2);
 		CompletionCommand command = new CompletionCommand(
 			locationId,
-			List.of(TravelStyle.LOCAL_FOOD, TravelStyle.NATURE),
+			List.of(
+				TravelStyle.LOCAL_FOOD,
+				TravelStyle.NATURE,
+				TravelStyle.LOCAL_FESTIVAL,
+				TravelStyle.TRADITIONAL_MARKET),
 			"onb-db-v1",
 			101,
 			List.of(secondPlaceId, firstPlaceId));
@@ -76,7 +80,7 @@ class JdbcOnboardingProfileRepositoryIntegrationTest {
 		assertEquals(locationId, jdbcTemplate.queryForObject(
 			"SELECT default_location_id FROM users WHERE id = ?", Long.class, userId));
 		assertEquals(
-			List.of("LOCAL_FOOD", "NATURE"),
+			List.of("LOCAL_FOOD", "NATURE", "LOCAL_FESTIVAL", "TRADITIONAL_MARKET"),
 			jdbcTemplate.queryForList(
 				"SELECT travel_style FROM user_travel_styles WHERE user_id = ? ORDER BY display_order",
 				String.class,
@@ -124,7 +128,11 @@ class JdbcOnboardingProfileRepositoryIntegrationTest {
 			"usr_onboarding_invalid",
 			new CompletionCommand(
 				locationId,
-				List.of(TravelStyle.NATURE),
+				List.of(
+					TravelStyle.NATURE,
+					TravelStyle.LOCAL_FOOD,
+					TravelStyle.LOCAL_FESTIVAL,
+					TravelStyle.TRADITIONAL_MARKET),
 				"onb-db-v2",
 				102,
 				List.of(outsidePlaceId))));
@@ -195,7 +203,7 @@ class JdbcOnboardingProfileRepositoryIntegrationTest {
 			INSERT INTO onboarding_candidate_set_items
 			    (candidate_set_id, place_id, display_order,
 			     curator_message_ko, display_tags_json)
-			VALUES (?, ?, ?, '추천 장소', JSON_ARRAY())
+			VALUES (?, ?, ?, '추천 장소', JSON_ARRAY('curated', 'local'))
 			""",
 			candidateSetId,
 			placeId,

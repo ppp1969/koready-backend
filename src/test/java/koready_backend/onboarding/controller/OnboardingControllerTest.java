@@ -91,7 +91,12 @@ class OnboardingControllerTest {
 				.content("""
 					{
 					  "currentLocationId": 11,
-					  "travelStyles": ["LOCAL_FOOD"],
+					  "travelStyles": [
+					    "LOCAL_FOOD",
+					    "LOCAL_FESTIVAL",
+					    "TRADITIONAL_MARKET",
+					    "CULTURE_EXPERIENCE"
+					  ],
 					  "candidateSetId": "onb-v1",
 					  "candidateSetVersion": 1,
 					  "selectedPreferencePlaceIds": [101]
@@ -103,6 +108,24 @@ class OnboardingControllerTest {
 			.andExpect(jsonPath("$.data.completedAt").value("2026-07-19T05:00:00Z"))
 			.andExpect(jsonPath("$.data.profile.currentLocation.locationId").value(11))
 			.andExpect(jsonPath("$.data.profile.preferenceTags").isEmpty());
+	}
+
+	@Test
+	void rejectsCompletionUnlessExactlyFourTravelStylesAreSelected() throws Exception {
+		mockMvc.perform(put("/api/v1/users/me/onboarding")
+				.with(user("usr_onboarding").roles("USER"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+					  "currentLocationId": 11,
+					  "travelStyles": ["LOCAL_FOOD", "LOCAL_FESTIVAL", "NATURE"],
+					  "candidateSetId": "onb-v1",
+					  "candidateSetVersion": 1,
+					  "selectedPreferencePlaceIds": [101]
+					}
+					"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 	}
 
 	@Test
@@ -125,7 +148,12 @@ class OnboardingControllerTest {
 				.content("""
 					{
 					  "currentLocationId": 11,
-					  "travelStyles": ["NATURE", "NATURE"],
+					  "travelStyles": [
+					    "NATURE",
+					    "NATURE",
+					    "LOCAL_FOOD",
+					    "LOCAL_FESTIVAL"
+					  ],
 					  "candidateSetId": "onb-v1",
 					  "candidateSetVersion": 1,
 					  "selectedPreferencePlaceIds": [101]
@@ -148,7 +176,12 @@ class OnboardingControllerTest {
 				.content("""
 					{
 					  "currentLocationId": 11,
-					  "travelStyles": ["NATURE"],
+					  "travelStyles": [
+					    "NATURE",
+					    "LOCAL_FOOD",
+					    "LOCAL_FESTIVAL",
+					    "TRADITIONAL_MARKET"
+					  ],
 					  "candidateSetId": "onb-v1",
 					  "candidateSetVersion": 1,
 					  "selectedPreferencePlaceIds": [101]

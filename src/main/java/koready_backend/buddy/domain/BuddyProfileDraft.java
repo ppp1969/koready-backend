@@ -38,9 +38,9 @@ public record BuddyProfileDraft(
 		}
 		koreanLevel = Objects.requireNonNull(koreanLevel, "Korean level is required");
 		travelStyles = copyDistinct(travelStyles, true, "Travel styles");
-		if (travelStyles.size() > 7) {
+		if (travelStyles.size() > 4) {
 			throw new IllegalArgumentException(
-				"Travel styles must not contain more than 7 values");
+				"Travel styles must not contain more than 4 values");
 		}
 		bio = optional(bio, 120, "Bio");
 		buddyStyles = copyDistinct(buddyStyles, false, "Buddy styles");

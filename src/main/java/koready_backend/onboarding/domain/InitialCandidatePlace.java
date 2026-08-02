@@ -40,8 +40,8 @@ public record InitialCandidatePlace(
 	}
 
 	private static List<String> normalizeTags(List<String> tags) {
-		if (tags == null || tags.isEmpty() || tags.size() > 5) {
-			throw new IllegalArgumentException("Initial candidate requires between one and five tags");
+		if (tags == null || tags.size() < 2 || tags.size() > 3) {
+			throw new IllegalArgumentException("Initial candidate requires two or three tags");
 		}
 		List<String> normalized = tags.stream()
 			.map(tag -> required(tag, 30, "Display tag"))

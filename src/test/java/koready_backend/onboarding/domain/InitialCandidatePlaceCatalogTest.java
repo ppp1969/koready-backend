@@ -38,7 +38,8 @@ class InitialCandidatePlaceCatalogTest {
 		assertEquals(IntStream.rangeClosed(1, 10).boxed().toList(),
 			places.stream().map(InitialCandidatePlace::displayOrder).toList());
 		assertEquals(10, places.stream().map(InitialCandidatePlace::ktoContentId).distinct().count());
-		assertTrue(places.stream().allMatch(place -> place.displayTags().size() <= 5));
+		assertTrue(places.stream().allMatch(place ->
+			place.displayTags().size() >= 2 && place.displayTags().size() <= 3));
 	}
 
 	@Test

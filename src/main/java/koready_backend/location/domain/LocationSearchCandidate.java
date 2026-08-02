@@ -12,8 +12,35 @@ public record LocationSearchCandidate(
 	double longitude,
 	String sido,
 	String sigungu,
-	String dong
+	String dong,
+	String postalCode
 ) {
+
+	public LocationSearchCandidate(
+		LocationSearchResultType resultType,
+		String providerPlaceId,
+		String name,
+		String roadAddress,
+		String address,
+		double latitude,
+		double longitude,
+		String sido,
+		String sigungu,
+		String dong
+	) {
+		this(
+			resultType,
+			providerPlaceId,
+			name,
+			roadAddress,
+			address,
+			latitude,
+			longitude,
+			sido,
+			sigungu,
+			dong,
+			null);
+	}
 
 	public LocationSearchCandidate {
 		Objects.requireNonNull(resultType, "Location result type is required");
@@ -24,6 +51,7 @@ public record LocationSearchCandidate(
 		roadAddress = nullable(roadAddress, 500, "Location road address");
 		address = nullable(address, 500, "Location address");
 		dong = nullable(dong, 100, "Location dong");
+		postalCode = nullable(postalCode, 20, "Location postal code");
 		if (roadAddress == null && address == null) {
 			throw new IllegalArgumentException("A location address is required");
 		}

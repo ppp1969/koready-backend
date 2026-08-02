@@ -61,6 +61,9 @@ class JdbcUserLanguageRepositoryIntegrationTest {
 		assertEquals(PlaceLanguage.EN, after.language());
 		assertEquals(SignupStatus.NEED_ONBOARDING, after.signupStatus());
 		assertEquals(UPDATED_AT, after.updatedAt());
+		assertEquals(
+			PlaceLanguage.EN,
+			repository.findByPublicId("usr_language_db").orElseThrow().language());
 	}
 
 	@Test
@@ -70,6 +73,7 @@ class JdbcUserLanguageRepositoryIntegrationTest {
 
 		assertTrue(repository.findByPublicIdForUpdate("usr_language_deleted").isEmpty());
 		assertTrue(repository.findByPublicIdForUpdate("usr_language_missing").isEmpty());
+		assertTrue(repository.findByPublicId("usr_language_deleted").isEmpty());
 	}
 
 	private long user(String publicId, String language, String status) {

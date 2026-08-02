@@ -2,8 +2,9 @@ package koready_backend.buddy.domain;
 
 public enum SocialLinkType {
 	INSTAGRAM,
-	KAKAOTALK,
-	THREADS,
 	TIKTOK,
-	ETC
+	WECHAT,
+	XIAOHONGSHU,
+	LINE,
+	KAKAOTALK,
 }

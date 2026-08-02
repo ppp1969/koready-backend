@@ -69,7 +69,8 @@ public class HomeService {
 			RecommendationSort.RECOMMENDED,
 			null,
 			PREVIEW_SIZE,
-			user.preferredLanguage());
+			user.preferredLanguage(),
+			user.userPublicId());
 		return new MonthlyRecommendationPreview(
 			currentMonth.getYear(),
 			currentMonth.getMonthValue(),

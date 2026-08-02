@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import koready_backend.location.application.exception.UserLocationNotFoundException;
 import koready_backend.location.application.exception.UserLocationUserUnavailableException;
 import koready_backend.location.application.port.LocationSearchTokenCodec;
+import koready_backend.location.application.port.LocationSearchProvider;
 import koready_backend.location.application.port.UserLocationRepository;
 import koready_backend.location.application.port.UserLocationRepository.NewLocation;
 import koready_backend.location.application.port.UserLocationRepository.UserAccount;
@@ -27,14 +28,16 @@ public class UserLocationService {
 
 	private final UserLocationRepository repository;
 	private final LocationSearchTokenCodec tokenCodec;
+	private final LocationSearchProvider searchProvider;
 	private final Clock clock;
 
 	@Autowired
 	public UserLocationService(
 		UserLocationRepository repository,
-		LocationSearchTokenCodec tokenCodec
+		LocationSearchTokenCodec tokenCodec,
+		LocationSearchProvider searchProvider
 	) {
-		this(repository, tokenCodec, Clock.systemUTC());
+		this(repository, tokenCodec, searchProvider, Clock.systemUTC());
 	}
 
 	UserLocationService(
@@ -42,8 +45,18 @@ public class UserLocationService {
 		LocationSearchTokenCodec tokenCodec,
 		Clock clock
 	) {
+		this(repository, tokenCodec, (query, limit) -> List.of(), clock);
+	}
+
+	UserLocationService(
+		UserLocationRepository repository,
+		LocationSearchTokenCodec tokenCodec,
+		LocationSearchProvider searchProvider,
+		Clock clock
+	) {
 		this.repository = repository;
 		this.tokenCodec = tokenCodec;
+		this.searchProvider = searchProvider;
 		this.clock = clock;
 	}
 
@@ -66,6 +79,11 @@ public class UserLocationService {
 			.orElseThrow(UserLocationUserUnavailableException::new);
 		var payload = tokenCodec.verify(command.searchResultToken());
 		LocationSearchCandidate candidate = payload.candidate();
+		String postalCode = candidate.postalCode();
+		if (postalCode == null) {
+			postalCode = searchProvider.resolvePostalCode(
+				candidate.latitude(), candidate.longitude()).orElse(null);
+		}
 		Instant now = clock.instant();
 		UserLocationRecord created = repository.create(
 			user.userId(),
@@ -76,6 +94,7 @@ public class UserLocationService {
 				candidate.providerPlaceId(),
 				candidate.roadAddress(),
 				candidate.address(),
+				postalCode,
 				candidate.latitude(),
 				candidate.longitude(),
 				candidate.sido(),
@@ -127,6 +146,7 @@ public class UserLocationService {
 			record.customLabel(),
 			record.roadAddress(),
 			record.address(),
+			record.postalCode(),
 			record.latitude(),
 			record.longitude(),
 			record.serviceRegionCode(),
@@ -165,6 +185,7 @@ public class UserLocationService {
 		String customLabel,
 		String roadAddress,
 		String address,
+		String postalCode,
 		double latitude,
 		double longitude,
 		ServiceRegionCode serviceRegionCode,

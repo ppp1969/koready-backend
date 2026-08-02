@@ -34,6 +34,7 @@ import koready_backend.onboarding.application.CandidateSetService.CandidateSetSu
 import koready_backend.onboarding.application.CandidateSetService.CurrentCandidateItem;
 import koready_backend.onboarding.application.CandidateSetService.CurrentCandidateSet;
 import koready_backend.onboarding.domain.CandidateSetStatus;
+import koready_backend.place.application.port.ResponseLanguageResolver;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
@@ -51,8 +52,12 @@ class CandidateSetControllerTest {
 	@MockitoBean
 	private CandidateSetService service;
 
+	@MockitoBean
+	private ResponseLanguageResolver languageResolver;
+
 	@Test
 	void currentCandidateSetRequiresLoginAndReturnsLocalizedTypedEnvelope() throws Exception {
+		when(languageResolver.resolve("member", "en-US")).thenReturn(PlaceLanguage.EN);
 		when(service.getCurrent(PlaceLanguage.EN)).thenReturn(current());
 
 		mockMvc.perform(get("/api/v1/onboarding/place-candidate-sets/current"))
@@ -120,7 +125,7 @@ class CandidateSetControllerTest {
 					    "placeId": 1,
 					    "displayOrder": 1,
 					    "curatorMessageKo": "Message",
-					    "displayTags": ["tag"]
+					    "displayTags": ["tag", "local"]
 					  }]
 					}
 					"""))
@@ -215,7 +220,7 @@ class CandidateSetControllerTest {
 				1,
 				"Message",
 				null,
-				List.of("tag"),
+				List.of("tag", "local"),
 				null,
 				true,
 				List.of())));

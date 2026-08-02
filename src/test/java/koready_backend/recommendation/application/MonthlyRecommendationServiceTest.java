@@ -17,10 +17,12 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import koready_backend.place.application.port.SavedPlaceStatusPort;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
@@ -41,8 +43,33 @@ class MonthlyRecommendationServiceTest {
 
 	private final MonthlyRecommendationRepository repository =
 		mock(MonthlyRecommendationRepository.class);
+	private final SavedPlaceStatusPort savedPlaceStatusPort =
+		mock(SavedPlaceStatusPort.class);
 	private final MonthlyRecommendationService service =
-		new MonthlyRecommendationService(repository, CLOCK);
+		new MonthlyRecommendationService(repository, savedPlaceStatusPort, CLOCK);
+
+	@Test
+	void reflectsTheAuthenticatedUsersSavedState() {
+		MonthlyRecommendationRow saved = row(
+			31, TODAY.minusDays(1), TODAY.plusDays(1), 0, "90.00");
+		MonthlyRecommendationRow unsaved = row(
+			32, TODAY.plusDays(2), TODAY.plusDays(3), 1, "80.00");
+		when(repository.findPage(any())).thenReturn(List.of(saved, unsaved));
+		when(repository.count(any())).thenReturn(2L);
+		when(savedPlaceStatusPort.findSavedPlaceIds(
+			"usr_monthly", List.of(saved.placeId(), unsaved.placeId())))
+			.thenReturn(Set.of(saved.placeId()));
+
+		var page = service.getMonthlyRecommendations(
+			2026, 7, null, DateFilterType.ALL, null, null, List.of(),
+			RecommendationSort.RECOMMENDED, null, 20, PlaceLanguage.KO,
+			"usr_monthly");
+
+		assertEquals(List.of(true, false),
+			page.items().stream()
+				.map(MonthlyRecommendationService.PlaceCard::saved)
+				.toList());
+	}
 
 	@Test
 	void keepsEndedOccurrenceAndCalculatesEveryStatusFromSeoulToday() {

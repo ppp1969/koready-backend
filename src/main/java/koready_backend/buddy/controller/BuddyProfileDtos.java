@@ -57,7 +57,7 @@ final class BuddyProfileDtos {
 		@NotNull @Size(min = 1, max = 5)
 		List<@NotNull ProfileLanguage> availableLanguages,
 		@NotNull KoreanLevel koreanLevel,
-		@NotNull @Size(min = 1, max = 7)
+		@NotNull @Size(min = 1, max = 4)
 		List<@NotNull TravelStyle> travelStyles,
 		@Size(max = 120) String bio,
 		@Size(max = 6) List<@NotNull BuddyStyle> buddyStyles,

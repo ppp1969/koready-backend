@@ -123,7 +123,7 @@ class CandidateSetServiceTest {
 				null,
 				"Message " + index,
 				null,
-				List.of("tag" + index),
+				List.of("tag" + index, "local"),
 				null,
 				"Place " + index,
 				null,

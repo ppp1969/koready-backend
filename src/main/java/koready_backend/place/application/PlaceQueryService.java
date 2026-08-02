@@ -14,6 +14,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ import koready_backend.place.application.port.PlaceQueryRepository.PlaceDetailRo
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceListCriteria;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceRow;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceSearchCriteria;
+import koready_backend.place.application.port.SavedPlaceStatusPort;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.PlaceSort;
 import koready_backend.place.domain.ServiceRegionCode;
@@ -40,15 +42,28 @@ public class PlaceQueryService {
 	private static final int SHORT_DESCRIPTION_LENGTH = 160;
 
 	private final PlaceQueryRepository repository;
+	private final SavedPlaceStatusPort savedPlaceStatusPort;
 	private final Clock clock;
 
 	@Autowired
-	public PlaceQueryService(PlaceQueryRepository repository) {
-		this(repository, Clock.system(SEOUL_ZONE));
+	public PlaceQueryService(
+		PlaceQueryRepository repository,
+		SavedPlaceStatusPort savedPlaceStatusPort
+	) {
+		this(repository, savedPlaceStatusPort, Clock.system(SEOUL_ZONE));
 	}
 
 	PlaceQueryService(PlaceQueryRepository repository, Clock clock) {
+		this(repository, (userPublicId, placeIds) -> Set.of(), clock);
+	}
+
+	PlaceQueryService(
+		PlaceQueryRepository repository,
+		SavedPlaceStatusPort savedPlaceStatusPort,
+		Clock clock
+	) {
 		this.repository = repository;
+		this.savedPlaceStatusPort = savedPlaceStatusPort;
 		this.clock = clock;
 	}
 
@@ -59,6 +74,19 @@ public class PlaceQueryService {
 		String cursorToken,
 		int size,
 		PlaceLanguage language
+	) {
+		return getPlaces(
+			serviceRegionCode, travelStyles, sort, cursorToken, size, language, null);
+	}
+
+	public PlacePage getPlaces(
+		ServiceRegionCode serviceRegionCode,
+		List<TravelStyle> travelStyles,
+		PlaceSort sort,
+		String cursorToken,
+		int size,
+		PlaceLanguage language,
+		String userPublicId
 	) {
 		List<TravelStyle> normalizedStyles = travelStyles == null
 			? List.of()
@@ -76,7 +104,7 @@ public class PlaceQueryService {
 			language,
 			today));
 
-		return page(rows, size, fingerprint, sort, language, today);
+		return page(rows, size, fingerprint, sort, language, today, userPublicId);
 	}
 
 	public PlacePage search(
@@ -84,6 +112,16 @@ public class PlaceQueryService {
 		String cursorToken,
 		int size,
 		PlaceLanguage language
+	) {
+		return search(query, cursorToken, size, language, null);
+	}
+
+	public PlacePage search(
+		String query,
+		String cursorToken,
+		int size,
+		PlaceLanguage language,
+		String userPublicId
 	) {
 		String normalizedQuery = query.trim().replaceAll("\\s+", " ");
 		String fingerprint = fingerprint("SEARCH", normalizedQuery, language.name());
@@ -96,10 +134,19 @@ public class PlaceQueryService {
 			language,
 			today));
 
-		return page(rows, size, fingerprint, PlaceSort.RECOMMENDED, language, today);
+		return page(
+			rows, size, fingerprint, PlaceSort.RECOMMENDED, language, today, userPublicId);
 	}
 
 	public PlaceDetail getPlace(long placeId, PlaceLanguage language) {
+		return getPlace(placeId, language, null);
+	}
+
+	public PlaceDetail getPlace(
+		long placeId,
+		PlaceLanguage language,
+		String userPublicId
+	) {
 		PlaceDetailRow row = repository.findDetail(placeId, language)
 			.orElseThrow(() -> new PlaceNotFoundException(placeId));
 		PlaceDescription description = description(row);
@@ -119,6 +166,9 @@ public class PlaceQueryService {
 		List<String> availableTabs = description == null
 			? List.of("MATES")
 			: List.of("DESCRIPTION", "MATES");
+		boolean saved = savedPlaceStatusPort
+			.findSavedPlaceIds(userPublicId, List.of(placeId))
+			.contains(placeId);
 
 		return new PlaceDetail(
 			row.placeId(),
@@ -135,7 +185,7 @@ public class PlaceQueryService {
 			facts.parkingInfo(),
 			images,
 			List.of(),
-			false,
+			saved,
 			description,
 			relatedPlaces,
 			availableTabs);
@@ -168,12 +218,16 @@ public class PlaceQueryService {
 		String fingerprint,
 		PlaceSort sort,
 		PlaceLanguage language,
-		LocalDate today
+		LocalDate today,
+		String userPublicId
 	) {
 		boolean hasMore = rows.size() > size;
 		List<PlaceRow> visibleRows = rows.subList(0, Math.min(size, rows.size()));
+		Set<Long> savedPlaceIds = savedPlaceStatusPort.findSavedPlaceIds(
+			userPublicId,
+			visibleRows.stream().map(PlaceRow::placeId).toList());
 		List<PlaceCard> items = visibleRows.stream()
-			.map(row -> card(row, language, today))
+			.map(row -> card(row, language, today, savedPlaceIds.contains(row.placeId())))
 			.toList();
 		String nextCursor = null;
 		if (hasMore && !visibleRows.isEmpty()) {
@@ -187,7 +241,12 @@ public class PlaceQueryService {
 		return new PlacePage(items, nextCursor, hasMore, null);
 	}
 
-	private PlaceCard card(PlaceRow row, PlaceLanguage language, LocalDate today) {
+	private PlaceCard card(
+		PlaceRow row,
+		PlaceLanguage language,
+		LocalDate today,
+		boolean saved
+	) {
 		FestivalOccurrenceSummary occurrence = occurrence(row.festivalOccurrence(), language, today);
 		return new PlaceCard(
 			row.placeId(),
@@ -200,7 +259,7 @@ public class PlaceQueryService {
 			row.travelStyle(),
 			List.of(),
 			shortDescription(row.overview()),
-			false);
+			saved);
 	}
 
 	private static FestivalOccurrenceSummary occurrence(

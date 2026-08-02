@@ -162,7 +162,11 @@ class OnboardingServiceTest {
 	void rejectsDuplicateValuesAndAnUnavailablePrincipal() {
 		CompletionCommand duplicateStyles = new CompletionCommand(
 			11L,
-			List.of(TravelStyle.NATURE, TravelStyle.NATURE),
+			List.of(
+				TravelStyle.NATURE,
+				TravelStyle.NATURE,
+				TravelStyle.LOCAL_FOOD,
+				TravelStyle.LOCAL_FESTIVAL),
 			"onb-v1",
 			1,
 			List.of(101L));
@@ -184,7 +188,11 @@ class OnboardingServiceTest {
 	private static CompletionCommand command() {
 		return new CompletionCommand(
 			11L,
-			List.of(TravelStyle.LOCAL_FOOD, TravelStyle.LOCAL_FESTIVAL),
+			List.of(
+				TravelStyle.LOCAL_FOOD,
+				TravelStyle.LOCAL_FESTIVAL,
+				TravelStyle.TRADITIONAL_MARKET,
+				TravelStyle.CULTURE_EXPERIENCE),
 			"onb-v1",
 			1,
 			List.of(101L, 102L));

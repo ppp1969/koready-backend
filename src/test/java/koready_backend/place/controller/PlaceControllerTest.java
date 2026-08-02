@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,6 +25,8 @@ import koready_backend.common.controller.TraceIdFilter;
 import koready_backend.place.application.port.PlaceQueryRepository;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceDetailRow;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceRow;
+import koready_backend.place.application.port.ResponseLanguageResolver;
+import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
 
@@ -37,6 +40,15 @@ class PlaceControllerTest {
 
 	@MockitoBean
 	private PlaceQueryRepository repository;
+
+	@MockitoBean
+	private ResponseLanguageResolver languageResolver;
+
+	@BeforeEach
+	void languageDefaults() {
+		when(languageResolver.resolve(null, null)).thenReturn(PlaceLanguage.KO);
+		when(languageResolver.resolve(null, "en-US")).thenReturn(PlaceLanguage.EN);
+	}
 
 	@Test
 	void returnsPublicPlaceListWithTypedEnvelopeAndTraceId() throws Exception {

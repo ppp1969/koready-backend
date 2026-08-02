@@ -146,6 +146,7 @@ public final class HmacLocationSearchTokenCodec implements LocationSearchTokenCo
 		String sido,
 		String sigungu,
 		String dong,
+		String postalCode,
 		ServiceRegionCode serviceRegionCode,
 		Instant expiresAt
 	) {
@@ -167,6 +168,7 @@ public final class HmacLocationSearchTokenCodec implements LocationSearchTokenCo
 				candidate.sido(),
 				candidate.sigungu(),
 				candidate.dong(),
+				candidate.postalCode(),
 				serviceRegionCode,
 				expiresAt);
 		}
@@ -186,7 +188,8 @@ public final class HmacLocationSearchTokenCodec implements LocationSearchTokenCo
 					longitude,
 					sido,
 					sigungu,
-					dong),
+					dong,
+					postalCode),
 				serviceRegionCode,
 				expiresAt);
 		}

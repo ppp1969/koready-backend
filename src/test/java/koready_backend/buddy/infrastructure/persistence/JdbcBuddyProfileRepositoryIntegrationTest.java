@@ -74,7 +74,7 @@ class JdbcBuddyProfileRepositoryIntegrationTest {
 			updated.profile().travelStyles());
 		assertEquals(List.of(BuddyStyle.QUIET_TRAVEL), updated.profile().buddyStyles());
 		assertEquals(
-			List.of(new BuddySocialLink(SocialLinkType.THREADS, "@emma_new")),
+			List.of(new BuddySocialLink(SocialLinkType.LINE, "emma_line")),
 			updated.profile().socialLinks());
 		assertEquals(1, count("buddy_profiles", "user_id", userId));
 		assertEquals(1, count("buddy_profile_languages", "profile_id", updated.profileId()));
@@ -167,7 +167,7 @@ class JdbcBuddyProfileRepositoryIntegrationTest {
 			List.of(TravelStyle.NATURE),
 			null,
 			List.of(BuddyStyle.QUIET_TRAVEL),
-			List.of(new BuddySocialLink(SocialLinkType.THREADS, "@emma_new")),
+			List.of(new BuddySocialLink(SocialLinkType.LINE, "emma_line")),
 			false,
 			false,
 			false);

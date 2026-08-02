@@ -16,11 +16,13 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.place.application.port.SavedPlaceStatusPort;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
 import koready_backend.recommendation.application.exception.InvalidDateRangeException;
@@ -42,15 +44,28 @@ public class MonthlyRecommendationService {
 	private static final int SHORT_DESCRIPTION_LENGTH = 160;
 
 	private final MonthlyRecommendationRepository repository;
+	private final SavedPlaceStatusPort savedPlaceStatusPort;
 	private final Clock clock;
 
 	@Autowired
-	public MonthlyRecommendationService(MonthlyRecommendationRepository repository) {
-		this(repository, Clock.system(SEOUL_ZONE));
+	public MonthlyRecommendationService(
+		MonthlyRecommendationRepository repository,
+		SavedPlaceStatusPort savedPlaceStatusPort
+	) {
+		this(repository, savedPlaceStatusPort, Clock.system(SEOUL_ZONE));
 	}
 
 	MonthlyRecommendationService(MonthlyRecommendationRepository repository, Clock clock) {
+		this(repository, (userPublicId, placeIds) -> Set.of(), clock);
+	}
+
+	MonthlyRecommendationService(
+		MonthlyRecommendationRepository repository,
+		SavedPlaceStatusPort savedPlaceStatusPort,
+		Clock clock
+	) {
 		this.repository = repository;
+		this.savedPlaceStatusPort = savedPlaceStatusPort;
 		this.clock = clock;
 	}
 
@@ -66,6 +81,35 @@ public class MonthlyRecommendationService {
 		String cursorToken,
 		int size,
 		PlaceLanguage language
+	) {
+		return getMonthlyRecommendations(
+			year,
+			month,
+			serviceRegionCode,
+			dateFilterType,
+			customStartDate,
+			customEndDate,
+			travelStyles,
+			sort,
+			cursorToken,
+			size,
+			language,
+			null);
+	}
+
+	public MonthlyRecommendationPage getMonthlyRecommendations(
+		int year,
+		int month,
+		ServiceRegionCode serviceRegionCode,
+		DateFilterType dateFilterType,
+		LocalDate customStartDate,
+		LocalDate customEndDate,
+		List<TravelStyle> travelStyles,
+		RecommendationSort sort,
+		String cursorToken,
+		int size,
+		PlaceLanguage language,
+		String userPublicId
 	) {
 		LocalDate today = LocalDate.now(clock);
 		List<TravelStyle> normalizedStyles = travelStyles == null
@@ -117,8 +161,12 @@ public class MonthlyRecommendationService {
 		boolean hasMore = rows.size() > size;
 		List<MonthlyRecommendationRow> visibleRows =
 			rows.subList(0, Math.min(size, rows.size()));
+		Set<Long> savedPlaceIds = savedPlaceStatusPort.findSavedPlaceIds(
+			userPublicId,
+			visibleRows.stream().map(MonthlyRecommendationRow::placeId).toList());
 		List<PlaceCard> items = visibleRows.stream()
-			.map(row -> card(row, language, today))
+			.map(row -> card(
+				row, language, today, savedPlaceIds.contains(row.placeId())))
 			.toList();
 		String nextCursor = null;
 		if (hasMore && !visibleRows.isEmpty()) {
@@ -172,7 +220,8 @@ public class MonthlyRecommendationService {
 	private static PlaceCard card(
 		MonthlyRecommendationRow row,
 		PlaceLanguage language,
-		LocalDate today
+		LocalDate today,
+		boolean saved
 	) {
 		FestivalOccurrenceStatus status = FestivalOccurrenceStatus.from(
 			row.startDate(), row.endDate(), today);
@@ -197,7 +246,7 @@ public class MonthlyRecommendationService {
 			row.travelStyle(),
 			List.of(),
 			shortDescription(row.overview()),
-			false);
+			saved);
 	}
 
 	private static String shortDescription(String overview) {

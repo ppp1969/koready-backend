@@ -3,6 +3,7 @@ package koready_backend.place.controller;
 import java.util.List;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -18,9 +19,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import koready_backend.common.controller.ApiEnvelope;
+import koready_backend.common.controller.AuthenticatedSubject;
 import koready_backend.common.controller.TraceIdFilter;
 import koready_backend.place.application.PlaceQueryService;
-import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.place.application.port.ResponseLanguageResolver;
 import koready_backend.place.domain.PlaceSort;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
@@ -31,9 +33,14 @@ import koready_backend.place.domain.TravelStyle;
 public class PlaceController {
 
 	private final PlaceQueryService placeQueryService;
+	private final ResponseLanguageResolver languageResolver;
 
-	public PlaceController(PlaceQueryService placeQueryService) {
+	public PlaceController(
+		PlaceQueryService placeQueryService,
+		ResponseLanguageResolver languageResolver
+	) {
 		this.placeQueryService = placeQueryService;
+		this.languageResolver = languageResolver;
 	}
 
 	@GetMapping
@@ -44,15 +51,18 @@ public class PlaceController {
 		@RequestParam(required = false) String cursor,
 		@RequestParam(defaultValue = "20") @Min(1) @Max(50) int size,
 		@RequestHeader(name = HttpHeaders.ACCEPT_LANGUAGE, required = false) String acceptLanguage,
+		Authentication authentication,
 		HttpServletRequest request
 	) {
+		String userPublicId = AuthenticatedSubject.optional(authentication);
 		PlaceQueryService.PlacePage page = placeQueryService.getPlaces(
 			serviceRegionCode,
 			travelStyles,
 			sort,
 			cursor,
 			size,
-			PlaceLanguage.fromAcceptLanguage(acceptLanguage));
+			languageResolver.resolve(userPublicId, acceptLanguage),
+			userPublicId);
 		return ApiEnvelope.success(
 			"PLACE_LIST_OK", PlaceDtos.from(page), TraceIdFilter.current(request));
 	}
@@ -63,13 +73,16 @@ public class PlaceController {
 		@RequestParam(required = false) String cursor,
 		@RequestParam(defaultValue = "20") @Min(1) @Max(50) int size,
 		@RequestHeader(name = HttpHeaders.ACCEPT_LANGUAGE, required = false) String acceptLanguage,
+		Authentication authentication,
 		HttpServletRequest request
 	) {
+		String userPublicId = AuthenticatedSubject.optional(authentication);
 		PlaceQueryService.PlacePage page = placeQueryService.search(
 			query,
 			cursor,
 			size,
-			PlaceLanguage.fromAcceptLanguage(acceptLanguage));
+			languageResolver.resolve(userPublicId, acceptLanguage),
+			userPublicId);
 		return ApiEnvelope.success(
 			"PLACE_SEARCH_OK", PlaceDtos.from(page), TraceIdFilter.current(request));
 	}
@@ -78,10 +91,14 @@ public class PlaceController {
 	public ApiEnvelope<PlaceDtos.PlaceDetailResponse> getPlace(
 		@PathVariable @Positive long placeId,
 		@RequestHeader(name = HttpHeaders.ACCEPT_LANGUAGE, required = false) String acceptLanguage,
+		Authentication authentication,
 		HttpServletRequest request
 	) {
+		String userPublicId = AuthenticatedSubject.optional(authentication);
 		PlaceQueryService.PlaceDetail detail = placeQueryService.getPlace(
-			placeId, PlaceLanguage.fromAcceptLanguage(acceptLanguage));
+			placeId,
+			languageResolver.resolve(userPublicId, acceptLanguage),
+			userPublicId);
 		return ApiEnvelope.success(
 			"PLACE_DETAIL_OK", PlaceDtos.from(detail), TraceIdFilter.current(request));
 	}

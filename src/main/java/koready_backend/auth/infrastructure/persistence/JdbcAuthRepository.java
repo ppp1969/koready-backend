@@ -16,6 +16,7 @@ import koready_backend.auth.application.port.AuthRepository;
 import koready_backend.auth.domain.AuthUser;
 import koready_backend.auth.domain.GoogleIdentity;
 import koready_backend.auth.domain.RefreshSession;
+import koready_backend.auth.domain.UserRole;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.user.domain.SignupStatus;
 
@@ -26,6 +27,7 @@ public class JdbcAuthRepository implements AuthRepository {
 		SELECT owner.id,
 		       owner.public_id,
 		       identity.email,
+		       owner.role,
 		       owner.preferred_language,
 		       owner.signup_status,
 		       profile.profile_image_url
@@ -212,6 +214,7 @@ public class JdbcAuthRepository implements AuthRepository {
 			resultSet.getLong("id"),
 			resultSet.getString("public_id"),
 			resultSet.getString("email"),
+			UserRole.valueOf(resultSet.getString("role")),
 			PlaceLanguage.valueOf(resultSet.getString("preferred_language")),
 			SignupStatus.valueOf(resultSet.getString("signup_status")),
 			resultSet.getString("profile_image_url"));

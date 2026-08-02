@@ -25,11 +25,11 @@ import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 
 import koready_backend.auth.application.exception.AuthUnavailableException;
 import koready_backend.auth.application.port.AccessTokenPort;
+import koready_backend.auth.domain.UserRole;
 
 public final class JwtAccessTokenService implements AccessTokenPort {
 
 	private static final String TOKEN_TYPE = "access";
-	private static final Set<String> USER_ROLES = Set.of("USER");
 
 	private final String issuer;
 	private final String audience;
@@ -75,9 +75,16 @@ public final class JwtAccessTokenService implements AccessTokenPort {
 	}
 
 	@Override
-	public IssuedAccessToken issue(String userPublicId, Instant issuedAt) {
+	public IssuedAccessToken issue(
+		String userPublicId,
+		UserRole role,
+		Instant issuedAt
+	) {
 		if (encoder == null) {
 			throw new AuthUnavailableException();
+		}
+		if (role == null) {
+			throw new IllegalArgumentException("User role is required");
 		}
 		Instant expiresAt = issuedAt.plus(ttl);
 		JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
@@ -91,7 +98,7 @@ public final class JwtAccessTokenService implements AccessTokenPort {
 			.expiresAt(expiresAt)
 			.id(UUID.randomUUID().toString())
 			.claim("typ", TOKEN_TYPE)
-			.claim("roles", USER_ROLES)
+			.claim("roles", Set.of(role.name()))
 			.build();
 		String value = encoder.encode(
 			JwtEncoderParameters.from(header, claims)).getTokenValue();

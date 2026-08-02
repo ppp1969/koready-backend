@@ -29,6 +29,7 @@ import koready_backend.auth.application.port.UserPublicIdGenerator;
 import koready_backend.auth.domain.AuthUser;
 import koready_backend.auth.domain.GoogleIdentity;
 import koready_backend.auth.domain.RefreshSession;
+import koready_backend.auth.domain.UserRole;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.user.domain.NextStep;
 import koready_backend.user.domain.SignupStatus;
@@ -117,7 +118,11 @@ class GoogleAuthServiceTest {
 
 	@Test
 	void refreshRotatesTheStoredTokenAndRejectsAReusedSession() {
-		AuthUser user = user(41L, "usr_a1", "verified@example.com");
+		AuthUser user = user(
+			41L,
+			"usr_a1",
+			"verified@example.com",
+			UserRole.ADMIN);
 		RefreshSession session = new RefreshSession(
 			7L,
 			41L,
@@ -131,7 +136,7 @@ class GoogleAuthServiceTest {
 			.thenReturn(Optional.of(session))
 			.thenReturn(Optional.of(session.revokedAt(NOW)));
 		when(repository.findActiveUser(41L)).thenReturn(Optional.of(user));
-		when(accessTokens.issue(user.publicId(), NOW))
+		when(accessTokens.issue(user.publicId(), UserRole.ADMIN, NOW))
 			.thenReturn(new AccessTokenPort.IssuedAccessToken(
 				"new-access", NOW.plusSeconds(900)));
 		when(refreshTokens.generate()).thenReturn("new-refresh");
@@ -186,7 +191,7 @@ class GoogleAuthServiceTest {
 		String refreshToken,
 		String refreshHash
 	) {
-		when(accessTokens.issue(user.publicId(), NOW))
+		when(accessTokens.issue(user.publicId(), user.role(), NOW))
 			.thenReturn(new AccessTokenPort.IssuedAccessToken(
 				accessToken, NOW.plusSeconds(900)));
 		when(refreshTokens.generate()).thenReturn(refreshToken);
@@ -195,10 +200,20 @@ class GoogleAuthServiceTest {
 	}
 
 	private static AuthUser user(long id, String publicId, String email) {
+		return user(id, publicId, email, UserRole.USER);
+	}
+
+	private static AuthUser user(
+		long id,
+		String publicId,
+		String email,
+		UserRole role
+	) {
 		return new AuthUser(
 			id,
 			publicId,
 			email,
+			role,
 			PlaceLanguage.KO,
 			SignupStatus.NEED_TERMS,
 			null);

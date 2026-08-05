@@ -183,6 +183,35 @@ tasks.register('bootstrapCuratedOnboarding', JavaExec) {
 	}
 }
 
+tasks.register('reportKtoClassificationDryRun', JavaExec) {
+	description = 'Reports KTO Rule Base v1 candidates without changing database records.'
+	group = 'verification'
+	dependsOn tasks.named('classes')
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'koready_backend.kto.infrastructure.runner.KtoClassificationDryRunApplication'
+	minHeapSize = '128m'
+	maxHeapSize = '256m'
+	jvmArgs '-XX:MaxMetaspaceSize=128m'
+	systemProperty 'spring.devtools.restart.enabled', 'false'
+
+	doFirst {
+		def profile = providers.gradleProperty('profile').getOrElse('local')
+		if (!(profile in ['local', 'staging'])) {
+			throw new GradleException('KTO classification dry run profile must be local or staging')
+		}
+		setArgs([
+			"--spring.profiles.active=${profile}",
+			'--spring.devtools.restart.enabled=false',
+			'--spring.devtools.add-properties=false',
+			'--spring.flyway.enabled=false',
+			'--spring.datasource.hikari.read-only=true',
+			"--koready.kto.classification-dry-run.page-size=${providers.gradleProperty('pageSize').getOrElse('500')}",
+			"--koready.kto.classification-dry-run.example-limit=${providers.gradleProperty('exampleLimit').getOrElse('3')}",
+			"--koready.kto.classification-dry-run.output=${providers.gradleProperty('output').getOrElse('build/reports/kto-classification-dry-run.json')}"
+		])
+	}
+}
+
 tasks.named('processResources') {
 	from('docs/koready-backend-design/openapi.yaml') {
 		into 'static/openapi'

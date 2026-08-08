@@ -87,3 +87,22 @@ build/reports/kto-classification-dry-run.json
 - 자동 분류의 `rule_version`과 `evidence_json`은 전국 백필 작업에서 채운다.
 - V40 적용만으로 사용자 API의 노출 조건이나 조회 결과를 변경하지 않는다.
 - 전국 백필이 검증되기 전에는 유형 및 이미지 공개 필터를 활성화하지 않는다.
+
+## 전국 분류 적용
+
+Rule Base v1은 저장된 KTO 장소만 읽으며 외부 API를 호출하지 않는다. 기본 실행은
+이전 체크포인트 이후부터 재개하고, 전체 재적용이 필요할 때만 `reset=true`를 사용한다.
+
+```powershell
+./gradlew applyKtoClassificationRuleV1 `
+  -Pprofile=staging `
+  -Pconfirm=true `
+  -PpageSize=500
+```
+
+- 한 페이지의 자동 분류 저장과 체크포인트 갱신은 같은 트랜잭션에서 처리한다.
+- 기존 `MANUAL` 분류는 삭제하거나 자동 분류로 바꾸지 않는다.
+- 같은 규칙 버전의 기존 자동 분류는 현재 코드 판정 결과로 교체한다.
+- 자동 분류 근거에는 적용 규칙, KoReady 유형, KTO content type과 LCLS 코드를 저장한다.
+- 기본 애플리케이션 시작과 스케줄러에서는 실행되지 않는다.
+- 운영 DB에서 최초 실행하기 전에는 백업과 Dry Run 수치를 다시 확인한다.

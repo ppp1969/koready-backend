@@ -212,6 +212,36 @@ tasks.register('reportKtoClassificationDryRun', JavaExec) {
 	}
 }
 
+tasks.register('applyKtoClassificationRuleV1', JavaExec) {
+	description = 'Applies KTO Rule Base v1 to stored places with a resumable cursor.'
+	group = 'application'
+	dependsOn tasks.named('classes')
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'koready_backend.kto.infrastructure.runner.KtoClassificationBackfillApplication'
+	minHeapSize = '128m'
+	maxHeapSize = '256m'
+	jvmArgs '-XX:MaxMetaspaceSize=128m'
+	systemProperty 'spring.devtools.restart.enabled', 'false'
+
+	doFirst {
+		if (providers.gradleProperty('confirm').orNull != 'true') {
+			throw new GradleException('Use -Pconfirm=true to apply KTO classifications')
+		}
+		def profile = providers.gradleProperty('profile').getOrElse('local')
+		if (!(profile in ['local', 'staging', 'prod'])) {
+			throw new GradleException('KTO classification profile must be local, staging, or prod')
+		}
+		setArgs([
+			"--spring.profiles.active=${profile}",
+			'--spring.devtools.restart.enabled=false',
+			'--spring.devtools.add-properties=false',
+			'--koready.kto.classification-backfill.confirm=true',
+			"--koready.kto.classification-backfill.page-size=${providers.gradleProperty('pageSize').getOrElse('500')}",
+			"--koready.kto.classification-backfill.reset=${providers.gradleProperty('reset').getOrElse('false')}"
+		])
+	}
+}
+
 tasks.named('processResources') {
 	from('docs/koready-backend-design/openapi.yaml') {
 		into 'static/openapi'

@@ -508,7 +508,16 @@ MVP에서는 type별 상세 컬럼 테이블보다 key-value 방식이 빠르다
 | place_id | FK |
 | travel_style | 7개 관광 유형 |
 | source | CONTENT_TYPE/LCLS/KEYWORD/AI/MANUAL |
+| rule_version | 자동 분류에 사용한 규칙 버전. 수동 분류는 NULL 가능 |
+| evidence_json | 분류에 사용한 KTO 코드와 운영자 지정 근거 JSON 객체 |
 | confidence | 신뢰도 |
+| is_primary | 복수 유형 중 카드에 표시할 대표 유형 여부 |
+
+- 한 장소에는 여러 유형을 저장할 수 있지만 `is_primary=true`인 매핑은 최대
+  하나만 허용한다.
+- 기존 데이터의 대표 유형은 `MANUAL` 우선, 신뢰도 내림차순, 유형명
+  오름차순으로 초기화한다.
+- 운영자가 지정한 `MANUAL` 유형은 자동 분류가 덮어쓰지 않는다.
 
 ## 5.4 place_monthly_features
 

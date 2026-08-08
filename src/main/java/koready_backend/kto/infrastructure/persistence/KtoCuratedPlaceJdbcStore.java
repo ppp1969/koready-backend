@@ -160,7 +160,8 @@ public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
 		jdbcTemplate.update(
 			"""
 			UPDATE place_style_mappings
-			SET confidence = LEAST(confidence, 0.9999)
+			SET confidence = LEAST(confidence, 0.9999),
+			    is_primary = FALSE
 			WHERE place_id = ? AND travel_style <> ?
 			""",
 			placeId,
@@ -168,11 +169,16 @@ public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
 		jdbcTemplate.update(
 			"""
 			INSERT INTO place_style_mappings
-			    (place_id, travel_style, source, confidence)
-			VALUES (?, ?, 'MANUAL', 1.0000)
+			    (place_id, travel_style, source, rule_version,
+			     evidence_json, confidence, is_primary)
+			VALUES (?, ?, 'MANUAL', NULL,
+			        JSON_OBJECT('origin', 'CURATED_ONBOARDING'), 1.0000, TRUE)
 			ON DUPLICATE KEY UPDATE
 			    source = 'MANUAL',
-			    confidence = 1.0000
+			    rule_version = NULL,
+			    evidence_json = VALUES(evidence_json),
+			    confidence = 1.0000,
+			    is_primary = TRUE
 			""",
 			placeId,
 			specification.travelStyle().name());

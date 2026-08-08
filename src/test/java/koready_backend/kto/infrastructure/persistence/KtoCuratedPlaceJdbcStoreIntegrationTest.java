@@ -74,6 +74,11 @@ class KtoCuratedPlaceJdbcStoreIntegrationTest {
 		assertEquals("https://www.royalpalace.go.kr", value("homepage", "places"));
 		assertEquals(specification.travelStyle().name(), value("travel_style", "place_style_mappings"));
 		assertEquals("MANUAL", value("source", "place_style_mappings"));
+		assertEquals(Boolean.TRUE, value(Boolean.class, "is_primary", "place_style_mappings"));
+		assertEquals("CURATED_ONBOARDING", jdbcTemplate.queryForObject(
+			"SELECT JSON_UNQUOTE(JSON_EXTRACT(evidence_json, '$.origin')) "
+				+ "FROM place_style_mappings",
+			String.class));
 		assertEquals(specification.titleEn(), jdbcTemplate.queryForObject(
 			"SELECT title FROM place_localizations WHERE language = 'EN'", String.class));
 		assertEquals("MANUAL_EDITED", jdbcTemplate.queryForObject(
@@ -87,8 +92,12 @@ class KtoCuratedPlaceJdbcStoreIntegrationTest {
 		InitialCandidatePlace specification = InitialCandidatePlaceCatalog.approved().getFirst();
 		long placeId = store.upsert(specification, detail(specification, "1", "11"));
 		jdbcTemplate.update(
-			"INSERT INTO place_style_mappings (place_id, travel_style, source, confidence) "
-				+ "VALUES (?, 'NATURE', 'AI', 1.0000)",
+			"UPDATE place_style_mappings SET is_primary = FALSE WHERE place_id = ?",
+			placeId);
+		jdbcTemplate.update(
+			"INSERT INTO place_style_mappings "
+				+ "(place_id, travel_style, source, confidence, is_primary) "
+				+ "VALUES (?, 'NATURE', 'AI', 1.0000, TRUE)",
 			placeId);
 
 		store.upsert(specification, detail(specification, "1", "11"));
@@ -99,8 +108,18 @@ class KtoCuratedPlaceJdbcStoreIntegrationTest {
 			String.class,
 			placeId);
 		assertEquals(specification.travelStyle().name(), selected);
+		assertEquals(specification.travelStyle().name(), jdbcTemplate.queryForObject(
+			"SELECT travel_style FROM place_style_mappings "
+				+ "WHERE place_id = ? AND is_primary = TRUE",
+			String.class,
+			placeId));
 		assertTrue(jdbcTemplate.queryForObject(
 			"SELECT confidence < 1 FROM place_style_mappings "
+				+ "WHERE place_id = ? AND travel_style = 'NATURE'",
+			Boolean.class,
+			placeId));
+		assertEquals(Boolean.FALSE, jdbcTemplate.queryForObject(
+			"SELECT is_primary FROM place_style_mappings "
 				+ "WHERE place_id = ? AND travel_style = 'NATURE'",
 			Boolean.class,
 			placeId));

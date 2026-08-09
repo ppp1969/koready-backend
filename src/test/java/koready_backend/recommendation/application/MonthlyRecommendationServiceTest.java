@@ -3,6 +3,7 @@ package koready_backend.recommendation.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -49,6 +50,24 @@ class MonthlyRecommendationServiceTest {
 		new MonthlyRecommendationService(repository, savedPlaceStatusPort, CLOCK);
 
 	@Test
+	void returnsEvergreenCardWithoutFestivalOccurrence() {
+		MonthlyRecommendationRow evergreen = new MonthlyRecommendationRow(
+			-101L, 101L, 0, null, null, "Nature place",
+			ServiceRegionCode.SEOUL, "Seoul", "Jongno-gu, Seoul", null,
+			TravelStyle.NATURE, "Nature overview", 3L,
+			new BigDecimal("85.00"), 0);
+		when(repository.findPage(any())).thenReturn(List.of(evergreen));
+		when(repository.count(any())).thenReturn(1L);
+
+		var page = service.getMonthlyRecommendations(
+			2026, 7, null, DateFilterType.ALL, null, null, List.of(),
+			RecommendationSort.RECOMMENDED, null, 20, PlaceLanguage.KO);
+
+		assertEquals(101L, page.items().getFirst().placeId());
+		assertNull(page.items().getFirst().festivalOccurrence());
+	}
+
+	@Test
 	void reflectsTheAuthenticatedUsersSavedState() {
 		MonthlyRecommendationRow saved = row(
 			31, TODAY.minusDays(1), TODAY.plusDays(1), 0, "90.00");
@@ -90,6 +109,7 @@ class MonthlyRecommendationServiceTest {
 		assertEquals(LocalDate.of(2026, 7, 1), filter.startDate());
 		assertEquals(LocalDate.of(2026, 7, 31), filter.endDate());
 		assertEquals(TODAY, filter.today());
+		assertTrue(filter.includeEvergreen());
 		assertEquals(List.of("ENDED", "ONGOING", "UPCOMING"),
 			page.items().stream().map(item -> item.festivalOccurrence().status().name()).toList());
 		assertEquals(3L, page.totalCount());
@@ -110,6 +130,7 @@ class MonthlyRecommendationServiceTest {
 		verify(repository).findPage(captor.capture());
 		assertEquals(LocalDate.of(2026, 7, 13), captor.getValue().filter().startDate());
 		assertEquals(LocalDate.of(2026, 7, 19), captor.getValue().filter().endDate());
+		assertFalse(captor.getValue().filter().includeEvergreen());
 	}
 
 	@Test
@@ -160,6 +181,7 @@ class MonthlyRecommendationServiceTest {
 		verify(repository, org.mockito.Mockito.times(2)).findPage(captor.capture());
 		MonthlyRecommendationPageQuery second = captor.getAllValues().get(1);
 		assertEquals(1, second.cursor().statusRank());
+		assertEquals(0L, second.cursor().heartCount());
 		assertEquals(new BigDecimal("80"), second.cursor().qualityScore());
 		assertEquals(42L, second.cursor().occurrenceId());
 		assertEquals(List.of(TravelStyle.NATURE), second.filter().travelStyles());
@@ -191,6 +213,7 @@ class MonthlyRecommendationServiceTest {
 			null,
 			TravelStyle.LOCAL_FESTIVAL,
 			"Festival overview",
+			0L,
 			new BigDecimal(score),
 			statusRank);
 	}

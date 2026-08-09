@@ -22,7 +22,8 @@ public interface MonthlyRecommendationRepository {
 		ServiceRegionCode serviceRegionCode,
 		List<TravelStyle> travelStyles,
 		PlaceLanguage language,
-		RecommendationSort sort
+		RecommendationSort sort,
+		boolean includeEvergreen
 	) {
 		public MonthlyRecommendationFilter {
 			travelStyles = List.copyOf(travelStyles);
@@ -38,6 +39,7 @@ public interface MonthlyRecommendationRepository {
 
 	record MonthlyRecommendationCursor(
 		int statusRank,
+		long heartCount,
 		BigDecimal qualityScore,
 		LocalDate endDate,
 		long occurrenceId
@@ -57,6 +59,7 @@ public interface MonthlyRecommendationRepository {
 		String imageUrl,
 		TravelStyle travelStyle,
 		String overview,
+		long heartCount,
 		BigDecimal qualityScore,
 		int statusRank
 	) {

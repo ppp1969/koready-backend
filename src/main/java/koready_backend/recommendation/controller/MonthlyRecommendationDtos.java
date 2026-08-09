@@ -60,6 +60,9 @@ final class MonthlyRecommendationDtos {
 	private static FestivalOccurrenceResponse from(
 		MonthlyRecommendationService.FestivalOccurrenceSummary occurrence
 	) {
+		if (occurrence == null) {
+			return null;
+		}
 		return new FestivalOccurrenceResponse(
 			occurrence.occurrenceId(),
 			occurrence.eventYear(),

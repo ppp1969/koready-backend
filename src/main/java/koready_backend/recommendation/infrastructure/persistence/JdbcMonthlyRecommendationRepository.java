@@ -18,9 +18,8 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 
 	private static final String STATUS_RANK = """
 		CASE
-		    WHEN :today BETWEEN event.start_date AND event.end_date THEN 0
-		    WHEN :today < event.start_date THEN 1
-		    ELSE 2
+		    WHEN event.end_date < :today THEN 1
+		    ELSE 0
 		END
 		""";
 
@@ -34,7 +33,7 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 
 	private static final String SELECT_COLUMNS = """
 		SELECT
-		    event.id AS occurrence_id,
+		    COALESCE(event.id, -p.id) AS occurrence_id,
 		    p.id AS place_id,
 		    event.event_year,
 		    event.start_date,
@@ -59,14 +58,32 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 		    ) AS image_url,
 		    %s AS travel_style,
 		    requested.overview AS overview,
+		    COALESCE(hearts.heart_count, 0) AS heart_count,
 		    p.data_quality_score,
 		    %s AS recommendation_status_rank
 		""".formatted(PRIMARY_STYLE, STATUS_RANK);
 
 	private static final String BASE_FROM = """
-		FROM place_event_occurrences event
-		JOIN places p ON p.id = event.place_id
+		FROM places p
+		LEFT JOIN place_event_occurrences event
+		    ON event.place_id = p.id
+		   AND event.date_validation_status = 'VALID'
+		   AND event.start_date <= :queryEnd
+		   AND event.end_date >= :queryStart
+		   AND event.visible_from <= :today
+		   AND event.start_date <= DATE_ADD(:today, INTERVAL 6 MONTH)
+		   AND EXISTS (
+		       SELECT 1 FROM place_style_mappings festival_style
+		       WHERE festival_style.place_id = p.id
+		         AND festival_style.travel_style = 'LOCAL_FESTIVAL'
+		   )
 		JOIN service_regions region ON region.code = p.service_region_code
+		LEFT JOIN (
+		    SELECT saved.place_id, COUNT(*) AS heart_count
+		    FROM user_saved_places saved
+		    WHERE saved.deleted_at IS NULL
+		    GROUP BY saved.place_id
+		) hearts ON hearts.place_id = p.id
 		LEFT JOIN place_localizations requested
 		    ON requested.place_id = p.id AND requested.language = :language
 		LEFT JOIN place_localizations korean
@@ -87,11 +104,17 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 		        AND publication_en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
 		        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
 		  )
-		  AND event.date_validation_status = 'VALID'
-		  AND event.start_date <= :queryEnd
-		  AND event.end_date >= :queryStart
-		  AND event.visible_from <= :today
-		  AND event.start_date <= DATE_ADD(:today, INTERVAL 6 MONTH)
+		  AND (
+		      event.id IS NOT NULL
+		      OR (
+		          :includeEvergreen = TRUE
+		          AND NOT EXISTS (
+		              SELECT 1 FROM place_style_mappings festival_style
+		              WHERE festival_style.place_id = p.id
+		                AND festival_style.travel_style = 'LOCAL_FESTIVAL'
+		          )
+		      )
+		  )
 		""";
 
 	private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -116,27 +139,42 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 			if (query.filter().sort() == RecommendationSort.RECOMMENDED) {
 				parameters
 					.addValue("cursorStatusRank", query.cursor().statusRank())
+					.addValue("cursorHeartCount", query.cursor().heartCount())
 					.addValue("cursorScore", query.cursor().qualityScore());
 				sql.append("""
 					AND (
 					    candidate.recommendation_status_rank > :cursorStatusRank
 					    OR (
 					        candidate.recommendation_status_rank = :cursorStatusRank
+					        AND candidate.heart_count < :cursorHeartCount
+					    )
+					    OR (
+					        candidate.recommendation_status_rank = :cursorStatusRank
+					        AND candidate.heart_count = :cursorHeartCount
 					        AND candidate.data_quality_score < :cursorScore
 					    )
 					    OR (
 					        candidate.recommendation_status_rank = :cursorStatusRank
+					        AND candidate.heart_count = :cursorHeartCount
 					        AND candidate.data_quality_score = :cursorScore
 					        AND candidate.occurrence_id < :cursorOccurrenceId
 					    )
 					)
 					""");
 			} else {
-				parameters.addValue("cursorEndDate", query.cursor().endDate());
+				parameters
+					.addValue("cursorStatusRank", query.cursor().statusRank())
+					.addValue("cursorEndDate", query.cursor().endDate());
 				sql.append("""
 					AND (
-					    candidate.end_date > :cursorEndDate
+					    candidate.recommendation_status_rank > :cursorStatusRank
 					    OR (
+					        candidate.recommendation_status_rank = :cursorStatusRank
+					        AND candidate.end_date > :cursorEndDate
+					    )
+					    OR (
+					        candidate.recommendation_status_rank = :cursorStatusRank
+					        AND
 					        candidate.end_date = :cursorEndDate
 					        AND candidate.occurrence_id < :cursorOccurrenceId
 					    )
@@ -149,12 +187,15 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 			sql.append("""
 				ORDER BY
 				    candidate.recommendation_status_rank ASC,
+				    candidate.heart_count DESC,
 				    candidate.data_quality_score DESC,
 				    candidate.occurrence_id DESC
 				""");
 		} else {
 			sql.append("""
-				ORDER BY candidate.end_date ASC, candidate.occurrence_id DESC
+				ORDER BY candidate.recommendation_status_rank ASC,
+				         candidate.end_date ASC,
+				         candidate.occurrence_id DESC
 				""");
 		}
 		sql.append("LIMIT :limit");
@@ -177,7 +218,8 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 			.addValue("queryStart", filter.startDate())
 			.addValue("queryEnd", filter.endDate())
 			.addValue("today", filter.today())
-			.addValue("language", filter.language().name());
+			.addValue("language", filter.language().name())
+			.addValue("includeEvergreen", filter.includeEvergreen());
 	}
 
 	private static String filterConditions(
@@ -222,6 +264,7 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 			resultSet.getString("image_url"),
 			travelStyle == null ? null : TravelStyle.valueOf(travelStyle),
 			resultSet.getString("overview"),
+			resultSet.getLong("heart_count"),
 			resultSet.getBigDecimal("data_quality_score"),
 			resultSet.getInt("recommendation_status_rank"));
 	}

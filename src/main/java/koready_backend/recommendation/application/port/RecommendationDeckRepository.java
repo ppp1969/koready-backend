@@ -53,6 +53,8 @@ public interface RecommendationDeckRepository {
 		String imageUrl,
 		String overview,
 		List<TravelStyle> travelStyles,
+		long heartCount,
+		boolean endedFestival,
 		BigDecimal qualityScore
 	) {
 	}

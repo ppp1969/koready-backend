@@ -136,8 +136,10 @@ public class RecommendationDeckService {
 		}
 		return unique.values().stream()
 			.sorted(Comparator
-				.comparingInt((RecommendationCandidate candidate) ->
+				.comparing(RecommendationCandidate::endedFestival)
+				.thenComparingInt(candidate ->
 					regionRank(candidate, context.serviceRegionCode(), scope))
+				.thenComparing(RecommendationCandidate::heartCount, Comparator.reverseOrder())
 				.thenComparingInt(candidate -> matchRank(candidate, context.travelStyles()))
 				.thenComparing(RecommendationCandidate::qualityScore, Comparator.reverseOrder())
 				.thenComparing(candidate -> tieBreak(seed, candidate.placeId())))

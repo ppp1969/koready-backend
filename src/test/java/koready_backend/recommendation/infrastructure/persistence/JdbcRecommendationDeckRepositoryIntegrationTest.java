@@ -200,6 +200,26 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 	}
 
 	@Test
+	void ordersCandidatesByActiveHeartCountBeforeQuality() {
+		UserFixture target = user(USER, "SEOUL", TravelStyle.NATURE);
+		long popular = place("popular-place", "SEOUL", TravelStyle.NATURE, "50.00");
+		long highQuality = place("high-quality-place", "SEOUL", TravelStyle.NATURE, "100.00");
+		UserFixture fan1 = user("usr_deck_fan_1", "SEOUL", TravelStyle.LOCAL_FOOD);
+		UserFixture fan2 = user("usr_deck_fan_2", "SEOUL", TravelStyle.LOCAL_FOOD);
+		save(fan1.userId(), popular, false);
+		save(fan2.userId(), popular, false);
+		save(fan1.userId(), highQuality, true);
+
+		List<Long> candidates = repository.findEligibleCandidates(
+			target.userId(), NOW, PlaceLanguage.EN, RecommendationScope.NATIONWIDE,
+			ServiceRegionCode.SEOUL, 10).stream()
+			.map(candidate -> candidate.placeId())
+			.toList();
+
+		assertEquals(List.of(popular, highQuality), candidates);
+	}
+
+	@Test
 	void ordersLimitedCandidatesByScopeStyleMatchAndQuality() {
 		UserFixture user = user(USER, "SEOUL", TravelStyle.NATURE);
 		long nearbyMatch = place("nearby-match", "SEOUL", TravelStyle.NATURE, "50.00");
@@ -328,6 +348,16 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 			""",
 			placeId, style.name());
 		return placeId;
+	}
+
+	private void save(long userId, long placeId, boolean deleted) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO user_saved_places
+			    (user_id, place_id, source, saved_at, updated_at, deleted_at)
+			VALUES (?, ?, 'RECOMMENDATION_CARD', NOW(6), NOW(6), ?)
+			""",
+			userId, placeId, deleted ? Timestamp.from(NOW) : null);
 	}
 
 	private CreateDeckPlan plan(UserFixture user, List<CardSnapshot> cards) {

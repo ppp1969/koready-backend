@@ -59,6 +59,35 @@ class RecommendationDeckServiceTest {
 	}
 
 	@Test
+	void ordersDeckByEndedStatusThenHeartsAndInternalScore() {
+		when(repository.findUserContext(USER_PUBLIC_ID, null))
+			.thenReturn(Optional.of(context()));
+		when(repository.findEligibleCandidates(
+			eq(7L), eq(NOW), eq(PlaceLanguage.KO),
+			eq(RecommendationScope.NATIONWIDE), eq(ServiceRegionCode.SEOUL),
+			any(Integer.class)))
+			.thenReturn(List.of(
+				candidate(1L, ServiceRegionCode.SEOUL, TravelStyle.LOCAL_FOOD,
+					"50.00", 2L, false),
+				candidate(2L, ServiceRegionCode.SEOUL, TravelStyle.NATURE,
+					"100.00", 0L, false),
+				candidate(3L, ServiceRegionCode.SEOUL, TravelStyle.NATURE,
+					"100.00", 100L, true)));
+		when(repository.createDeck(any())).thenAnswer(invocation ->
+			storedFirstPage(invocation.getArgument(0)));
+
+		service.createDeck(
+			USER_PUBLIC_ID, RecommendationScope.NATIONWIDE, null, 20,
+			PlaceLanguage.KO);
+
+		ArgumentCaptor<CreateDeckPlan> captor =
+			ArgumentCaptor.forClass(CreateDeckPlan.class);
+		org.mockito.Mockito.verify(repository).createDeck(captor.capture());
+		assertEquals(List.of(1L, 2L, 3L), captor.getValue().items().stream()
+			.map(CardSnapshot::placeId).toList());
+	}
+
+	@Test
 	void reflectsTheAuthenticatedUsersSavedStateOnTheReturnedDeckPage() {
 		when(repository.findUserContext(USER_PUBLIC_ID, null))
 			.thenReturn(Optional.of(context()));
@@ -190,6 +219,17 @@ class RecommendationDeckServiceTest {
 		TravelStyle style,
 		String qualityScore
 	) {
+		return candidate(placeId, region, style, qualityScore, 0L, false);
+	}
+
+	private RecommendationCandidate candidate(
+		long placeId,
+		ServiceRegionCode region,
+		TravelStyle style,
+		String qualityScore,
+		long heartCount,
+		boolean endedFestival
+	) {
 		return new RecommendationCandidate(
 			placeId,
 			"Place " + placeId,
@@ -198,6 +238,8 @@ class RecommendationDeckServiceTest {
 			null,
 			"Description " + placeId,
 			List.of(style),
+			heartCount,
+			endedFestival,
 			new BigDecimal(qualityScore));
 	}
 

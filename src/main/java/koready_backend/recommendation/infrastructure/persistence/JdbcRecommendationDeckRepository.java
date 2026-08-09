@@ -55,9 +55,26 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		        NULLIF(TRIM(place.first_image_url), '')
 		    ) AS first_image_url,
 		    requested.overview AS overview,
+		    COALESCE(hearts.heart_count, 0) AS heart_count,
+		    CASE WHEN EXISTS (
+		        SELECT 1 FROM place_event_occurrences historical_event
+		        WHERE historical_event.place_id = place.id
+		          AND historical_event.date_validation_status = 'VALID'
+		    ) AND NOT EXISTS (
+		        SELECT 1 FROM place_event_occurrences current_event
+		        WHERE current_event.place_id = place.id
+		          AND current_event.date_validation_status = 'VALID'
+		          AND current_event.end_date >= DATE(?)
+		    ) THEN TRUE ELSE FALSE END AS ended_festival,
 		    place.data_quality_score
 		FROM places place
 		JOIN service_regions region ON region.code = place.service_region_code
+		LEFT JOIN (
+		    SELECT saved.place_id, COUNT(*) AS heart_count
+		    FROM user_saved_places saved
+		    WHERE saved.deleted_at IS NULL
+		    GROUP BY saved.place_id
+		) hearts ON hearts.place_id = place.id
 		LEFT JOIN place_localizations requested
 		    ON requested.place_id = place.id AND requested.language = ?
 		LEFT JOIN place_localizations korean
@@ -89,20 +106,12 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		        AND state.suppress_until > ?
 		  )
 		ORDER BY
-		    CASE WHEN EXISTS (
-		        SELECT 1 FROM place_event_occurrences historical_event
-		        WHERE historical_event.place_id = place.id
-		          AND historical_event.date_validation_status = 'VALID'
-		    ) AND NOT EXISTS (
-		        SELECT 1 FROM place_event_occurrences current_event
-		        WHERE current_event.place_id = place.id
-		          AND current_event.date_validation_status = 'VALID'
-		          AND current_event.end_date >= DATE(?)
-		    ) THEN 1 ELSE 0 END ASC,
+		    ended_festival ASC,
 		    CASE
 		        WHEN ? = 'NEARBY' AND place.service_region_code <> ? THEN 1
 		        ELSE 0
 		    END ASC,
+		    heart_count DESC,
 		    CASE WHEN EXISTS (
 		        SELECT 1
 		        FROM user_travel_styles user_style
@@ -223,9 +232,9 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 			CANDIDATE_SELECT,
 			this::candidateRow,
 			language.name(),
+			Timestamp.from(now),
 			language.name(),
 			userId,
-			Timestamp.from(now),
 			Timestamp.from(now),
 			scope.name(),
 			originServiceRegionCode.name(),
@@ -245,6 +254,8 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 				row.imageUrl(),
 				row.overview(),
 				styles.getOrDefault(row.placeId(), List.of()),
+				row.heartCount(),
+				row.endedFestival(),
 				row.qualityScore()))
 			.toList();
 	}
@@ -577,6 +588,8 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 			rs.getString("location_text"),
 			rs.getString("first_image_url"),
 			rs.getString("overview"),
+			rs.getLong("heart_count"),
+			rs.getBoolean("ended_festival"),
 			rs.getBigDecimal("data_quality_score"));
 	}
 
@@ -654,6 +667,8 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		String locationText,
 		String imageUrl,
 		String overview,
+		long heartCount,
+		boolean endedFestival,
 		java.math.BigDecimal qualityScore
 	) {
 	}

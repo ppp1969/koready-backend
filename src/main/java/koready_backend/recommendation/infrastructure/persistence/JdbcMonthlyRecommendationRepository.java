@@ -56,6 +56,20 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 		         LIMIT 1),
 		        NULLIF(TRIM(p.first_image_url), '')
 		    ) AS image_url,
+		    (SELECT attribute.value_text
+		     FROM place_detail_attributes attribute
+		     WHERE attribute.place_id = p.id
+		       AND attribute.field_code IN (
+		           'usetime', 'opentimefood', 'usetimeculture',
+		           'usetimeleports', 'checkintime'
+		       )
+		       AND NULLIF(TRIM(attribute.value_text), '') IS NOT NULL
+		     ORDER BY
+		         FIELD(attribute.field_code, 'usetime', 'opentimefood',
+		               'usetimeculture', 'usetimeleports', 'checkintime'),
+		         attribute.item_sequence ASC,
+		         attribute.id ASC
+		     LIMIT 1) AS operating_hours,
 		    %s AS travel_style,
 		    requested.overview AS overview,
 		    COALESCE(hearts.heart_count, 0) AS heart_count,
@@ -262,6 +276,7 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 			resultSet.getString("service_region_name"),
 			resultSet.getString("address_summary"),
 			resultSet.getString("image_url"),
+			resultSet.getString("operating_hours"),
 			travelStyle == null ? null : TravelStyle.valueOf(travelStyle),
 			resultSet.getString("overview"),
 			resultSet.getLong("heart_count"),

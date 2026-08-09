@@ -153,6 +153,7 @@ class HomeServiceTest {
 					LocalDate.of(2026, 7, 20),
 					FestivalOccurrenceStatus.ONGOING,
 					"Jul 10, 2026 - Jul 20, 2026"),
+				"10:00-18:00",
 				TravelStyle.LOCAL_FESTIVAL,
 				List.of(),
 				"A local summer festival.",

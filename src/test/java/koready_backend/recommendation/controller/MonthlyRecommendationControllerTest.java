@@ -59,6 +59,7 @@ class MonthlyRecommendationControllerTest {
 			"Seoul",
 			"Jung-gu, Seoul",
 			null,
+			"10:00-18:00",
 			TravelStyle.LOCAL_FESTIVAL,
 			"A local festival.",
 			0L,
@@ -87,6 +88,8 @@ class MonthlyRecommendationControllerTest {
 				.value(71))
 			.andExpect(jsonPath("$.data.items[0].festivalOccurrence.status")
 				.value("ENDED"))
+			.andExpect(jsonPath("$.data.items[0].operatingHours")
+				.value("10:00-18:00"))
 			.andExpect(jsonPath("$.data.items[0].saved").value(false))
 			.andExpect(jsonPath("$.data.totalCount").value(1));
 	}

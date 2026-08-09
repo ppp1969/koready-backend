@@ -32,7 +32,7 @@ springdoc:
     enabled: false
     path: /swagger-ui.html
     disable-swagger-default-url: true
-    url: /openapi/koready.yaml
+    url: /v3/api-docs
 
 koready:
   web:

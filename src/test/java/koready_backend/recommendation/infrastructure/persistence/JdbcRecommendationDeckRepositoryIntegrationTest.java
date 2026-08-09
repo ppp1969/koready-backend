@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -225,6 +226,23 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 	}
 
 	@Test
+	void placesEndedFestivalsAfterCurrentCandidates() {
+		UserFixture user = user(USER, "SEOUL", TravelStyle.LOCAL_FESTIVAL);
+		long ended = place("ended-festival", "SEOUL", TravelStyle.LOCAL_FESTIVAL, "100.00");
+		occurrence(ended, NOW.minus(Duration.ofDays(10)), NOW.minus(Duration.ofDays(5)));
+		long current = place("current-festival", "SEOUL", TravelStyle.LOCAL_FESTIVAL, "50.00");
+		occurrence(current, NOW.minus(Duration.ofDays(1)), NOW.plus(Duration.ofDays(1)));
+
+		List<Long> candidates = repository.findEligibleCandidates(
+			user.userId(), NOW, PlaceLanguage.EN, RecommendationScope.NEARBY,
+			ServiceRegionCode.SEOUL, 10).stream()
+			.map(candidate -> candidate.placeId())
+			.toList();
+
+		assertEquals(List.of(current, ended), candidates);
+	}
+
+	@Test
 	void excludesAiTranslatedPlacesFromRecommendationCandidates() {
 		UserFixture user = user(USER, "SEOUL", TravelStyle.NATURE);
 		long trusted = place("trusted-english", "SEOUL", TravelStyle.NATURE, "80.00");
@@ -287,10 +305,12 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 		jdbcTemplate.update(
 			"""
 			INSERT INTO places
-			    (kto_content_id, service_region_code, show_flag, active, data_quality_score)
-			VALUES (?, ?, TRUE, TRUE, ?)
+			    (kto_content_id, service_region_code, show_flag, active,
+			     data_quality_score, first_image_url)
+			VALUES (?, ?, TRUE, TRUE, ?, ?)
 			""",
-			sourceId, region, new BigDecimal(quality));
+			sourceId, region, new BigDecimal(quality),
+			"https://example.invalid/" + sourceId + ".jpg");
 		long placeId = jdbcTemplate.queryForObject(
 			"SELECT id FROM places WHERE kto_content_id = ?", Long.class, sourceId);
 		jdbcTemplate.update(
@@ -312,6 +332,23 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 
 	private CreateDeckPlan plan(UserFixture user, List<CardSnapshot> cards) {
 		return plan(user, "rec_integration_test", cards, 2);
+	}
+
+	private void occurrence(long placeId, Instant start, Instant end) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO place_event_occurrences
+			    (place_id, event_year, occurrence_sequence, start_date, end_date,
+			     provider, source_content_id, source_operation, visible_from,
+			     date_validation_status)
+			VALUES (?, 2026, 1, DATE(?), DATE(?), 'MANUAL', ?,
+			        'INTEGRATION_TEST', DATE(?), 'VALID')
+			""",
+			placeId,
+			Timestamp.from(start),
+			Timestamp.from(end),
+			"event-" + placeId,
+			Timestamp.from(start.minus(Duration.ofDays(180))));
 	}
 
 	private CreateDeckPlan plan(

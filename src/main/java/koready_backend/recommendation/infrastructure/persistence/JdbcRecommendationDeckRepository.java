@@ -47,7 +47,13 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		        place.address,
 		        CASE WHEN ? = 'EN' THEN region.name_en ELSE region.name_ko END
 		    ) AS location_text,
-		    place.first_image_url,
+		    COALESCE(
+		        (SELECT image.image_url FROM place_images image
+		         WHERE image.place_id = place.id
+		         ORDER BY image.source_priority DESC, image.source_order ASC, image.id ASC
+		         LIMIT 1),
+		        NULLIF(TRIM(place.first_image_url), '')
+		    ) AS first_image_url,
 		    requested.overview AS overview,
 		    place.data_quality_score
 		FROM places place
@@ -58,6 +64,14 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		    ON korean.place_id = place.id AND korean.language = 'KO'
 		WHERE place.active = TRUE
 		  AND place.show_flag = TRUE
+		  AND EXISTS (
+		      SELECT 1 FROM place_style_mappings style
+		      WHERE style.place_id = place.id
+		  )
+		  AND (
+		      NULLIF(TRIM(place.first_image_url), '') IS NOT NULL
+		      OR EXISTS (SELECT 1 FROM place_images image WHERE image.place_id = place.id)
+		  )
 		  AND COALESCE(requested.title, korean.title) IS NOT NULL
 		  AND EXISTS (
 		      SELECT 1
@@ -75,6 +89,16 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		        AND state.suppress_until > ?
 		  )
 		ORDER BY
+		    CASE WHEN EXISTS (
+		        SELECT 1 FROM place_event_occurrences historical_event
+		        WHERE historical_event.place_id = place.id
+		          AND historical_event.date_validation_status = 'VALID'
+		    ) AND NOT EXISTS (
+		        SELECT 1 FROM place_event_occurrences current_event
+		        WHERE current_event.place_id = place.id
+		          AND current_event.date_validation_status = 'VALID'
+		          AND current_event.end_date >= DATE(?)
+		    ) THEN 1 ELSE 0 END ASC,
 		    CASE
 		        WHEN ? = 'NEARBY' AND place.service_region_code <> ? THEN 1
 		        ELSE 0
@@ -201,6 +225,7 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 			language.name(),
 			language.name(),
 			userId,
+			Timestamp.from(now),
 			Timestamp.from(now),
 			scope.name(),
 			originServiceRegionCode.name(),
@@ -527,7 +552,7 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 			SELECT place_id, travel_style
 			FROM place_style_mappings
 			WHERE place_id IN (:placeIds)
-			ORDER BY place_id ASC, confidence DESC, travel_style ASC
+			ORDER BY place_id ASC, is_primary DESC, confidence DESC, travel_style ASC
 			""",
 			parameters,
 			(rs, rowNumber) -> new StyleRow(

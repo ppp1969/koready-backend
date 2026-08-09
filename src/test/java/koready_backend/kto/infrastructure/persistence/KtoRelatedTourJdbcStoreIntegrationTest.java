@@ -76,6 +76,7 @@ class KtoRelatedTourJdbcStoreIntegrationTest {
 		jdbcTemplate.update("DELETE FROM place_relations");
 		jdbcTemplate.update("DELETE FROM kto_related_tour_mappings");
 		jdbcTemplate.update("DELETE FROM kto_related_tour_records");
+		jdbcTemplate.update("DELETE FROM place_style_mappings");
 		jdbcTemplate.update("DELETE FROM place_images");
 		jdbcTemplate.update("DELETE FROM place_localizations");
 		jdbcTemplate.update("DELETE FROM open_api_raw_snapshots");
@@ -375,12 +376,13 @@ class KtoRelatedTourJdbcStoreIntegrationTest {
 			INSERT INTO places
 			    (kto_content_id, service_region_code,
 			     ldong_regn_cd, ldong_signgu_cd,
-			     show_flag, active)
-			VALUES (?, 'SEOUL', ?, ?, TRUE, TRUE)
+			     show_flag, active, first_image_url)
+			VALUES (?, 'SEOUL', ?, ?, TRUE, TRUE, ?)
 			""",
 			ktoContentId,
 			regionCode,
-			signguCode);
+			signguCode,
+			"https://example.invalid/" + ktoContentId + ".jpg");
 		long placeId = jdbcTemplate.queryForObject(
 			"SELECT id FROM places WHERE kto_content_id = ?",
 			Long.class,
@@ -403,6 +405,11 @@ class KtoRelatedTourJdbcStoreIntegrationTest {
 			""",
 			placeId,
 			"English " + ktoContentId);
+		jdbcTemplate.update(
+			"INSERT INTO place_style_mappings "
+				+ "(place_id, travel_style, source, confidence, is_primary) "
+				+ "VALUES (?, 'NATURE', 'MANUAL', 1.0000, TRUE)",
+			placeId);
 		return placeId;
 	}
 

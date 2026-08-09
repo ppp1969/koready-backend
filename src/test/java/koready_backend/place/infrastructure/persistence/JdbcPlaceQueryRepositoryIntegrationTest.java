@@ -124,6 +124,26 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 	}
 
 	@Test
+	void exposesOnlyClassifiedPlacesWithImagesAndUsesTheHighestPriorityImage() {
+		long ready = placeWithKorean("publication-ready", "70.00", "공개 장소");
+		insertImage(ready, "https://example.invalid/award.jpg", "KTO_PHOTO_AWARD", 300, 1);
+
+		long noImage = placeWithKorean("publication-no-image", "99.00", "이미지 없음");
+		jdbcTemplate.update("UPDATE places SET first_image_url = NULL WHERE id = ?", noImage);
+
+		long unclassified = insertPlace(
+			"publication-unclassified", "SEOUL", true, true, "100.00");
+		insertLocalization(unclassified, "KO", "미분류", "서울", "설명");
+		insertLocalization(unclassified, "EN", "Unclassified", "Seoul", null);
+
+		List<PlaceRow> rows = repository.findByRegion(criteria(
+			PlaceSort.RECOMMENDED, null, 10));
+
+		assertEquals(List.of(ready), rows.stream().map(PlaceRow::placeId).toList());
+		assertEquals("https://example.invalid/award.jpg", rows.getFirst().imageUrl());
+	}
+
+	@Test
 	void ordersVisibleFestivalByDeadlineBeforePlacesWithoutOccurrence() {
 		long eventPlace = placeWithKorean("event", "50.00", "테스트 축제");
 		long plainPlace = placeWithKorean("plain", "99.00", "일반 장소");
@@ -171,6 +191,7 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 		long visible = insertPlace("detail-visible", "SEOUL", true, true, "80.00");
 		insertLocalization(visible, "KO", "상세 장소", "서울시", "상세 설명");
 		insertLocalization(visible, "EN", "Detail Place", "Seoul", null);
+		insertStyle(visible, "NATURE", "1.0000");
 		long inactive = insertPlace("detail-inactive", "SEOUL", true, false, "90.00");
 		insertLocalization(inactive, "KO", "비활성", "서울시", null);
 
@@ -265,6 +286,7 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 		long placeId = insertPlace(sourceId, "SEOUL", true, true, score);
 		insertLocalization(placeId, "KO", title, "서울", title + " 설명");
 		insertLocalization(placeId, "EN", title + " EN", "Seoul", null);
+		insertStyle(placeId, "NATURE", "1.0000");
 		return placeId;
 	}
 
@@ -278,14 +300,16 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 		jdbcTemplate.update(
 			"""
 			INSERT INTO places
-			    (kto_content_id, service_region_code, show_flag, active, data_quality_score)
-			VALUES (?, ?, ?, ?, ?)
+			    (kto_content_id, service_region_code, show_flag, active,
+			     data_quality_score, first_image_url)
+			VALUES (?, ?, ?, ?, ?, ?)
 			""",
 			sourceId,
 			region,
 			showFlag,
 			active,
-			new BigDecimal(score));
+			new BigDecimal(score),
+			"https://example.invalid/" + sourceId + ".jpg");
 		return jdbcTemplate.queryForObject(
 			"SELECT id FROM places WHERE kto_content_id = ?", Long.class, sourceId);
 	}

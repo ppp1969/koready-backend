@@ -28,7 +28,7 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 		(SELECT style.travel_style
 		 FROM place_style_mappings style
 		 WHERE style.place_id = p.id
-		 ORDER BY style.confidence DESC, style.travel_style ASC
+		 ORDER BY style.is_primary DESC, style.confidence DESC, style.travel_style ASC
 		 LIMIT 1)
 		""";
 
@@ -50,7 +50,13 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 		        p.address,
 		        ''
 		    ) AS address_summary,
-		    NULLIF(TRIM(p.first_image_url), '') AS image_url,
+		    COALESCE(
+		        (SELECT image.image_url FROM place_images image
+		         WHERE image.place_id = p.id
+		         ORDER BY image.source_priority DESC, image.source_order ASC, image.id ASC
+		         LIMIT 1),
+		        NULLIF(TRIM(p.first_image_url), '')
+		    ) AS image_url,
 		    %s AS travel_style,
 		    requested.overview AS overview,
 		    p.data_quality_score,
@@ -67,6 +73,11 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 		    ON korean.place_id = p.id AND korean.language = 'KO'
 		WHERE p.active = TRUE
 		  AND p.show_flag = TRUE
+		  AND EXISTS (SELECT 1 FROM place_style_mappings style WHERE style.place_id = p.id)
+		  AND (
+		      NULLIF(TRIM(p.first_image_url), '') IS NOT NULL
+		      OR EXISTS (SELECT 1 FROM place_images image WHERE image.place_id = p.id)
+		  )
 		  AND COALESCE(requested.id, korean.id) IS NOT NULL
 		  AND EXISTS (
 		      SELECT 1

@@ -180,10 +180,12 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 		jdbcTemplate.update(
 			"""
 			INSERT INTO places
-			    (kto_content_id, service_region_code, show_flag, active, data_quality_score)
-			VALUES (?, ?, ?, ?, ?)
+			    (kto_content_id, service_region_code, show_flag, active,
+			     data_quality_score, first_image_url)
+			VALUES (?, ?, ?, ?, ?, ?)
 			""",
-			sourceId, region, showFlag, active, new BigDecimal(score));
+			sourceId, region, showFlag, active, new BigDecimal(score),
+			"https://example.invalid/" + sourceId + ".jpg");
 		long placeId = jdbcTemplate.queryForObject(
 			"SELECT id FROM places WHERE kto_content_id = ?", Long.class, sourceId);
 		jdbcTemplate.update(

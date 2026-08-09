@@ -164,16 +164,23 @@ class JdbcSavedPlaceRepositoryIntegrationTest {
 		jdbcTemplate.update(
 			"""
 			INSERT INTO places
-			    (kto_content_id, service_region_code, show_flag, active, data_quality_score)
-			VALUES (?, 'SEOUL', ?, ?, 90.00)
+			    (kto_content_id, service_region_code, show_flag, active,
+			     data_quality_score, first_image_url)
+			VALUES (?, 'SEOUL', ?, ?, 90.00, ?)
 			""",
-			contentId, showFlag, active);
+			contentId, showFlag, active,
+			"https://example.invalid/" + contentId + ".jpg");
 		long placeId = jdbcTemplate.queryForObject(
 			"SELECT id FROM places WHERE kto_content_id = ?", Long.class, contentId);
 		localization(placeId, "KO", koreanTitle, "서울 종로구", "한국어 설명");
 		if (englishTitle != null) {
 			localization(placeId, "EN", englishTitle, "Jongno-gu, Seoul", "English overview");
 		}
+		jdbcTemplate.update(
+			"INSERT INTO place_style_mappings "
+				+ "(place_id, travel_style, source, confidence, is_primary) "
+				+ "VALUES (?, 'NATURE', 'MANUAL', 1.0000, TRUE)",
+			placeId);
 		return placeId;
 	}
 

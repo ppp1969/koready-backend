@@ -40,11 +40,17 @@ public class JdbcSavedPlaceRepository implements SavedPlaceRepository {
 		        place.address,
 		        ''
 		    ) AS address_summary,
-		    NULLIF(TRIM(place.first_image_url), '') AS image_url,
+		    COALESCE(
+		        (SELECT image.image_url FROM place_images image
+		         WHERE image.place_id = place.id
+		         ORDER BY image.source_priority DESC, image.source_order ASC, image.id ASC
+		         LIMIT 1),
+		        NULLIF(TRIM(place.first_image_url), '')
+		    ) AS image_url,
 		    (SELECT style.travel_style
 		     FROM place_style_mappings style
 		     WHERE style.place_id = place.id
-		     ORDER BY style.confidence DESC, style.travel_style ASC
+		     ORDER BY style.is_primary DESC, style.confidence DESC, style.travel_style ASC
 		     LIMIT 1) AS travel_style,
 		    requested.overview AS overview,
 		    place.data_quality_score
@@ -59,6 +65,11 @@ public class JdbcSavedPlaceRepository implements SavedPlaceRepository {
 		  AND saved.deleted_at IS NULL
 		  AND place.active = TRUE
 		  AND place.show_flag = TRUE
+		  AND EXISTS (SELECT 1 FROM place_style_mappings style WHERE style.place_id = place.id)
+		  AND (
+		      NULLIF(TRIM(place.first_image_url), '') IS NOT NULL
+		      OR EXISTS (SELECT 1 FROM place_images image WHERE image.place_id = place.id)
+		  )
 		  AND COALESCE(requested.id, korean.id) IS NOT NULL
 		  AND EXISTS (
 		      SELECT 1
@@ -122,6 +133,14 @@ public class JdbcSavedPlaceRepository implements SavedPlaceRepository {
 			    SELECT 1
 			    FROM places
 			    WHERE id = ? AND active = TRUE AND show_flag = TRUE
+			      AND EXISTS (
+			          SELECT 1 FROM place_style_mappings style
+			          WHERE style.place_id = places.id
+			      )
+			      AND (
+			          NULLIF(TRIM(places.first_image_url), '') IS NOT NULL
+			          OR EXISTS (SELECT 1 FROM place_images image WHERE image.place_id = places.id)
+			      )
 			      AND EXISTS (
 			          SELECT 1
 			          FROM place_localizations publication_en

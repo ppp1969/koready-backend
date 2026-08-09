@@ -46,11 +46,17 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		        p.address,
 		        ''
 		    ) AS address_summary,
-		    NULLIF(TRIM(p.first_image_url), '') AS image_url,
+		    COALESCE(
+		        (SELECT image.image_url FROM place_images image
+		         WHERE image.place_id = p.id
+		         ORDER BY image.source_priority DESC, image.source_order ASC, image.id ASC
+		         LIMIT 1),
+		        NULLIF(TRIM(p.first_image_url), '')
+		    ) AS image_url,
 		    (SELECT style.travel_style
 		     FROM place_style_mappings style
 		     WHERE style.place_id = p.id
-		     ORDER BY style.confidence DESC, style.travel_style ASC
+		     ORDER BY style.is_primary DESC, style.confidence DESC, style.travel_style ASC
 		     LIMIT 1) AS travel_style,
 		    requested.overview AS overview,
 		    p.data_quality_score,
@@ -63,6 +69,11 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		    ON korean.place_id = p.id AND korean.language = 'KO'
 		WHERE p.active = TRUE
 		  AND p.show_flag = TRUE
+		  AND EXISTS (SELECT 1 FROM place_style_mappings style WHERE style.place_id = p.id)
+		  AND (
+		      NULLIF(TRIM(p.first_image_url), '') IS NOT NULL
+		      OR EXISTS (SELECT 1 FROM place_images image WHERE image.place_id = p.id)
+		  )
 		  AND COALESCE(requested.id, korean.id) IS NOT NULL
 		  AND EXISTS (
 		      SELECT 1
@@ -116,7 +127,13 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		    )), '') AS address,
 		    p.latitude,
 		    p.longitude,
-		    NULLIF(TRIM(p.first_image_url), '') AS image_url,
+		    COALESCE(
+		        (SELECT image.image_url FROM place_images image
+		         WHERE image.place_id = p.id
+		         ORDER BY image.source_priority DESC, image.source_order ASC, image.id ASC
+		         LIMIT 1),
+		        NULLIF(TRIM(p.first_image_url), '')
+		    ) AS image_url,
 		    requested.overview AS overview,
 		    COALESCE(requested.translation_source, korean.translation_source)
 		        AS translation_source
@@ -129,6 +146,11 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		WHERE p.id = :placeId
 		  AND p.active = TRUE
 		  AND p.show_flag = TRUE
+		  AND EXISTS (SELECT 1 FROM place_style_mappings style WHERE style.place_id = p.id)
+		  AND (
+		      NULLIF(TRIM(p.first_image_url), '') IS NOT NULL
+		      OR EXISTS (SELECT 1 FROM place_images image WHERE image.place_id = p.id)
+		  )
 		  AND COALESCE(requested.id, korean.id) IS NOT NULL
 		  AND EXISTS (
 		      SELECT 1
@@ -242,6 +264,14 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		    ON korean.place_id = related.id
 		   AND korean.language = 'KO'
 		WHERE COALESCE(requested.id, korean.id) IS NOT NULL
+		  AND EXISTS (
+		      SELECT 1 FROM place_style_mappings style
+		      WHERE style.place_id = related.id
+		  )
+		  AND (
+		      NULLIF(TRIM(related.first_image_url), '') IS NOT NULL
+		      OR EXISTS (SELECT 1 FROM place_images image WHERE image.place_id = related.id)
+		  )
 		  AND EXISTS (
 		      SELECT 1
 		      FROM place_localizations publication_en

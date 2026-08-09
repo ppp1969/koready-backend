@@ -473,7 +473,7 @@ class OpenApiContractTests {
 		Map<String, Object> styles = asMap(properties.get("travelStyles"), "travelStyles");
 		Map<String, Object> places = asMap(
 			properties.get("selectedPreferencePlaceIds"), "selectedPreferencePlaceIds");
-		assertEquals(4, styles.get("minItems"));
+		assertEquals(1, styles.get("minItems"));
 		assertEquals(4, styles.get("maxItems"));
 		assertEquals(Boolean.TRUE, styles.get("uniqueItems"));
 		assertEquals(1, places.get("minItems"));

@@ -73,7 +73,7 @@ class OnboardingControllerTest {
 	}
 
 	@Test
-	void completesAndReturnsTheStoredProfile() throws Exception {
+	void completesWithOneTravelStyleAndReturnsTheStoredProfile() throws Exception {
 		when(service.complete(org.mockito.ArgumentMatchers.eq("usr_onboarding"),
 			org.mockito.ArgumentMatchers.any())).thenReturn(new CompletionResult(
 			true,
@@ -91,12 +91,7 @@ class OnboardingControllerTest {
 				.content("""
 					{
 					  "currentLocationId": 11,
-					  "travelStyles": [
-					    "LOCAL_FOOD",
-					    "LOCAL_FESTIVAL",
-					    "TRADITIONAL_MARKET",
-					    "CULTURE_EXPERIENCE"
-					  ],
+				  "travelStyles": ["LOCAL_FOOD"],
 					  "candidateSetId": "onb-v1",
 					  "candidateSetVersion": 1,
 					  "selectedPreferencePlaceIds": [101]
@@ -111,14 +106,14 @@ class OnboardingControllerTest {
 	}
 
 	@Test
-	void rejectsCompletionUnlessExactlyFourTravelStylesAreSelected() throws Exception {
+	void rejectsCompletionWithoutTravelStyles() throws Exception {
 		mockMvc.perform(put("/api/v1/users/me/onboarding")
 				.with(user("usr_onboarding").roles("USER"))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 					{
 					  "currentLocationId": 11,
-					  "travelStyles": ["LOCAL_FOOD", "LOCAL_FESTIVAL", "NATURE"],
+				  "travelStyles": [],
 					  "candidateSetId": "onb-v1",
 					  "candidateSetVersion": 1,
 					  "selectedPreferencePlaceIds": [101]

@@ -3945,10 +3945,10 @@ components:
           minimum: 1
         travelStyles:
           type: array
-          minItems: 4
+          minItems: 1
           maxItems: 4
           uniqueItems: true
-          description: 온보딩 완료 시 7개 여행 스타일 중 정확히 4개를 선택합니다.
+          description: 온보딩 완료 시 7개 여행 스타일 중 1개 이상 4개 이하를 선택합니다.
           items:
             $ref: '#/components/schemas/TravelStyle'
         candidateSetId:

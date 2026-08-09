@@ -104,6 +104,27 @@ class OnboardingServiceTest {
 	}
 
 	@Test
+	void completesWithOneTravelStyle() {
+		CompletionCommand command = new CompletionCommand(
+			11L,
+			List.of(TravelStyle.LOCAL_FOOD),
+			"onb-v1",
+			1,
+			List.of(101L));
+		when(repository.findUserByPublicIdForUpdate("usr_onboarding"))
+			.thenReturn(Optional.of(user(SignupStatus.NEED_ONBOARDING, null, null)));
+		when(repository.findOwnedLocation(7L, 11L)).thenReturn(Optional.of(location(true)));
+		when(repository.findCandidateSet("onb-v1"))
+			.thenReturn(Optional.of(candidate(CandidateSetStatus.PUBLISHED, COMPLETED_AT)));
+		when(repository.findCandidatePlaceIds(31L)).thenReturn(Set.of(101L));
+
+		var result = service.complete("usr_onboarding", command);
+
+		assertTrue(result.completed());
+		assertEquals(List.of(TravelStyle.LOCAL_FOOD), result.profile().travelStyles());
+	}
+
+	@Test
 	void returnsTheOriginalCompletionForAnIdenticalRetry() {
 		CompletionCommand command = command();
 		when(repository.findUserByPublicIdForUpdate("usr_onboarding"))

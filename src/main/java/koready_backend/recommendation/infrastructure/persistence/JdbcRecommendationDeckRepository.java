@@ -422,17 +422,10 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 	}
 
 	private void insertItems(long deckId, List<CardSnapshot> items) {
+		List<Object[]> batchArguments = new ArrayList<>(items.size());
 		for (int index = 0; index < items.size(); index++) {
 			CardSnapshot item = items.get(index);
-			jdbcTemplate.update(
-				"""
-				INSERT INTO recommendation_deck_items
-				    (deck_id, place_id, display_order, title, location_text,
-				     image_url, short_description, service_region_code, travel_style,
-				     tags_json, match_rank, travel_style_matched,
-				     preference_tag_matched, matched_tag_codes_json)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-				""",
+			batchArguments.add(new Object[] {
 				deckId,
 				item.placeId(),
 				index + 1,
@@ -446,23 +439,41 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 				item.matchRank(),
 				item.travelStyleMatched(),
 				item.preferenceTagMatched(),
-				json(item.matchedTagCodes()));
+				json(item.matchedTagCodes())
+			});
+		}
+		if (!batchArguments.isEmpty()) {
+			jdbcTemplate.batchUpdate(
+				"""
+				INSERT INTO recommendation_deck_items
+				    (deck_id, place_id, display_order, title, location_text,
+				     image_url, short_description, service_region_code, travel_style,
+				     tags_json, match_rank, travel_style_matched,
+				     preference_tag_matched, matched_tag_codes_json)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				""",
+				batchArguments);
 		}
 	}
 
 	private void insertPages(long deckId, List<PagePlan> pages) {
-		for (PagePlan page : pages) {
-			jdbcTemplate.update(
+		List<Object[]> batchArguments = pages.stream()
+			.map(page -> new Object[] {
+				deckId,
+				page.pageNumber(),
+				page.cursor(),
+				page.startOrder(),
+				page.endOrder()
+			})
+			.toList();
+		if (!batchArguments.isEmpty()) {
+			jdbcTemplate.batchUpdate(
 				"""
 				INSERT INTO recommendation_deck_pages
 				    (deck_id, page_number, cursor_key, start_order, end_order)
 				VALUES (?, ?, ?, ?, ?)
 				""",
-				deckId,
-				page.pageNumber(),
-				page.cursor(),
-				page.startOrder(),
-				page.endOrder());
+				batchArguments);
 		}
 	}
 
@@ -472,32 +483,54 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 			"UPDATE recommendation_deck_pages SET served_at = ? WHERE id = ? AND served_at IS NULL",
 			servedTimestamp,
 			page.pageId());
+		if (cards.isEmpty()) {
+			return;
+		}
 		Instant suppressUntil = servedAt.plus(Duration.ofDays(page.suppressionDays()));
-		for (CardSnapshot card : cards) {
-			jdbcTemplate.update(
-				"""
-				UPDATE recommendation_deck_items
-				SET served_at = ?
-				WHERE deck_id = ? AND place_id = ? AND served_at IS NULL
-				""",
-				servedTimestamp,
-				page.deckId(),
-				card.placeId());
-			jdbcTemplate.update(
-				"""
-				INSERT INTO user_place_events
-				    (public_id, user_id, place_id, event_type, deck_id,
-				     policy_version, suppression_days, occurred_at)
-				VALUES (?, ?, ?, 'CARD_SERVED', ?, ?, ?, ?)
-				""",
+		List<Object[]> itemArguments = cards.stream()
+			.map(card -> new Object[] {servedTimestamp, page.deckId(), card.placeId()})
+			.toList();
+		jdbcTemplate.batchUpdate(
+			"""
+			UPDATE recommendation_deck_items
+			SET served_at = ?
+			WHERE deck_id = ? AND place_id = ? AND served_at IS NULL
+			""",
+			itemArguments);
+
+		List<Object[]> eventArguments = cards.stream()
+			.map(card -> new Object[] {
 				"recevt_" + UUID.randomUUID(),
 				page.userId(),
 				card.placeId(),
 				page.deckId(),
 				page.suppressionPolicyVersion(),
 				page.suppressionDays(),
-				servedTimestamp);
-			jdbcTemplate.update(
+				servedTimestamp
+			})
+			.toList();
+		jdbcTemplate.batchUpdate(
+			"""
+			INSERT INTO user_place_events
+			    (public_id, user_id, place_id, event_type, deck_id,
+			     policy_version, suppression_days, occurred_at)
+			VALUES (?, ?, ?, 'CARD_SERVED', ?, ?, ?, ?)
+			""",
+			eventArguments);
+
+		List<Object[]> stateArguments = cards.stream()
+			.map(card -> new Object[] {
+				page.userId(),
+				card.placeId(),
+				servedTimestamp,
+				servedTimestamp,
+				page.deckId(),
+				Timestamp.from(suppressUntil),
+				page.suppressionPolicyVersion(),
+				page.suppressionDays()
+			})
+			.toList();
+		jdbcTemplate.batchUpdate(
 				"""
 				INSERT INTO user_place_recommendation_states
 				    (user_id, place_id, first_served_at, last_served_at,
@@ -514,15 +547,7 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 				    last_suppression_days = VALUES(last_suppression_days),
 				    last_event_type = 'CARD_SERVED'
 				""",
-				page.userId(),
-				card.placeId(),
-				servedTimestamp,
-				servedTimestamp,
-				page.deckId(),
-				Timestamp.from(suppressUntil),
-				page.suppressionPolicyVersion(),
-				page.suppressionDays());
-		}
+			stateArguments);
 	}
 
 	private List<CardSnapshot> withoutActiveSuppression(

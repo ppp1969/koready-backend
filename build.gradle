@@ -28,6 +28,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+	implementation 'org.yaml:snakeyaml'
 	implementation('software.amazon.awssdk:s3') {
 		exclude group: 'software.amazon.awssdk', module: 'apache5-client'
 		exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
@@ -44,7 +45,6 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'com.tngtech.archunit:archunit:1.4.2'
-	testImplementation 'org.yaml:snakeyaml'
 	testImplementation platform('org.testcontainers:testcontainers-bom:2.0.5')
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 	testImplementation 'org.testcontainers:testcontainers-mysql'

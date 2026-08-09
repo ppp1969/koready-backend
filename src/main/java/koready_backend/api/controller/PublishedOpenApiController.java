@@ -10,6 +10,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.view.RedirectView;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
@@ -32,6 +33,11 @@ public class PublishedOpenApiController {
 		produces = MediaType.APPLICATION_JSON_VALUE)
 	public Map<String, Object> getContract() {
 		return contract;
+	}
+
+	@GetMapping("/swagger-ui.html")
+	public RedirectView redirectToSwaggerUi() {
+		return new RedirectView("/swagger-ui/index.html");
 	}
 
 	@SuppressWarnings("unchecked")

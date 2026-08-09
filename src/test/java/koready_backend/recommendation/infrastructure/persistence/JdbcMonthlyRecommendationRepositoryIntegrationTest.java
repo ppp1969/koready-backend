@@ -60,6 +60,29 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 	}
 
 	@Test
+	void includesEvergreenPlacesAndOrdersByActiveHeartsBeforeQuality() {
+		long popular = evergreenPlace("popular-nature", "SEOUL", "40.00");
+		long highQuality = evergreenPlace("high-quality-nature", "SEOUL", "99.00");
+		long user1 = user("usr_monthly_heart_1");
+		long user2 = user("usr_monthly_heart_2");
+		save(user1, popular, false);
+		save(user2, popular, false);
+		save(user1, highQuality, true);
+
+		MonthlyRecommendationFilter filter = filter(
+			LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31),
+			ServiceRegionCode.SEOUL, List.of(TravelStyle.NATURE),
+			RecommendationSort.RECOMMENDED, PlaceLanguage.KO);
+
+		List<MonthlyRecommendationRow> rows = repository.findPage(
+			new MonthlyRecommendationPageQuery(filter, null, 20));
+
+		assertEquals(List.of(popular, highQuality),
+			rows.stream().map(MonthlyRecommendationRow::placeId).toList());
+		assertEquals(2L, repository.count(filter));
+	}
+
+	@Test
 	void findsOverlappingRoundsAndKeepsEndedOccurrence() {
 		long endedPlace = festivalPlace("ended-2026", "JEOLLA", "95.00", true, true);
 		long ended = occurrence(endedPlace, "same-festival", 2026,
@@ -87,7 +110,7 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 
 		assertEquals(List.of(ended), rows.stream().map(MonthlyRecommendationRow::occurrenceId).toList());
 		assertEquals(2026, rows.getFirst().eventYear());
-		assertEquals(2, rows.getFirst().statusRank());
+		assertEquals(1, rows.getFirst().statusRank());
 		assertEquals("English ended-2026", rows.getFirst().title());
 		assertEquals(1L, repository.count(july));
 
@@ -117,18 +140,19 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 			RecommendationSort.RECOMMENDED, PlaceLanguage.EN);
 		List<MonthlyRecommendationRow> first = repository.findPage(
 			new MonthlyRecommendationPageQuery(filter, null, 1));
-		assertEquals(List.of(ongoing), first.stream().map(MonthlyRecommendationRow::occurrenceId).toList());
-		assertEquals("English ongoing", first.getFirst().title());
+		assertEquals(List.of(upcoming), first.stream().map(MonthlyRecommendationRow::occurrenceId).toList());
+		assertEquals("English upcoming", first.getFirst().title());
 		assertEquals(3L, repository.count(filter));
 
 		MonthlyRecommendationCursor cursor = new MonthlyRecommendationCursor(
 			first.getFirst().statusRank(),
+			first.getFirst().heartCount(),
 			first.getFirst().qualityScore(),
 			first.getFirst().endDate(),
 			first.getFirst().occurrenceId());
 		List<MonthlyRecommendationRow> rest = repository.findPage(
 			new MonthlyRecommendationPageQuery(filter, cursor, 10));
-		assertEquals(List.of(upcoming, ended),
+		assertEquals(List.of(ongoing, ended),
 			rest.stream().map(MonthlyRecommendationRow::occurrenceId).toList());
 	}
 
@@ -152,7 +176,8 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 
 		MonthlyRecommendationRow last = first.getFirst();
 		MonthlyRecommendationCursor cursor = new MonthlyRecommendationCursor(
-			last.statusRank(), last.qualityScore(), last.endDate(), last.occurrenceId());
+			last.statusRank(), last.heartCount(), last.qualityScore(),
+			last.endDate(), last.occurrenceId());
 		List<MonthlyRecommendationRow> rest = repository.findPage(
 			new MonthlyRecommendationPageQuery(filter, cursor, 10));
 		assertEquals(List.of(later),
@@ -167,7 +192,9 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 		RecommendationSort sort,
 		PlaceLanguage language
 	) {
-		return new MonthlyRecommendationFilter(start, end, TODAY, region, styles, language, sort);
+		return new MonthlyRecommendationFilter(
+			start, end, TODAY, region, styles, language, sort,
+			sort == RecommendationSort.RECOMMENDED);
 	}
 
 	private long festivalPlace(
@@ -209,6 +236,32 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 			""",
 			placeId);
 		return placeId;
+	}
+
+	private long evergreenPlace(String sourceId, String region, String score) {
+		long placeId = festivalPlace(sourceId, region, score, true, true);
+		jdbcTemplate.update(
+			"UPDATE place_style_mappings SET travel_style = 'NATURE' WHERE place_id = ?",
+			placeId);
+		return placeId;
+	}
+
+	private long user(String publicId) {
+		jdbcTemplate.update(
+			"INSERT INTO users (public_id, signup_status) VALUES (?, 'COMPLETED')",
+			publicId);
+		return jdbcTemplate.queryForObject(
+			"SELECT id FROM users WHERE public_id = ?", Long.class, publicId);
+	}
+
+	private void save(long userId, long placeId, boolean deleted) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO user_saved_places
+			    (user_id, place_id, source, saved_at, updated_at, deleted_at)
+			VALUES (?, ?, 'HOME_MONTHLY', NOW(6), NOW(6), ?)
+			""",
+			userId, placeId, deleted ? java.time.LocalDateTime.now() : null);
 	}
 
 	private long occurrence(

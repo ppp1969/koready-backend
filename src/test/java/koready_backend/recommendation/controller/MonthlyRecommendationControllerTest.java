@@ -61,8 +61,9 @@ class MonthlyRecommendationControllerTest {
 			null,
 			TravelStyle.LOCAL_FESTIVAL,
 			"A local festival.",
+			0L,
 			new BigDecimal("90.00"),
-			2)));
+			1)));
 	}
 
 	@Test

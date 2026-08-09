@@ -154,7 +154,9 @@ public class MonthlyRecommendationService {
 			serviceRegionCode,
 			normalizedStyles,
 			language,
-			sort);
+			sort,
+			dateFilterType == DateFilterType.ALL
+				&& sort == RecommendationSort.RECOMMENDED);
 		List<MonthlyRecommendationRow> rows = repository.findPage(
 			new MonthlyRecommendationPageQuery(filter, cursor, size + 1));
 		long totalCount = repository.count(filter);
@@ -173,6 +175,7 @@ public class MonthlyRecommendationService {
 			MonthlyRecommendationRow last = visibleRows.getLast();
 			nextCursor = encodeCursor(fingerprint, sort, new MonthlyRecommendationCursor(
 				last.statusRank(),
+				last.heartCount(),
 				last.qualityScore(),
 				last.endDate(),
 				last.occurrenceId()));
@@ -223,6 +226,12 @@ public class MonthlyRecommendationService {
 		LocalDate today,
 		boolean saved
 	) {
+		if (row.startDate() == null || row.endDate() == null) {
+			return new PlaceCard(
+				row.placeId(), row.title(), row.serviceRegionCode(),
+				row.serviceRegionName(), row.addressSummary(), row.imageUrl(), null,
+				row.travelStyle(), List.of(), shortDescription(row.overview()), saved);
+		}
 		FestivalOccurrenceStatus status = FestivalOccurrenceStatus.from(
 			row.startDate(), row.endDate(), today);
 		DateTimeFormatter formatter = language == PlaceLanguage.EN
@@ -282,10 +291,11 @@ public class MonthlyRecommendationService {
 			? "" : cursor.qualityScore().stripTrailingZeros().toPlainString();
 		String endDate = cursor.endDate() == null ? "" : cursor.endDate().toString();
 		String payload = String.join("\t",
-			"1",
+			"2",
 			fingerprint,
 			sort.name(),
 			Integer.toString(cursor.statusRank()),
+			Long.toString(cursor.heartCount()),
 			score,
 			endDate,
 			Long.toString(cursor.occurrenceId()));
@@ -309,24 +319,27 @@ public class MonthlyRecommendationService {
 			String payload = new String(
 				Base64.getUrlDecoder().decode(token), StandardCharsets.UTF_8);
 			String[] parts = payload.split("\t", -1);
-			if (parts.length != 7
-				|| !"1".equals(parts[0])
+			if (parts.length != 8
+				|| !"2".equals(parts[0])
 				|| !expectedFingerprint.equals(parts[1])
 				|| !expectedSort.name().equals(parts[2])) {
 				throw new InvalidRecommendationCursorException();
 			}
 			int statusRank = Integer.parseInt(parts[3]);
-			BigDecimal score = parts[4].isBlank() ? null : new BigDecimal(parts[4]);
-			LocalDate endDate = parts[5].isBlank() ? null : LocalDate.parse(parts[5]);
-			long occurrenceId = Long.parseLong(parts[6]);
+			long heartCount = Long.parseLong(parts[4]);
+			BigDecimal score = parts[5].isBlank() ? null : new BigDecimal(parts[5]);
+			LocalDate endDate = parts[6].isBlank() ? null : LocalDate.parse(parts[6]);
+			long occurrenceId = Long.parseLong(parts[7]);
 			if (statusRank < 0
-				|| statusRank > 2
-				|| occurrenceId <= 0
+				|| statusRank > 1
+				|| heartCount < 0
+				|| occurrenceId == 0
 				|| (expectedSort == RecommendationSort.RECOMMENDED && score == null)
 				|| (expectedSort == RecommendationSort.DEADLINE && endDate == null)) {
 				throw new InvalidRecommendationCursorException();
 			}
-			return new MonthlyRecommendationCursor(statusRank, score, endDate, occurrenceId);
+			return new MonthlyRecommendationCursor(
+				statusRank, heartCount, score, endDate, occurrenceId);
 		} catch (InvalidRecommendationCursorException exception) {
 			throw exception;
 		} catch (RuntimeException exception) {

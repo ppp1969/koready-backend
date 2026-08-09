@@ -63,6 +63,7 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 	void includesEvergreenPlacesAndOrdersByActiveHeartsBeforeQuality() {
 		long popular = evergreenPlace("popular-nature", "SEOUL", "40.00");
 		long highQuality = evergreenPlace("high-quality-nature", "SEOUL", "99.00");
+		insertAttribute(popular, "usetime", "09:00-17:00");
 		long user1 = user("usr_monthly_heart_1");
 		long user2 = user("usr_monthly_heart_2");
 		save(user1, popular, false);
@@ -80,6 +81,7 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 		assertEquals(List.of(popular, highQuality),
 			rows.stream().map(MonthlyRecommendationRow::placeId).toList());
 		assertEquals(2L, repository.count(filter));
+		assertEquals("09:00-17:00", rows.getFirst().operatingHours());
 	}
 
 	@Test
@@ -262,6 +264,44 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 			VALUES (?, ?, 'HOME_MONTHLY', NOW(6), NOW(6), ?)
 			""",
 			userId, placeId, deleted ? java.time.LocalDateTime.now() : null);
+	}
+
+	private void insertAttribute(long placeId, String fieldCode, String value) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO open_api_call_logs
+			    (provider, api_name, operation, endpoint, request_started_at,
+			     success, request_params_masked)
+			VALUES ('KTO', 'KOR', 'detailIntro2', ?, UTC_TIMESTAMP(6),
+			        TRUE, JSON_OBJECT())
+			""",
+			"https://example.invalid/monthly-hours-" + placeId);
+		long callId = jdbcTemplate.queryForObject(
+			"SELECT MAX(id) FROM open_api_call_logs", Long.class);
+		jdbcTemplate.update(
+			"""
+			INSERT INTO open_api_raw_snapshots
+			    (call_log_id, provider, api_name, operation, storage_key,
+			     storage_format, content_type, raw_content_sha256,
+			     stored_object_sha256, byte_size, compressed_byte_size,
+			     item_count, captured_at, retention_class, immutable)
+			VALUES (?, 'KTO', 'KOR', 'detailIntro2', ?, 'JSON_GZIP',
+			        'application/json', ?, ?, 10, 10, 1, UTC_TIMESTAMP(6),
+			        'DEBUG_TEMPORARY', TRUE)
+			""",
+			callId, "kto/test/monthly-hours-" + placeId,
+			"d".repeat(64), "e".repeat(64));
+		long snapshotId = jdbcTemplate.queryForObject(
+			"SELECT id FROM open_api_raw_snapshots WHERE call_log_id = ?",
+			Long.class, callId);
+		jdbcTemplate.update(
+			"""
+			INSERT INTO place_detail_attributes
+			    (place_id, source_operation, item_sequence, field_code,
+			     value_text, source_content_id, source_snapshot_id, source_hash)
+			VALUES (?, 'detailIntro2', 1, ?, ?, 'monthly-hours', ?, ?)
+			""",
+			placeId, fieldCode, value, snapshotId, "c".repeat(64));
 	}
 
 	private long occurrence(

@@ -5064,6 +5064,11 @@ components:
             - $ref: '#/components/schemas/FestivalOccurrenceSummary'
           nullable: true
           description: 축제 카드에서만 존재합니다. 개최 회차의 연도·기간·현재 상태를 한 묶음으로 사용합니다.
+        operatingHours:
+          type: string
+          nullable: true
+          description: KTO 상세 정보에 운영시간이 있을 때만 반환하며, 없으면 null입니다.
+          example: 09:00-18:00
         travelStyle:
           type: string
           allOf:

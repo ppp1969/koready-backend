@@ -230,6 +230,7 @@ public class MonthlyRecommendationService {
 			return new PlaceCard(
 				row.placeId(), row.title(), row.serviceRegionCode(),
 				row.serviceRegionName(), row.addressSummary(), row.imageUrl(), null,
+				row.operatingHours(),
 				row.travelStyle(), List.of(), shortDescription(row.overview()), saved);
 		}
 		FestivalOccurrenceStatus status = FestivalOccurrenceStatus.from(
@@ -252,6 +253,7 @@ public class MonthlyRecommendationService {
 			row.addressSummary(),
 			row.imageUrl(),
 			occurrence,
+			row.operatingHours(),
 			row.travelStyle(),
 			List.of(),
 			shortDescription(row.overview()),
@@ -405,6 +407,7 @@ public class MonthlyRecommendationService {
 		String addressSummary,
 		String imageUrl,
 		FestivalOccurrenceSummary festivalOccurrence,
+		String operatingHours,
 		TravelStyle travelStyle,
 		List<String> tags,
 		String shortDescription,

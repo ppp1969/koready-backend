@@ -57,6 +57,7 @@ public interface MonthlyRecommendationRepository {
 		String serviceRegionName,
 		String addressSummary,
 		String imageUrl,
+		String operatingHours,
 		TravelStyle travelStyle,
 		String overview,
 		long heartCount,

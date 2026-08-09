@@ -54,6 +54,7 @@ class MonthlyRecommendationServiceTest {
 		MonthlyRecommendationRow evergreen = new MonthlyRecommendationRow(
 			-101L, 101L, 0, null, null, "Nature place",
 			ServiceRegionCode.SEOUL, "Seoul", "Jongno-gu, Seoul", null,
+			"Always open",
 			TravelStyle.NATURE, "Nature overview", 3L,
 			new BigDecimal("85.00"), 0);
 		when(repository.findPage(any())).thenReturn(List.of(evergreen));
@@ -65,6 +66,7 @@ class MonthlyRecommendationServiceTest {
 
 		assertEquals(101L, page.items().getFirst().placeId());
 		assertNull(page.items().getFirst().festivalOccurrence());
+		assertEquals("Always open", page.items().getFirst().operatingHours());
 	}
 
 	@Test
@@ -211,6 +213,7 @@ class MonthlyRecommendationServiceTest {
 			"Seoul",
 			"Jongno-gu, Seoul",
 			null,
+			"10:00-18:00",
 			TravelStyle.LOCAL_FESTIVAL,
 			"Festival overview",
 			0L,

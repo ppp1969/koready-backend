@@ -110,7 +110,7 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 			RecommendationScope.NEARBY,
 			ServiceRegionCode.SEOUL,
 			100).isEmpty());
-		assertEquals(3, repository.findEligibleCandidates(
+		assertEquals(2, repository.findEligibleCandidates(
 			user.userId(),
 			NOW.plusSeconds(30L * 24 * 60 * 60 + 120),
 			PlaceLanguage.EN,
@@ -232,7 +232,7 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 			PlaceLanguage.EN,
 			RecommendationScope.NEARBY,
 			ServiceRegionCode.SEOUL,
-			2).stream().map(candidate -> candidate.placeId()).toList();
+			10).stream().map(candidate -> candidate.placeId()).toList();
 		List<Long> nationwide = repository.findEligibleCandidates(
 			user.userId(),
 			NOW,

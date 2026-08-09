@@ -105,12 +105,9 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		        AND state.place_id = place.id
 		        AND state.suppress_until > ?
 		  )
+		  AND (? <> 'NEARBY' OR place.service_region_code = ?)
 		ORDER BY
 		    ended_festival ASC,
-		    CASE
-		        WHEN ? = 'NEARBY' AND place.service_region_code <> ? THEN 1
-		        ELSE 0
-		    END ASC,
 		    heart_count DESC,
 		    CASE WHEN EXISTS (
 		        SELECT 1

@@ -151,13 +151,13 @@ class RecommendationDeckServiceTest {
 			ArgumentCaptor.forClass(CreateDeckPlan.class);
 		org.mockito.Mockito.verify(repository).createDeck(planCaptor.capture());
 		CreateDeckPlan plan = planCaptor.getValue();
-		assertEquals(List.of(1L, 2L, 3L, 4L),
+		assertEquals(List.of(1L, 2L),
 			plan.items().stream().map(CardSnapshot::placeId).toList());
-		assertEquals(List.of(2, 3, 2, 3),
+		assertEquals(List.of(2, 3),
 			plan.items().stream().map(CardSnapshot::matchRank).toList());
-		assertEquals(2, plan.pages().size());
+		assertEquals(1, plan.pages().size());
 		assertEquals(2, result.cards().size());
-		assertTrue(result.hasMore());
+		assertFalse(result.hasMore());
 		assertEquals(30, result.deduplication().suppressionDays());
 		assertTrue(result.deduplication().guaranteedWithinDeck());
 	}

@@ -135,10 +135,10 @@ public class RecommendationDeckService {
 			unique.putIfAbsent(candidate.placeId(), candidate);
 		}
 		return unique.values().stream()
+			.filter(candidate -> scope == RecommendationScope.NATIONWIDE
+				|| candidate.serviceRegionCode() == context.serviceRegionCode())
 			.sorted(Comparator
 				.comparing(RecommendationCandidate::endedFestival)
-				.thenComparingInt(candidate ->
-					regionRank(candidate, context.serviceRegionCode(), scope))
 				.thenComparing(RecommendationCandidate::heartCount, Comparator.reverseOrder())
 				.thenComparingInt(candidate -> matchRank(candidate, context.travelStyles()))
 				.thenComparing(RecommendationCandidate::qualityScore, Comparator.reverseOrder())
@@ -146,17 +146,6 @@ public class RecommendationDeckService {
 			.limit(MAX_DECK_ITEMS)
 			.map(candidate -> snapshot(candidate, context.travelStyles()))
 			.toList();
-	}
-
-	private static int regionRank(
-		RecommendationCandidate candidate,
-		ServiceRegionCode originRegion,
-		RecommendationScope scope
-	) {
-		if (scope == RecommendationScope.NATIONWIDE) {
-			return 0;
-		}
-		return candidate.serviceRegionCode() == originRegion ? 0 : 1;
 	}
 
 	private static int matchRank(

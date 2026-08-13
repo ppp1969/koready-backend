@@ -44,7 +44,7 @@ public class SpringAiEditorialGenerator implements EditorialGenerator {
 
 	public SpringAiEditorialGenerator(
 		ChatClient.Builder builder,
-		@Value("${spring.ai.openai.chat.options.model:gpt-4o-mini}") String model
+		@Value("${spring.ai.google.genai.chat.model:gemini-2.5-flash-lite}") String model
 	) {
 		this.chatClient = builder.defaultSystem(SYSTEM_PROMPT).build();
 		this.model = model;
@@ -59,9 +59,13 @@ public class SpringAiEditorialGenerator implements EditorialGenerator {
 		if (response == null) {
 			throw new IllegalStateException("AI returned no structured editorial content");
 		}
+		return toGeneration(response, model);
+	}
+
+	static EditorialGeneration toGeneration(AiResponse response, String model) {
 		return new EditorialGeneration(
 			localized(response.korean()), localized(response.english()),
-			response.tags(), "openai", model, null, null);
+			response.tags(), "google-genai", model, null, null);
 	}
 
 	private static String renderSource(GenerationSource source) {

@@ -4,12 +4,13 @@ spring:
   ai:
     model:
       chat: ${SPRING_AI_MODEL_CHAT:none}
-    openai:
-      api-key: ${OPENAI_API_KEY:}
-      chat:
-        options:
-          model: ${EDITORIAL_AI_MODEL:gpt-4o-mini}
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY:}
+        chat:
+          model: ${EDITORIAL_AI_MODEL:gemini-2.5-flash-lite}
           temperature: 0.2
+          response-mime-type: application/json
   lifecycle:
     timeout-per-shutdown-phase: 30s
 

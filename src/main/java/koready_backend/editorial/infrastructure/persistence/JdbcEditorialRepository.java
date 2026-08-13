@@ -29,7 +29,7 @@ import koready_backend.editorial.domain.TourismPurposeTag;
 @Repository
 public class JdbcEditorialRepository implements EditorialRepository {
 
-	private static final String SOURCE_FINGERPRINT = """
+	static final String SOURCE_FINGERPRINT = """
 		SHA2(CONCAT_WS('|',
 			COALESCE(CAST(p.source_modified_time AS CHAR), ''),
 			COALESCE(ko.source_hash, ''),
@@ -78,6 +78,10 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			    requested_by_subject = COALESCE(VALUES(requested_by_subject), requested_by_subject),
 			    started_at = IF(status IN ('FAILED', 'STALE'), NULL, started_at),
 			    completed_at = IF(status IN ('FAILED', 'STALE'), NULL, completed_at),
+			    attempt_count = IF(status IN ('FAILED', 'STALE'), 0, attempt_count),
+			    lease_token = IF(status IN ('FAILED', 'STALE'), NULL, lease_token),
+			    lease_expires_at = IF(status IN ('FAILED', 'STALE'), NULL, lease_expires_at),
+			    next_attempt_at = IF(status IN ('FAILED', 'STALE'), NULL, next_attempt_at),
 			    status = IF(status IN ('READY', 'PROCESSING'), status, 'QUEUED'),
 			    error_code = IF(status IN ('READY', 'PROCESSING'), error_code, NULL),
 			    error_message = IF(status IN ('READY', 'PROCESSING'), error_message, NULL)

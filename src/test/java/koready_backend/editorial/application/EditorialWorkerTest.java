@@ -1,5 +1,6 @@
 package koready_backend.editorial.application;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
@@ -31,6 +32,14 @@ class EditorialWorkerTest {
 	private final EditorialWorker worker = new EditorialWorker(
 		repository, generator, new EditorialOutputValidator(), properties,
 		Clock.fixed(NOW, ZoneOffset.UTC));
+
+	@Test
+	void isolatesStartupLeaseRecoveryFailure() {
+		Mockito.doThrow(new IllegalStateException("database unavailable"))
+			.when(repository).recoverExpiredLeases(Mockito.any(), Mockito.anyInt());
+
+		assertDoesNotThrow(worker::recoverOnStartup);
+	}
 
 	@Test
 	void claimsGeneratesAndCompletesOneJob() {

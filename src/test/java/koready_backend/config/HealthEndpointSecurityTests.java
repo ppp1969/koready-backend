@@ -95,6 +95,13 @@ class HealthEndpointSecurityTests {
 			.andExpect(status().isFound())
 			.andExpect(redirectedUrl("/swagger-ui/index.html"));
 
+		mockMvc.perform(get("/swagger-ui/index.html"))
+			.andExpect(status().isOk())
+			.andExpect(content().string(containsString("/v3/api-docs")));
+
+		mockMvc.perform(get("/webjars/swagger-ui/swagger-ui.css"))
+			.andExpect(status().isOk());
+
 		mockMvc.perform(get("/openapi/koready.yaml"))
 			.andExpect(status().isOk())
 			.andExpect(content().string(containsString("TokenEnvelope:")))

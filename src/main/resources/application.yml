@@ -1,6 +1,15 @@
 spring:
   application:
     name: koready-backend
+  ai:
+    model:
+      chat: ${SPRING_AI_MODEL_CHAT:none}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: ${EDITORIAL_AI_MODEL:gpt-4o-mini}
+          temperature: 0.2
   lifecycle:
     timeout-per-shutdown-phase: 30s
 
@@ -38,6 +47,13 @@ koready:
   editorial:
     prompt-version: ${EDITORIAL_PROMPT_VERSION:koready-place-editorial-v1}
     publication-filter-enabled: ${EDITORIAL_PUBLICATION_FILTER_ENABLED:false}
+    worker:
+      enabled: ${EDITORIAL_WORKER_ENABLED:false}
+      poll-delay: ${EDITORIAL_WORKER_POLL_DELAY:30s}
+      lease-duration: ${EDITORIAL_WORKER_LEASE_DURATION:5m}
+      retry-delay: ${EDITORIAL_WORKER_RETRY_DELAY:10m}
+      max-attempts: ${EDITORIAL_WORKER_MAX_ATTEMPTS:2}
+      daily-limit: ${EDITORIAL_WORKER_DAILY_LIMIT:100}
   web:
     cors:
       allowed-origins: ${CORS_ALLOWED_ORIGINS:*}

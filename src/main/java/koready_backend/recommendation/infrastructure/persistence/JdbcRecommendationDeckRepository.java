@@ -22,7 +22,9 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 
+import koready_backend.editorial.application.EditorialProperties;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
@@ -106,6 +108,7 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		        AND state.suppress_until > ?
 		  )
 		  AND (? <> 'NEARBY' OR place.service_region_code = ?)
+		  /*EDITORIAL_READY_FILTER*/
 		ORDER BY
 		    ended_festival ASC,
 		    heart_count DESC,
@@ -146,14 +149,25 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 	private final JdbcTemplate jdbcTemplate;
 	private final NamedParameterJdbcTemplate namedJdbcTemplate;
 	private final JsonMapper jsonMapper;
+	private final EditorialProperties editorialProperties;
 
 	public JdbcRecommendationDeckRepository(
 		JdbcTemplate jdbcTemplate,
 		JsonMapper jsonMapper
 	) {
+		this(jdbcTemplate, jsonMapper, new EditorialProperties(null, false));
+	}
+
+	@Autowired
+	public JdbcRecommendationDeckRepository(
+		JdbcTemplate jdbcTemplate,
+		JsonMapper jsonMapper,
+		EditorialProperties editorialProperties
+	) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.namedJdbcTemplate = new NamedParameterJdbcTemplate(jdbcTemplate);
 		this.jsonMapper = jsonMapper;
+		this.editorialProperties = editorialProperties;
 	}
 
 	@Override
@@ -226,7 +240,7 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		int limit
 	) {
 		List<CandidateRow> rows = jdbcTemplate.query(
-			CANDIDATE_SELECT,
+			editorialCandidateSelect(),
 			this::candidateRow,
 			language.name(),
 			Timestamp.from(now),
@@ -255,6 +269,21 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 				row.endedFestival(),
 				row.qualityScore()))
 			.toList();
+	}
+
+	private String editorialCandidateSelect() {
+		if (!editorialProperties.publicationFilterEnabled()) {
+			return CANDIDATE_SELECT.replace("/*EDITORIAL_READY_FILTER*/", "");
+		}
+		String promptVersion = editorialProperties.promptVersion().replace("'", "''");
+		return CANDIDATE_SELECT.replace("/*EDITORIAL_READY_FILTER*/", """
+			AND EXISTS (
+			    SELECT 1 FROM place_editorial_contents editorial
+			    WHERE editorial.place_id = place.id
+			      AND editorial.status = 'READY'
+			      AND editorial.prompt_version = '%s'
+			)
+			""".formatted(promptVersion));
 	}
 
 	@Override

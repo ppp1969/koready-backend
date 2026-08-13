@@ -35,6 +35,9 @@ springdoc:
     url: /v3/api-docs
 
 koready:
+  editorial:
+    prompt-version: ${EDITORIAL_PROMPT_VERSION:koready-place-editorial-v1}
+    publication-filter-enabled: ${EDITORIAL_PUBLICATION_FILTER_ENABLED:false}
   web:
     cors:
       allowed-origins: ${CORS_ALLOWED_ORIGINS:*}

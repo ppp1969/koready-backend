@@ -4,7 +4,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+import koready_backend.editorial.application.EditorialService;
+import koready_backend.editorial.domain.EditorialJobStatus;
+import koready_backend.editorial.domain.TourismPurposeTag;
 import koready_backend.place.application.PlaceQueryService;
+import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
 
@@ -21,7 +25,12 @@ final class PlaceDtos {
 			page.totalCount());
 	}
 
-	static PlaceDetailResponse from(PlaceQueryService.PlaceDetail detail) {
+	static PlaceDetailResponse from(
+		PlaceQueryService.PlaceDetail detail,
+		EditorialService.PublicEditorial editorial,
+		PlaceLanguage language
+	) {
+		EditorialService.EditorialContent content = editorial.content();
 		return new PlaceDetailResponse(
 			detail.placeId(),
 			detail.title(),
@@ -36,11 +45,13 @@ final class PlaceDtos {
 			detail.usageFee(),
 			detail.parkingInfo(),
 			detail.images().stream().map(PlaceDtos::from).toList(),
-			detail.tags(),
+			content == null ? List.of() : content.tags().stream()
+				.map(tag -> tag(tag, language)).toList(),
 			detail.isSaved(),
-			from(detail.description()),
+			from(content),
+			editorial.status(),
 			detail.relatedPlaces().stream().map(PlaceDtos::from).toList(),
-			detail.availableTabs());
+			content == null ? List.of("MATES") : List.of("DESCRIPTION", "MATES"));
 	}
 
 	private static PlaceCardResponse from(PlaceQueryService.PlaceCard card) {
@@ -77,16 +88,21 @@ final class PlaceDtos {
 		return new PlaceImageResponse(image.imageUrl(), image.order(), image.altText());
 	}
 
-	private static PlaceDescriptionResponse from(PlaceQueryService.PlaceDescription description) {
-		if (description == null) {
+	private static PlaceDescriptionResponse from(EditorialService.EditorialContent content) {
+		if (content == null) {
 			return null;
 		}
 		return new PlaceDescriptionResponse(
-			description.impactTitle(),
-			description.impactSubtitle(),
-			description.introParagraphs(),
-			description.enjoyPoints(),
-			description.sourceType());
+			content.topic(),
+			content.oneLineDescription(),
+			content.shortIntroduction(),
+			content.enjoyPoints(),
+			content.contentVersion());
+	}
+
+	private static PlaceTagResponse tag(TourismPurposeTag tag, PlaceLanguage language) {
+		return new PlaceTagResponse(
+			tag.name(), language == PlaceLanguage.EN ? tag.labelEn() : tag.labelKo());
 	}
 
 	private static RelatedPlaceResponse from(PlaceQueryService.RelatedPlace place) {
@@ -141,9 +157,10 @@ final class PlaceDtos {
 		String usageFee,
 		String parkingInfo,
 		List<PlaceImageResponse> images,
-		List<String> tags,
+		List<PlaceTagResponse> tags,
 		boolean isSaved,
 		PlaceDescriptionResponse description,
+		EditorialJobStatus editorialStatus,
 		List<RelatedPlaceResponse> relatedPlaces,
 		List<String> availableTabs
 	) {
@@ -153,12 +170,15 @@ final class PlaceDtos {
 	}
 
 	record PlaceDescriptionResponse(
-		String impactTitle,
-		String impactSubtitle,
-		List<String> introParagraphs,
+		String topic,
+		String oneLineDescription,
+		String shortIntroduction,
 		List<String> enjoyPoints,
-		String sourceType
+		String contentVersion
 	) {
+	}
+
+	record PlaceTagResponse(String code, String label) {
 	}
 
 	record RelatedPlaceResponse(

@@ -102,6 +102,10 @@ class OpenApiContractTests {
 		"GET /admin/kto/related-tours",
 		"PUT /admin/kto/related-tours/{recordId}/mapping",
 		"DELETE /admin/kto/related-tours/{recordId}/mapping",
+		"GET /admin/editorial/candidates",
+		"GET /admin/editorial/candidates/{placeId}",
+		"POST /admin/editorial/places/{placeId}/queue",
+		"GET /admin/editorial/jobs",
 		"GET /admin/batch-jobs",
 		"POST /admin/batch-jobs",
 		"GET /admin/batch-jobs/{jobId}",
@@ -163,7 +167,7 @@ class OpenApiContractTests {
 			}
 		}
 
-		assertEquals(89, operationCount, "Unexpected API operation count");
+		assertEquals(93, operationCount, "Unexpected API operation count");
 		collectReferences(contract, references);
 		for (String reference : references) {
 			assertLocalReferenceResolves(contract, reference);
@@ -182,6 +186,24 @@ class OpenApiContractTests {
 			assertFalse(asMap(operation.get("responses"), location + ".responses")
 				.containsKey("401"));
 		}
+	}
+
+	@Test
+	void editorialAdminOperationsRequireAdminRole() throws IOException {
+		Map<String, Object> paths = asMap(loadContract().get("paths"), "paths");
+		Map<String, String> operations = Map.of(
+			"/admin/editorial/candidates", "get",
+			"/admin/editorial/candidates/{placeId}", "get",
+			"/admin/editorial/places/{placeId}/queue", "post",
+			"/admin/editorial/jobs", "get");
+
+		operations.forEach((path, method) -> {
+			Map<String, Object> operation = asMap(
+				asMap(paths.get(path), path).get(method), method.toUpperCase() + " " + path);
+			assertEquals(List.of("ADMIN"),
+				asList(operation.get("x-required-roles"), path + " roles"));
+			assertEquals("IMPLEMENTED", operation.get("x-implementation-status"));
+		});
 	}
 
 	@Test

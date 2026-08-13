@@ -50,6 +50,7 @@ koready:
     publication-filter-enabled: ${EDITORIAL_PUBLICATION_FILTER_ENABLED:false}
     worker:
       enabled: ${EDITORIAL_WORKER_ENABLED:false}
+      runtime-enabled: ${EDITORIAL_WORKER_RUNTIME_ENABLED:false}
       poll-delay: ${EDITORIAL_WORKER_POLL_DELAY:30s}
       lease-duration: ${EDITORIAL_WORKER_LEASE_DURATION:5m}
       retry-delay: ${EDITORIAL_WORKER_RETRY_DELAY:10m}

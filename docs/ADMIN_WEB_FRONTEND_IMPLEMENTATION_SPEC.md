@@ -51,7 +51,7 @@
 - 백엔드 access token과 refresh token을 JavaScript에서 읽을 수 없는 쿠키에 보관한다.
 - 관리자 웹 도메인과 백엔드 사이의 CORS 설정에 의존하지 않는다.
 - 토큰 갱신과 오류 형식을 한 곳에서 처리한다.
-- 브라우저 번들에 DB 비밀번호, OpenAI 키, AWS 키가 들어가지 않는다.
+- 브라우저 번들에 DB 비밀번호, Gemini 키, AWS 키가 들어가지 않는다.
 
 ## 4. 프로젝트 생성
 
@@ -268,7 +268,7 @@ ADMIN_SESSION_SECRET=<32-byte-or-longer-random-secret>
 Vercel에 넣지 않는 값:
 
 - Aiven 주소, 사용자명, 비밀번호
-- OpenAI API Key
+- Gemini API Key
 - AWS access key
 - KoReady JWT secret
 - 운영 사용자 데이터
@@ -303,7 +303,7 @@ Playwright E2E:
 4. `/jobs`에서 같은 작업 확인
 5. 세션 만료 시 refresh 후 원 요청 성공
 
-실제 OpenAI 호출은 E2E 조건에 포함하지 않는다. 백엔드 큐 등록과 상태 조회까지만 검증한다.
+실제 Gemini 호출은 E2E 조건에 포함하지 않는다. 백엔드 큐 등록과 상태 조회까지만 검증한다.
 
 ## 12. 구현 순서
 

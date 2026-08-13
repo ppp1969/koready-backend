@@ -6,6 +6,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -28,6 +30,7 @@ import koready_backend.editorial.application.port.EditorialWorkerRepository.Fail
 @EnableConfigurationProperties(EditorialWorkerProperties.class)
 public class EditorialWorker {
 
+	private static final Logger log = LoggerFactory.getLogger(EditorialWorker.class);
 	private static final ZoneId DAILY_LIMIT_ZONE = ZoneId.of("Asia/Seoul");
 	private final EditorialWorkerRepository repository;
 	private final EditorialGenerator generator;
@@ -65,7 +68,11 @@ public class EditorialWorker {
 
 	@EventListener(ApplicationReadyEvent.class)
 	public void recoverOnStartup() {
-		repository.recoverExpiredLeases(clock.instant(), properties.maxAttempts());
+		try {
+			repository.recoverExpiredLeases(clock.instant(), properties.maxAttempts());
+		} catch (RuntimeException exception) {
+			log.error("Editorial worker lease recovery failed; polling remains isolated");
+		}
 	}
 
 	public boolean processNext() {

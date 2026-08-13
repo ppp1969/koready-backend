@@ -19,7 +19,7 @@ repositories {
 }
 
 dependencies {
-	implementation platform('software.amazon.awssdk:bom:2.46.10')
+	implementation platform('software.amazon.awssdk:bom:2.51.3')
 	implementation platform('org.springframework.ai:spring-ai-bom:2.0.0')
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-jdbc'

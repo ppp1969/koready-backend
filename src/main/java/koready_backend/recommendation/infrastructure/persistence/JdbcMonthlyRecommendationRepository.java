@@ -7,7 +7,9 @@ import java.util.List;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.beans.factory.annotation.Autowired;
 
+import koready_backend.editorial.application.EditorialProperties;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
 import koready_backend.recommendation.application.port.MonthlyRecommendationRepository;
@@ -132,19 +134,34 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 		""";
 
 	private final NamedParameterJdbcTemplate jdbcTemplate;
+	private final EditorialProperties editorialProperties;
 
 	public JdbcMonthlyRecommendationRepository(NamedParameterJdbcTemplate jdbcTemplate) {
+		this(jdbcTemplate, new EditorialProperties(null, false));
+	}
+
+	@Autowired
+	public JdbcMonthlyRecommendationRepository(
+		NamedParameterJdbcTemplate jdbcTemplate,
+		EditorialProperties editorialProperties
+	) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.editorialProperties = editorialProperties;
 	}
 
 	@Override
 	public List<MonthlyRecommendationRow> findPage(MonthlyRecommendationPageQuery query) {
 		MapSqlParameterSource parameters = parameters(query.filter())
 			.addValue("limit", query.limit());
+		if (editorialProperties.publicationFilterEnabled()) {
+			parameters.addValue(
+				"editorialPromptVersion", editorialProperties.promptVersion());
+		}
 		String filterConditions = filterConditions(query.filter(), parameters);
 		StringBuilder sql = new StringBuilder("SELECT * FROM (\n")
 			.append(SELECT_COLUMNS)
 			.append(BASE_FROM)
+			.append(editorialReadyCondition())
 			.append(filterConditions)
 			.append("\n) candidate\nWHERE 1 = 1\n");
 
@@ -215,6 +232,21 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 		sql.append("LIMIT :limit");
 
 		return jdbcTemplate.query(sql.toString(), parameters, this::mapRow);
+	}
+
+	private String editorialReadyCondition() {
+		if (!editorialProperties.publicationFilterEnabled()) {
+			return "";
+		}
+		return """
+
+			  AND EXISTS (
+			      SELECT 1 FROM place_editorial_contents editorial
+			      WHERE editorial.place_id = p.id
+			        AND editorial.status = 'READY'
+			        AND editorial.prompt_version = :editorialPromptVersion
+			  )
+			""";
 	}
 
 	@Override

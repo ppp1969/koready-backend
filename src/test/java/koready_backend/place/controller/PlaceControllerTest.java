@@ -22,6 +22,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.common.controller.TraceIdFilter;
+import koready_backend.editorial.application.EditorialService;
+import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.place.application.port.PlaceQueryRepository;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceDetailRow;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceRow;
@@ -44,10 +46,16 @@ class PlaceControllerTest {
 	@MockitoBean
 	private ResponseLanguageResolver languageResolver;
 
+	@MockitoBean
+	private EditorialService editorialService;
+
 	@BeforeEach
 	void languageDefaults() {
 		when(languageResolver.resolve(null, null)).thenReturn(PlaceLanguage.KO);
 		when(languageResolver.resolve(null, "en-US")).thenReturn(PlaceLanguage.EN);
+		when(editorialService.findOrEnqueue(any(Long.class), any(), any()))
+			.thenReturn(new EditorialService.PublicEditorial(
+				EditorialJobStatus.QUEUED, false, null));
 	}
 
 	@Test
@@ -104,6 +112,8 @@ class PlaceControllerTest {
 			.andExpect(jsonPath("$.data.images", hasSize(0)))
 			.andExpect(jsonPath("$.data.availableTabs", hasSize(1)))
 			.andExpect(jsonPath("$.data.availableTabs[0]").value("MATES"))
+			.andExpect(jsonPath("$.data.editorialStatus").value("QUEUED"))
+			.andExpect(jsonPath("$.data.description").value((Object) null))
 			.andExpect(jsonPath("$.data.isSaved").value(false));
 	}
 

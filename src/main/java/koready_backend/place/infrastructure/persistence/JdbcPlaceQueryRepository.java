@@ -13,7 +13,9 @@ import java.util.Optional;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.beans.factory.annotation.Autowired;
 
+import koready_backend.editorial.application.EditorialProperties;
 import koready_backend.place.application.port.PlaceQueryRepository;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.PlaceSort;
@@ -287,9 +289,19 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		""";
 
 	private final NamedParameterJdbcTemplate jdbcTemplate;
+	private final EditorialProperties editorialProperties;
 
 	public JdbcPlaceQueryRepository(NamedParameterJdbcTemplate jdbcTemplate) {
+		this(jdbcTemplate, new EditorialProperties(null, false));
+	}
+
+	@Autowired
+	public JdbcPlaceQueryRepository(
+		NamedParameterJdbcTemplate jdbcTemplate,
+		EditorialProperties editorialProperties
+	) {
 		this.jdbcTemplate = jdbcTemplate;
+		this.editorialProperties = editorialProperties;
 	}
 
 	@Override
@@ -299,6 +311,19 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		parameters.addValue("serviceRegionCode", criteria.serviceRegionCode().name());
 
 		StringBuilder condition = new StringBuilder("\n  AND p.service_region_code = :serviceRegionCode");
+		if (editorialProperties.publicationFilterEnabled()) {
+			condition.append("""
+
+				  AND EXISTS (
+				      SELECT 1 FROM place_editorial_contents editorial
+				      WHERE editorial.place_id = p.id
+				        AND editorial.status = 'READY'
+				        AND editorial.prompt_version = :editorialPromptVersion
+				  )
+				""");
+			parameters.addValue(
+				"editorialPromptVersion", editorialProperties.promptVersion());
+		}
 		if (!criteria.travelStyles().isEmpty()) {
 			condition.append("""
 

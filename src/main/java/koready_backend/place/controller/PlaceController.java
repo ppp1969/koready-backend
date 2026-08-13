@@ -21,6 +21,8 @@ import jakarta.validation.constraints.Size;
 import koready_backend.common.controller.ApiEnvelope;
 import koready_backend.common.controller.AuthenticatedSubject;
 import koready_backend.common.controller.TraceIdFilter;
+import koready_backend.editorial.application.EditorialService;
+import koready_backend.editorial.domain.EditorialLanguage;
 import koready_backend.place.application.PlaceQueryService;
 import koready_backend.place.application.port.ResponseLanguageResolver;
 import koready_backend.place.domain.PlaceSort;
@@ -34,13 +36,16 @@ public class PlaceController {
 
 	private final PlaceQueryService placeQueryService;
 	private final ResponseLanguageResolver languageResolver;
+	private final EditorialService editorialService;
 
 	public PlaceController(
 		PlaceQueryService placeQueryService,
-		ResponseLanguageResolver languageResolver
+		ResponseLanguageResolver languageResolver,
+		EditorialService editorialService
 	) {
 		this.placeQueryService = placeQueryService;
 		this.languageResolver = languageResolver;
+		this.editorialService = editorialService;
 	}
 
 	@GetMapping
@@ -95,11 +100,15 @@ public class PlaceController {
 		HttpServletRequest request
 	) {
 		String userPublicId = AuthenticatedSubject.optional(authentication);
+		var language = languageResolver.resolve(userPublicId, acceptLanguage);
 		PlaceQueryService.PlaceDetail detail = placeQueryService.getPlace(
 			placeId,
-			languageResolver.resolve(userPublicId, acceptLanguage),
+			language,
 			userPublicId);
+		EditorialService.PublicEditorial editorial = editorialService.findOrEnqueue(
+			placeId, EditorialLanguage.valueOf(language.name()), userPublicId);
 		return ApiEnvelope.success(
-			"PLACE_DETAIL_OK", PlaceDtos.from(detail), TraceIdFilter.current(request));
+			"PLACE_DETAIL_OK", PlaceDtos.from(detail, editorial, language),
+			TraceIdFilter.current(request));
 	}
 }

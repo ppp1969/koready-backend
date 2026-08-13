@@ -14,7 +14,11 @@ import koready_backend.editorial.domain.EditorialGeneration.LocalizedContent;
 import koready_backend.editorial.domain.TourismPurposeTag;
 
 @Component
-@ConditionalOnProperty(prefix = "koready.editorial.worker", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(
+	prefix = "koready.editorial.worker",
+	name = {"enabled", "runtime-enabled"},
+	havingValue = "true"
+)
 public class SpringAiEditorialGenerator implements EditorialGenerator {
 
 	private static final String SYSTEM_PROMPT = """

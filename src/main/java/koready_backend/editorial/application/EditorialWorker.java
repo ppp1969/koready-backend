@@ -20,7 +20,11 @@ import koready_backend.editorial.application.port.EditorialWorkerRepository.Comp
 import koready_backend.editorial.application.port.EditorialWorkerRepository.FailCommand;
 
 @Component
-@ConditionalOnProperty(prefix = "koready.editorial.worker", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(
+	prefix = "koready.editorial.worker",
+	name = {"enabled", "runtime-enabled"},
+	havingValue = "true"
+)
 @EnableConfigurationProperties(EditorialWorkerProperties.class)
 public class EditorialWorker {
 

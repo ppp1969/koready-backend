@@ -40,7 +40,7 @@ public class SecurityConfig {
 				.requestMatchers(
 					"/actuator/health", "/actuator/health/**",
 					"/openapi/**", "/v3/api-docs/**",
-					"/swagger-ui.html", "/swagger-ui/**")
+					"/swagger-ui.html", "/swagger-ui/**", "/webjars/swagger-ui/**")
 				.permitAll()
 				.requestMatchers(
 					HttpMethod.POST,

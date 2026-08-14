@@ -45,6 +45,25 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		), 256)
 		""";
 
+	private static final String CANDIDATE_FROM_SQL = """
+		FROM places p
+		JOIN place_localizations ko ON ko.place_id = p.id AND ko.language = 'KO'
+		JOIN place_localizations en ON en.place_id = p.id AND en.language = 'EN'
+		  AND en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+		LEFT JOIN place_editorial_jobs latest ON latest.id = (
+		  SELECT j.id FROM place_editorial_jobs j WHERE j.place_id = p.id
+		  ORDER BY j.requested_at DESC, j.id DESC LIMIT 1)
+		WHERE p.active = TRUE
+		  AND EXISTS (SELECT 1 FROM place_style_mappings s WHERE s.place_id = p.id)
+		  AND (NULLIF(TRIM(p.first_image_url), '') IS NOT NULL
+		       OR EXISTS (SELECT 1 FROM place_images i WHERE i.place_id = p.id))
+		""";
+
+	private static final String QUEUE_ELIGIBLE_SQL = """
+		(NULLIF(TRIM(ko.overview), '') IS NOT NULL
+		 AND COALESCE(latest.status, 'NOT_REQUESTED') IN ('NOT_REQUESTED', 'FAILED', 'STALE'))
+		""";
+
 	private final JdbcTemplate jdbcTemplate;
 	private final NamedParameterJdbcTemplate namedJdbcTemplate;
 
@@ -190,34 +209,68 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			          ORDER BY i.source_priority DESC, i.source_order, i.id LIMIT 1),
 			          NULLIF(TRIM(p.first_image_url), '')) AS image_url,
 			       (NULLIF(TRIM(ko.overview), '') IS NOT NULL) AS has_ko_overview,
+			       %s AS queue_eligible,
 			       COALESCE(latest.status, 'NOT_REQUESTED') AS editorial_status,
 			       latest.requested_at
-			FROM places p
-			JOIN place_localizations ko ON ko.place_id = p.id AND ko.language = 'KO'
-			JOIN place_localizations en ON en.place_id = p.id AND en.language = 'EN'
-			  AND en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
-			LEFT JOIN place_editorial_jobs latest ON latest.id = (
-			  SELECT j.id FROM place_editorial_jobs j WHERE j.place_id = p.id
-			  ORDER BY j.requested_at DESC, j.id DESC LIMIT 1)
-			WHERE p.id > :cursor AND p.active = TRUE
-			  AND EXISTS (SELECT 1 FROM place_style_mappings s WHERE s.place_id = p.id)
-			  AND (NULLIF(TRIM(p.first_image_url), '') IS NOT NULL
-			       OR EXISTS (SELECT 1 FROM place_images i WHERE i.place_id = p.id))
-			  AND NULLIF(TRIM(ko.overview), '') IS NOT NULL
-			""");
+			%s AND p.id > :cursor
+			""".formatted(QUEUE_ELIGIBLE_SQL, CANDIDATE_FROM_SQL));
 		MapSqlParameterSource params = new MapSqlParameterSource()
 			.addValue("cursor", query.startAfterPlaceId())
 			.addValue("limit", query.limit());
-		if (query.query() != null) {
-			sql.append(" AND (ko.title LIKE :query OR en.title LIKE :query)");
-			params.addValue("query", "%" + query.query() + "%");
-		}
-		if (query.status() != null) {
-			sql.append(" AND COALESCE(latest.status, 'NOT_REQUESTED') = :status");
-			params.addValue("status", query.status().name());
-		}
+		appendCandidateFilters(sql, params, query);
 		sql.append(" ORDER BY p.id LIMIT :limit");
 		return namedJdbcTemplate.query(sql.toString(), params, this::candidate);
+	}
+
+	@Override
+	public long countCandidates(CandidateQuery query) {
+		StringBuilder sql = new StringBuilder("SELECT COUNT(*) " + CANDIDATE_FROM_SQL);
+		MapSqlParameterSource params = new MapSqlParameterSource();
+		appendCandidateFilters(sql, params, query);
+		Long count = namedJdbcTemplate.queryForObject(sql.toString(), params, Long.class);
+		return count == null ? 0 : count;
+	}
+
+	private void appendCandidateFilters(
+		StringBuilder sql,
+		MapSqlParameterSource params,
+		CandidateQuery query
+	) {
+		if (query.query() != null) {
+			sql.append(" AND (ko.title LIKE :query OR en.title LIKE :query");
+			params.addValue("query", "%" + query.query() + "%");
+			try {
+				params.addValue("queryPlaceId", Long.parseLong(query.query()));
+				sql.append(" OR p.id = :queryPlaceId");
+			} catch (NumberFormatException ignored) {
+				// Non-numeric search terms only match localized titles.
+			}
+			sql.append(")");
+		}
+		if (query.status() != null) {
+			switch (query.status()) {
+				case NOT_REQUESTED -> sql.append(
+					" AND COALESCE(latest.status, 'NOT_REQUESTED') = 'NOT_REQUESTED'");
+				case IN_PROGRESS -> sql.append(
+					" AND latest.status IN ('QUEUED', 'PROCESSING')");
+				case READY -> sql.append(" AND latest.status = 'READY'");
+				case RETRYABLE -> sql.append(" AND latest.status IN ('FAILED', 'STALE')");
+			}
+		}
+		if (query.region() != null) {
+			sql.append(" AND p.service_region_code = :region");
+			params.addValue("region", query.region().name());
+		}
+		if (query.hasKoreanOverview() != null) {
+			sql.append(query.hasKoreanOverview()
+				? " AND NULLIF(TRIM(ko.overview), '') IS NOT NULL"
+				: " AND NULLIF(TRIM(ko.overview), '') IS NULL");
+		}
+		if (query.queueEligible() != null) {
+			sql.append(query.queueEligible()
+				? " AND " + QUEUE_ELIGIBLE_SQL
+				: " AND NOT " + QUEUE_ELIGIBLE_SQL);
+		}
 	}
 
 	@Override
@@ -240,7 +293,6 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			  AND EXISTS (SELECT 1 FROM place_style_mappings s WHERE s.place_id = p.id)
 			  AND (NULLIF(TRIM(p.first_image_url), '') IS NOT NULL
 			       OR EXISTS (SELECT 1 FROM place_images i WHERE i.place_id = p.id))
-			  AND NULLIF(TRIM(ko.overview), '') IS NOT NULL
 			""", (rs, rowNumber) -> new CandidateDetailBase(
 				rs.getLong("place_id"), rs.getString("title_ko"),
 				rs.getString("title_en"), rs.getString("overview_ko"),
@@ -321,10 +373,11 @@ public class JdbcEditorialRepository implements EditorialRepository {
 	}
 
 	private CandidateRecord candidate(ResultSet rs, int rowNumber) throws SQLException {
-		return new CandidateRecord(
+			return new CandidateRecord(
 			rs.getLong("place_id"), rs.getString("title_ko"), rs.getString("title_en"),
 			rs.getString("service_region_code"),
 			rs.getString("image_url"), rs.getBoolean("has_ko_overview"),
+			rs.getBoolean("queue_eligible"),
 			EditorialJobStatus.valueOf(rs.getString("editorial_status")),
 			instant(rs, "requested_at"));
 	}

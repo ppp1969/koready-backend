@@ -68,12 +68,28 @@ class AdminEditorialControllerTest {
 	@Test
 	@WithMockUser(roles = "ADMIN")
 	void listsCandidatePlaces() throws Exception {
-		when(service.candidates(any(), any(), any(Long.class), any(Integer.class)))
-			.thenReturn(new EditorialService.CandidatePage(List.of(), null, false));
+		when(service.candidates(any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
+			.thenReturn(new EditorialService.CandidatePage(List.of(), null, false, 0));
 
 		mockMvc.perform(get("/api/v1/admin/editorial/candidates"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.items").isArray())
 			.andExpect(jsonPath("$.data.hasMore").value(false));
+	}
+
+	@Test
+	@WithMockUser(roles = "ADMIN")
+	void acceptsSelectionFiltersAndReturnsTotalCount() throws Exception {
+		when(service.candidates(any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
+			.thenReturn(new EditorialService.CandidatePage(List.of(), null, false, 0));
+
+		mockMvc.perform(get("/api/v1/admin/editorial/candidates")
+				.param("query", "4")
+				.param("status", "IN_PROGRESS")
+				.param("region", "SEOUL")
+				.param("hasKoreanOverview", "true")
+				.param("queueEligible", "false"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.totalCount").value(0));
 	}
 }

@@ -2809,20 +2809,35 @@ paths:
       description: |
         관리자 장소 후보 화면에서 사진, 한·영 제목, 권역, 한국어 원문 보유 여부와 현재 가공 상태를 조회합니다.
         목록 조회만으로는 AI 작업을 만들지 않습니다. `cursor`는 이전 응답의 `nextCursor`를 그대로 사용합니다.
-        후보는 활성 장소 중 KoReady 여행 유형, 이미지 1장 이상, 한국어 원문, 검증된 영문 제목이 있는 장소만 포함합니다.
+        후보는 활성 장소 중 KoReady 여행 유형, 이미지 1장 이상, 검증된 영문 제목이 있는 장소만 포함합니다.
+        한국어 원문이 없거나 이미 처리된 장소는 목록에서 확인할 수 있지만 `queueEligible=false`입니다.
       x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN]
       parameters:
         - name: query
           in: query
-          description: 한글 또는 영문 장소명 검색어
+          description: 한글명, 영문명 또는 숫자 장소 ID
           schema:
             type: string
             maxLength: 100
         - name: status
           in: query
           schema:
-            $ref: '#/components/schemas/EditorialJobStatus'
+            $ref: '#/components/schemas/EditorialCandidateStatusFilter'
+        - name: region
+          in: query
+          schema:
+            $ref: '#/components/schemas/ServiceRegionCode'
+        - name: hasKoreanOverview
+          in: query
+          description: true면 한국어 원문 보유, false면 원문 없음
+          schema:
+            type: boolean
+        - name: queueEligible
+          in: query
+          description: 현재 즉시 큐 등록 가능한 후보 여부
+          schema:
+            type: boolean
         - name: cursor
           in: query
           description: 이전 응답의 nextCursor. 첫 요청에서는 생략
@@ -6130,6 +6145,10 @@ components:
       type: string
       description: AI 장소 가공 작업 상태. NOT_REQUESTED는 아직 큐 작업이 없는 후보에만 사용
       enum: [NOT_REQUESTED, QUEUED, PROCESSING, READY, FAILED, STALE]
+    EditorialCandidateStatusFilter:
+      type: string
+      description: 관리자 선별 화면용 묶음 상태
+      enum: [NOT_REQUESTED, IN_PROGRESS, READY, RETRYABLE]
     EditorialJobPriority:
       type: string
       description: PM 선별 작업은 HIGH, 사용자 상세 조회로 생성된 작업은 NORMAL
@@ -6146,7 +6165,7 @@ components:
               $ref: '#/components/schemas/EditorialCandidateListResponse'
     EditorialCandidateListResponse:
       type: object
-      required: [items, hasMore]
+      required: [items, hasMore, totalCount]
       properties:
         items:
           type: array
@@ -6158,9 +6177,14 @@ components:
           description: 다음 페이지가 없으면 null
         hasMore:
           type: boolean
+        totalCount:
+          type: integer
+          format: int64
+          minimum: 0
+          description: 커서를 제외한 현재 필터 전체 결과 수
     EditorialCandidateResponse:
       type: object
-      required: [placeId, titleKo, titleEn, imageUrl, hasKoreanOverview, editorialStatus]
+      required: [placeId, titleKo, titleEn, imageUrl, hasKoreanOverview, queueEligible, editorialStatus]
       properties:
         placeId:
           type: integer
@@ -6179,6 +6203,9 @@ components:
           format: uri
         hasKoreanOverview:
           type: boolean
+        queueEligible:
+          type: boolean
+          description: 한국어 원문을 보유하고 현재 미요청·실패·갱신 필요 상태인지 여부
         editorialStatus:
           $ref: '#/components/schemas/EditorialJobStatus'
         requestedAt:
@@ -6194,7 +6221,7 @@ components:
               $ref: '#/components/schemas/EditorialCandidateDetailResponse'
     EditorialCandidateDetailResponse:
       type: object
-      required: [placeId, titleKo, titleEn, overviewKo, imageUrls, travelStyles, editorialStatus]
+      required: [placeId, titleKo, titleEn, imageUrls, travelStyles, editorialStatus]
       properties:
         placeId:
           type: integer
@@ -6206,6 +6233,7 @@ components:
           type: string
         overviewKo:
           type: string
+          nullable: true
           description: AI 입력과 관리자 검토에 사용하는 KTO 한국어 원문
         address:
           type: string

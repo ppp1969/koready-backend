@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 
 import koready_backend.editorial.domain.EditorialJobPriority;
+import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
+import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
 import koready_backend.editorial.domain.EditorialLanguage;
@@ -20,6 +22,8 @@ public interface EditorialRepository {
 	Optional<JobRecord> findLatestJob(long placeId, String promptVersion);
 
 	List<CandidateRecord> findCandidates(CandidateQuery query);
+
+	long countCandidates(CandidateQuery query);
 
 	Optional<CandidateDetailRecord> findCandidate(long placeId);
 
@@ -61,7 +65,10 @@ public interface EditorialRepository {
 
 	record CandidateQuery(
 		String query,
-		EditorialJobStatus status,
+		EditorialCandidateStatusFilter status,
+		EditorialCandidateRegionFilter region,
+		Boolean hasKoreanOverview,
+		Boolean queueEligible,
 		long startAfterPlaceId,
 		int limit
 	) {
@@ -74,6 +81,7 @@ public interface EditorialRepository {
 		String region,
 		String imageUrl,
 		boolean hasKoreanOverview,
+		boolean queueEligible,
 		EditorialJobStatus status,
 		Instant requestedAt
 	) {

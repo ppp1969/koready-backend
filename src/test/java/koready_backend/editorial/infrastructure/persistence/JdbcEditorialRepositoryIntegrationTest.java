@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import org.testcontainers.mysql.MySQLContainer;
 
 import koready_backend.editorial.application.port.EditorialRepository;
 import koready_backend.editorial.application.port.EditorialRepository.EnqueueCommand;
+import koready_backend.editorial.application.port.EditorialRepository.CandidateQuery;
 import koready_backend.editorial.application.port.EditorialWorkerRepository;
 import koready_backend.editorial.application.port.EditorialWorkerRepository.ClaimCommand;
 import koready_backend.editorial.application.port.EditorialWorkerRepository.CompleteCommand;
@@ -30,6 +32,7 @@ import koready_backend.editorial.domain.EditorialGeneration.LocalizedContent;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialTriggerType;
 import koready_backend.editorial.domain.TourismPurposeTag;
+import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 
 @Tag("integration")
 @SpringBootTest
@@ -126,23 +129,49 @@ class JdbcEditorialRepositoryIntegrationTest {
 			"SELECT status FROM place_editorial_jobs WHERE id = ?", String.class, second.jobId()));
 	}
 
+	@Test
+	void filtersCandidatesByIdRegionOverviewAndQueueEligibility() {
+		long eligiblePlaceId = place("SEOUL", "사실 기반 설명");
+		long noOverviewPlaceId = place("GYEONGGI", null);
+
+		var eligibleQuery = new CandidateQuery(
+			Long.toString(eligiblePlaceId), null, EditorialCandidateRegionFilter.SEOUL,
+			true, true, 0L, 20);
+		var eligible = repository.findCandidates(eligibleQuery);
+
+		assertEquals(1, eligible.size());
+		assertEquals(eligiblePlaceId, eligible.getFirst().placeId());
+		assertTrue(eligible.getFirst().queueEligible());
+		assertEquals(1, repository.countCandidates(eligibleQuery));
+
+		var noOverview = repository.findCandidates(new CandidateQuery(
+			null, null, EditorialCandidateRegionFilter.GYEONGGI, false, false, 0L, 20));
+		assertEquals(List.of(noOverviewPlaceId), noOverview.stream()
+			.map(EditorialRepository.CandidateRecord::placeId).toList());
+		assertFalse(noOverview.getFirst().queueEligible());
+	}
+
 	private long place() {
+		return place("SEOUL", "사실 기반 설명");
+	}
+
+	private long place(String region, String overview) {
+		String contentId = "editorial-place-" + UUID.randomUUID();
 		jdbcTemplate.update("""
 			INSERT INTO places
 			    (kto_content_id, service_region_code, first_image_url,
 			     source_modified_time, show_flag, active)
-			VALUES ('editorial-place', 'SEOUL', 'https://example.com/image.jpg',
+			VALUES (?, ?, 'https://example.com/image.jpg',
 			        '20260813000000', TRUE, TRUE)
-			""");
+			""", contentId, region);
 		long id = jdbcTemplate.queryForObject(
-			"SELECT id FROM places WHERE kto_content_id = 'editorial-place'",
-			Long.class);
+			"SELECT id FROM places WHERE kto_content_id = ?", Long.class, contentId);
 		jdbcTemplate.update("""
 			INSERT INTO place_localizations
 			    (place_id, language, title, overview, translation_source, source_hash)
-			VALUES (?, 'KO', '테스트 장소', '사실 기반 설명', 'KTO_KO', 'ko-hash'),
+			VALUES (?, 'KO', '테스트 장소', ?, 'KTO_KO', 'ko-hash'),
 			       (?, 'EN', 'Test Place', NULL, 'KTO_EN', 'en-hash')
-			""", id, id);
+			""", id, overview, id);
 		jdbcTemplate.update("""
 			INSERT INTO place_style_mappings
 			    (place_id, travel_style, source, confidence, rule_version, is_primary)

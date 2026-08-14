@@ -15,10 +15,12 @@ import koready_backend.editorial.application.port.EditorialRepository.EnqueueRec
 import koready_backend.editorial.application.port.EditorialRepository.JobQuery;
 import koready_backend.editorial.application.port.EditorialRepository.ReadyContentRecord;
 import koready_backend.editorial.domain.EditorialJobPriority;
+import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
 import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
 import koready_backend.editorial.domain.EditorialLanguage;
 import koready_backend.editorial.domain.TourismPurposeTag;
+import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 
 @Service
 public class EditorialService {
@@ -77,21 +79,28 @@ public class EditorialService {
 	@Transactional(readOnly = true)
 	public CandidatePage candidates(
 		String query,
-		EditorialJobStatus status,
+		EditorialCandidateStatusFilter status,
+		EditorialCandidateRegionFilter region,
+		Boolean hasKoreanOverview,
+		Boolean queueEligible,
 		long startAfterPlaceId,
 		int size
 	) {
 		validatePage(startAfterPlaceId, size);
 		List<EditorialRepository.CandidateRecord> records = repository.findCandidates(
-			new CandidateQuery(optional(query), status, startAfterPlaceId, size + 1));
+			new CandidateQuery(
+				optional(query), status, region, hasKoreanOverview, queueEligible,
+				startAfterPlaceId, size + 1));
+		long totalCount = repository.countCandidates(new CandidateQuery(
+			optional(query), status, region, hasKoreanOverview, queueEligible, 0L, 1));
 		boolean hasMore = records.size() > size;
 		List<CandidateView> items = records.subList(0, Math.min(size, records.size()))
 			.stream().map(CandidateView::from).toList();
 		return new CandidatePage(
 			items,
 			hasMore && !items.isEmpty()
-				? Long.toString(items.getLast().placeId()) : null,
-			hasMore);
+			? Long.toString(items.getLast().placeId()) : null,
+			hasMore, totalCount);
 	}
 
 	@Transactional(readOnly = true)
@@ -210,7 +219,12 @@ public class EditorialService {
 		}
 	}
 
-	public record CandidatePage(List<CandidateView> items, String nextCursor, boolean hasMore) {
+	public record CandidatePage(
+		List<CandidateView> items,
+		String nextCursor,
+		boolean hasMore,
+		long totalCount
+	) {
 	}
 
 	public record CandidateView(
@@ -220,13 +234,15 @@ public class EditorialService {
 		String region,
 		String imageUrl,
 		boolean hasKoreanOverview,
+		boolean queueEligible,
 		EditorialJobStatus status,
 		java.time.Instant requestedAt
 	) {
 		static CandidateView from(EditorialRepository.CandidateRecord record) {
 			return new CandidateView(
 				record.placeId(), record.titleKo(), record.titleEn(), record.region(),
-				record.imageUrl(), record.hasKoreanOverview(), record.status(),
+				record.imageUrl(), record.hasKoreanOverview(), record.queueEligible(),
+				record.status(),
 				record.requestedAt());
 		}
 	}

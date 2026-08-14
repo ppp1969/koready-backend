@@ -20,6 +20,8 @@ import koready_backend.common.controller.ApiEnvelope;
 import koready_backend.common.controller.TraceIdFilter;
 import koready_backend.editorial.application.EditorialService;
 import koready_backend.editorial.domain.EditorialJobStatus;
+import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
+import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 
 @Validated
 @RestController
@@ -36,10 +38,13 @@ public class AdminEditorialController {
 	@GetMapping("/candidates")
 	@Operation(
 		summary = "AI 장소 가공 후보 조회",
-		description = "이미지, 분류, 한국어 원문 설명과 신뢰 가능한 영문 제목을 가진 장소를 조회합니다.")
+		description = "이미지, 분류와 신뢰 가능한 영문 제목이 있는 장소를 선별 조건으로 조회합니다.")
 	public ApiEnvelope<EditorialDtos.CandidateListResponse> candidates(
 		@RequestParam(required = false) @Size(max = 100) String query,
-		@RequestParam(required = false) EditorialJobStatus status,
+		@RequestParam(required = false) EditorialCandidateStatusFilter status,
+		@RequestParam(required = false) EditorialCandidateRegionFilter region,
+		@RequestParam(required = false) Boolean hasKoreanOverview,
+		@RequestParam(required = false) Boolean queueEligible,
 		@RequestParam(required = false) @Size(max = 30) String cursor,
 		@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
 		HttpServletRequest request
@@ -47,7 +52,8 @@ public class AdminEditorialController {
 		return ApiEnvelope.success(
 			"EDITORIAL_CANDIDATE_LIST_OK",
 			EditorialDtos.from(service.candidates(
-				query, status, cursor(cursor), size)),
+				query, status, region, hasKoreanOverview, queueEligible,
+				cursor(cursor), size)),
 			TraceIdFilter.current(request));
 	}
 

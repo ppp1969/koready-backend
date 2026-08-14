@@ -23,9 +23,9 @@ final class EditorialDtos {
 		return new CandidateListResponse(
 			page.items().stream().map(item -> new CandidateResponse(
 				item.placeId(), item.titleKo(), item.titleEn(), item.region(),
-				item.imageUrl(), item.hasKoreanOverview(), item.status(),
+				item.imageUrl(), item.hasKoreanOverview(), item.queueEligible(), item.status(),
 				item.requestedAt())).toList(),
-			page.nextCursor(), page.hasMore());
+			page.nextCursor(), page.hasMore(), page.totalCount());
 	}
 
 	static JobListResponse from(EditorialService.JobPage page) {
@@ -59,7 +59,8 @@ final class EditorialDtos {
 	record CandidateListResponse(
 		List<CandidateResponse> items,
 		String nextCursor,
-		boolean hasMore
+		boolean hasMore,
+		long totalCount
 	) {
 	}
 
@@ -70,6 +71,7 @@ final class EditorialDtos {
 		String region,
 		String imageUrl,
 		boolean hasKoreanOverview,
+		boolean queueEligible,
 		EditorialJobStatus editorialStatus,
 		Instant requestedAt
 	) {

@@ -2910,6 +2910,40 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /admin/editorial/places/{placeId}/visibility:
+    patch:
+      tags: [Admin Editorial]
+      operationId: updateAdminEditorialPlaceVisibility
+      summary: 관리자 장소 공개 상태 변경
+      description: |
+        관리자 화면에서 장소의 사용자 노출 여부를 변경합니다.
+        공개하면 `active=true`, `showFlag=true`로 저장합니다.
+        비공개하면 관리자 후보에서 계속 관리할 수 있도록 `active`는 유지하고 `showFlag=false`로 저장합니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditorialVisibilityRequest'
+      responses:
+        '200':
+          description: 장소 공개 상태 변경 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditorialVisibilityEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /admin/editorial/jobs:
     get:
       tags: [Admin Editorial]
@@ -6184,7 +6218,7 @@ components:
           description: 커서를 제외한 현재 필터 전체 결과 수
     EditorialCandidateResponse:
       type: object
-      required: [placeId, titleKo, titleEn, imageUrl, hasKoreanOverview, queueEligible, editorialStatus]
+      required: [placeId, titleKo, titleEn, imageUrl, hasKoreanOverview, queueEligible, editorialStatus, active, showFlag, visible]
       properties:
         placeId:
           type: integer
@@ -6208,6 +6242,13 @@ components:
           description: 한국어 원문을 보유하고 현재 미요청·실패·갱신 필요 상태인지 여부
         editorialStatus:
           $ref: '#/components/schemas/EditorialJobStatus'
+        active:
+          type: boolean
+        showFlag:
+          type: boolean
+        visible:
+          type: boolean
+          description: 사용자 API 노출 여부. `active`와 `showFlag`가 모두 true일 때 true
         requestedAt:
           type: string
           format: date-time
@@ -6221,7 +6262,7 @@ components:
               $ref: '#/components/schemas/EditorialCandidateDetailResponse'
     EditorialCandidateDetailResponse:
       type: object
-      required: [placeId, titleKo, titleEn, imageUrls, travelStyles, editorialStatus]
+      required: [placeId, titleKo, titleEn, imageUrls, travelStyles, editorialStatus, active, showFlag, visible]
       properties:
         placeId:
           type: integer
@@ -6257,6 +6298,13 @@ components:
             $ref: '#/components/schemas/TravelStyle'
         editorialStatus:
           $ref: '#/components/schemas/EditorialJobStatus'
+        active:
+          type: boolean
+        showFlag:
+          type: boolean
+        visible:
+          type: boolean
+          description: 사용자 API 노출 여부. `active`와 `showFlag`가 모두 true일 때 true
         requestedAt:
           type: string
           format: date-time
@@ -6291,6 +6339,37 @@ components:
         created:
           type: boolean
           description: true면 새 작업 생성, false면 같은 원문·프롬프트의 기존 작업 반환
+    EditorialVisibilityRequest:
+      type: object
+      required: [visible]
+      properties:
+        visible:
+          type: boolean
+          description: true면 공개, false면 비공개
+    EditorialVisibilityEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/EditorialVisibilityResponse'
+    EditorialVisibilityResponse:
+      type: object
+      required: [placeId, active, showFlag, visible, updatedAt]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+          minimum: 1
+        active:
+          type: boolean
+        showFlag:
+          type: boolean
+        visible:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
     EditorialJobListEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'

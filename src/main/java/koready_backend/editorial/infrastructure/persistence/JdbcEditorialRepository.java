@@ -20,6 +20,8 @@ import org.springframework.stereotype.Repository;
 
 import koready_backend.editorial.application.exception.EditorialPlaceNotFoundException;
 import koready_backend.editorial.application.port.EditorialRepository;
+import koready_backend.editorial.application.port.EditorialRepository.PlaceVisibilityRecord;
+import koready_backend.editorial.application.port.EditorialRepository.VisibilityCommand;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
@@ -203,7 +205,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 	public List<CandidateRecord> findCandidates(CandidateQuery query) {
 		StringBuilder sql = new StringBuilder("""
 			SELECT p.id AS place_id, ko.title AS title_ko, en.title AS title_en,
-			       p.service_region_code,
+			       p.service_region_code, p.active, p.show_flag,
 			       COALESCE((SELECT i.image_url FROM place_images i
 			          WHERE i.place_id = p.id
 			          ORDER BY i.source_priority DESC, i.source_order, i.id LIMIT 1),
@@ -279,7 +281,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			SELECT p.id AS place_id, ko.title AS title_ko, en.title AS title_en,
 			       ko.overview AS overview_ko,
 			       COALESCE(ko.address_text, p.road_address, p.address) AS address,
-			       p.service_region_code,
+			       p.service_region_code, p.active, p.show_flag,
 			       COALESCE(latest.status, 'NOT_REQUESTED') AS editorial_status,
 			       latest.requested_at
 			FROM places p
@@ -298,6 +300,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 				rs.getString("title_en"), rs.getString("overview_ko"),
 				rs.getString("address"),
 				rs.getString("service_region_code"),
+				rs.getBoolean("active"), rs.getBoolean("show_flag"),
 				EditorialJobStatus.valueOf(rs.getString("editorial_status")),
 				instant(rs, "requested_at")), placeId);
 		if (rows.isEmpty()) {
@@ -323,7 +326,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			""", String.class, placeId);
 		return Optional.of(new CandidateDetailRecord(
 			base.placeId(), base.titleKo(), base.titleEn(), base.overviewKo(),
-			base.address(), base.region(), images, styles, base.status(),
+			base.address(), base.region(), images, styles, base.active(), base.showFlag(), base.status(),
 			base.requestedAt()));
 	}
 
@@ -339,6 +342,37 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			params.addValue("status", query.status().name());
 		}
 		return namedJdbcTemplate.query(sql, params, this::job);
+	}
+
+	@Override
+	public Optional<PlaceVisibilityRecord> updateVisibility(VisibilityCommand command) {
+		if (command.visible()) {
+			jdbcTemplate.update("""
+				UPDATE places
+				SET active = TRUE, show_flag = TRUE, updated_at = ?
+				WHERE id = ?
+				""", Timestamp.from(command.updatedAt()), command.placeId());
+		} else {
+			jdbcTemplate.update("""
+				UPDATE places
+				SET show_flag = FALSE, updated_at = ?
+				WHERE id = ?
+				""", Timestamp.from(command.updatedAt()), command.placeId());
+		}
+		Optional<PlaceVisibilityRecord> updated = jdbcTemplate.query("""
+			SELECT id, active, show_flag, updated_at
+			FROM places WHERE id = ?
+			""", (rs, rowNumber) -> new PlaceVisibilityRecord(
+				rs.getLong("id"), rs.getBoolean("active"), rs.getBoolean("show_flag"),
+				instant(rs, "updated_at")), command.placeId()).stream().findFirst();
+		updated.ifPresent(value -> jdbcTemplate.update("""
+			INSERT INTO place_editorial_audits
+			    (place_id, job_id, actor_subject, action, details_json, created_at)
+			VALUES (?, NULL, ?, 'PLACE_VISIBILITY_UPDATED',
+			        JSON_OBJECT('visible', ?, 'active', ?, 'showFlag', ?), ?)
+			""", value.placeId(), command.actorSubject(), value.visible(),
+			value.active(), value.showFlag(), Timestamp.from(command.updatedAt())));
+		return updated;
 	}
 
 	private Optional<Source> findSource(long placeId) {
@@ -378,6 +412,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			rs.getString("service_region_code"),
 			rs.getString("image_url"), rs.getBoolean("has_ko_overview"),
 			rs.getBoolean("queue_eligible"),
+			rs.getBoolean("active"), rs.getBoolean("show_flag"),
 			EditorialJobStatus.valueOf(rs.getString("editorial_status")),
 			instant(rs, "requested_at"));
 	}
@@ -434,6 +469,8 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		String overviewKo,
 		String address,
 		String region,
+		boolean active,
+		boolean showFlag,
 		EditorialJobStatus status,
 		Instant requestedAt
 	) {

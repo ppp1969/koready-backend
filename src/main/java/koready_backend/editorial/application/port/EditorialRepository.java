@@ -29,6 +29,8 @@ public interface EditorialRepository {
 
 	List<JobRecord> findJobs(JobQuery query);
 
+	Optional<PlaceVisibilityRecord> updateVisibility(VisibilityCommand command);
+
 	record EnqueueCommand(
 		long placeId,
 		String promptVersion,
@@ -82,6 +84,8 @@ public interface EditorialRepository {
 		String imageUrl,
 		boolean hasKoreanOverview,
 		boolean queueEligible,
+		boolean active,
+		boolean showFlag,
 		EditorialJobStatus status,
 		Instant requestedAt
 	) {
@@ -96,6 +100,8 @@ public interface EditorialRepository {
 		String region,
 		List<String> imageUrls,
 		List<String> travelStyles,
+		boolean active,
+		boolean showFlag,
 		EditorialJobStatus status,
 		Instant requestedAt
 	) {
@@ -118,5 +124,24 @@ public interface EditorialRepository {
 		Instant startedAt,
 		Instant completedAt
 	) {
+	}
+
+	record VisibilityCommand(
+		long placeId,
+		boolean visible,
+		String actorSubject,
+		Instant updatedAt
+	) {
+	}
+
+	record PlaceVisibilityRecord(
+		long placeId,
+		boolean active,
+		boolean showFlag,
+		Instant updatedAt
+	) {
+		public boolean visible() {
+			return active && showFlag;
+		}
 	}
 }

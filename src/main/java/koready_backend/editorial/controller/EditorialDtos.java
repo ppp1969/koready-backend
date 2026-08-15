@@ -24,7 +24,7 @@ final class EditorialDtos {
 			page.items().stream().map(item -> new CandidateResponse(
 				item.placeId(), item.titleKo(), item.titleEn(), item.region(),
 				item.imageUrl(), item.hasKoreanOverview(), item.queueEligible(), item.status(),
-				item.requestedAt())).toList(),
+				item.active(), item.showFlag(), item.visible(), item.requestedAt())).toList(),
 			page.nextCursor(), page.hasMore(), page.totalCount());
 	}
 
@@ -42,7 +42,12 @@ final class EditorialDtos {
 		return new CandidateDetailResponse(
 			item.placeId(), item.titleKo(), item.titleEn(), item.overviewKo(),
 			item.address(), item.region(), item.imageUrls(), item.travelStyles(),
-			item.status(), item.requestedAt());
+			item.active(), item.showFlag(), item.visible(), item.status(), item.requestedAt());
+	}
+
+	static VisibilityResponse from(EditorialService.PlaceVisibilityView item) {
+		return new VisibilityResponse(
+			item.placeId(), item.active(), item.showFlag(), item.visible(), item.updatedAt());
 	}
 
 	record QueueResponse(
@@ -73,6 +78,9 @@ final class EditorialDtos {
 		boolean hasKoreanOverview,
 		boolean queueEligible,
 		EditorialJobStatus editorialStatus,
+		boolean active,
+		boolean showFlag,
+		boolean visible,
 		Instant requestedAt
 	) {
 	}
@@ -86,6 +94,9 @@ final class EditorialDtos {
 		String region,
 		List<String> imageUrls,
 		List<String> travelStyles,
+		boolean active,
+		boolean showFlag,
+		boolean visible,
 		EditorialJobStatus editorialStatus,
 		Instant requestedAt
 	) {
@@ -110,6 +121,20 @@ final class EditorialDtos {
 		Instant requestedAt,
 		Instant startedAt,
 		Instant completedAt
+	) {
+	}
+
+	record VisibilityRequest(
+		@jakarta.validation.constraints.NotNull Boolean visible
+	) {
+	}
+
+	record VisibilityResponse(
+		long placeId,
+		boolean active,
+		boolean showFlag,
+		boolean visible,
+		Instant updatedAt
 	) {
 	}
 }

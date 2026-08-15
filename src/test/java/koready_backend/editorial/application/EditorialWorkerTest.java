@@ -1,6 +1,7 @@
 package koready_backend.editorial.application;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
@@ -15,6 +16,12 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.google.genai.errors.ClientException;
 
 import koready_backend.editorial.application.port.EditorialGenerator;
 import koready_backend.editorial.application.port.EditorialWorkerRepository;
@@ -62,6 +69,7 @@ class EditorialWorkerTest {
 		when(repository.countStartedBetween(Mockito.any(), Mockito.any())).thenReturn(0L);
 		when(repository.claimNext(Mockito.any())).thenReturn(Optional.of(claimed));
 		when(generator.generate(claimed.source())).thenThrow(new IllegalStateException("secret prompt"));
+		ListAppender<ILoggingEvent> logs = captureWorkerLogs();
 
 		assertTrue(worker.processNext());
 
@@ -69,6 +77,38 @@ class EditorialWorkerTest {
 			command.retry()
 				&& command.errorCode().equals("AI_GENERATION_FAILED")
 				&& !command.errorMessage().contains("secret prompt")));
+		assertEquals(1, logs.list.size());
+		String message = logs.list.getFirst().getFormattedMessage();
+		assertTrue(message.contains("jobId=1"));
+		assertTrue(message.contains("jobPublicId=job-1"));
+		assertTrue(message.contains("placeId=10"));
+		assertTrue(message.contains("attempt=1"));
+		assertTrue(message.contains("errorCode=AI_GENERATION_FAILED"));
+		assertTrue(message.contains("errorCategory=UNEXPECTED"));
+		assertTrue(message.contains("exceptionType=IllegalStateException"));
+		assertTrue(message.contains("providerHttpStatus=null"));
+		assertTrue(message.contains("retry=true"));
+		assertTrue(message.contains("nextAttemptAt=2026-08-13T00:10:00Z"));
+		assertFalse(message.contains("secret prompt"));
+		assertEquals(null, logs.list.getFirst().getThrowableProxy());
+	}
+
+	@Test
+	void classifiesProviderHttpStatusWithoutLoggingProviderMessage() {
+		var claimed = EditorialWorkerFixtures.claimed("lease-3", 1);
+		when(repository.countStartedBetween(Mockito.any(), Mockito.any())).thenReturn(0L);
+		when(repository.claimNext(Mockito.any())).thenReturn(Optional.of(claimed));
+		when(generator.generate(claimed.source())).thenThrow(
+			new ClientException(429, "RESOURCE_EXHAUSTED", "secret provider response"));
+		ListAppender<ILoggingEvent> logs = captureWorkerLogs();
+
+		assertTrue(worker.processNext());
+
+		String message = logs.list.getFirst().getFormattedMessage();
+		assertTrue(message.contains("errorCategory=PROVIDER_RATE_LIMIT"));
+		assertTrue(message.contains("providerHttpStatus=429"));
+		assertFalse(message.contains("secret provider response"));
+		assertEquals(null, logs.list.getFirst().getThrowableProxy());
 	}
 
 	@Test
@@ -94,5 +134,13 @@ class EditorialWorkerTest {
 				List.of("Taste gimbap at food booths", "Join a gimbap-making activity", "Take photos at the festival zone")),
 			List.of(TourismPurposeTag.FOOD, TourismPurposeTag.EXPERIENCE),
 			"openai", "test-model", 100, 200);
+	}
+
+	private static ListAppender<ILoggingEvent> captureWorkerLogs() {
+		Logger logger = (Logger) LoggerFactory.getLogger(EditorialWorker.class);
+		ListAppender<ILoggingEvent> appender = new ListAppender<>();
+		appender.start();
+		logger.addAppender(appender);
+		return appender;
 	}
 }

@@ -15,10 +15,15 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.ai.retry.NonTransientAiException;
+import org.springframework.ai.retry.TransientAiException;
+
+import com.google.genai.errors.ApiException;
 
 import koready_backend.editorial.application.port.EditorialGenerator;
 import koready_backend.editorial.application.port.EditorialWorkerRepository;
 import koready_backend.editorial.application.port.EditorialWorkerRepository.ClaimCommand;
+import koready_backend.editorial.application.port.EditorialWorkerRepository.ClaimedJob;
 import koready_backend.editorial.application.port.EditorialWorkerRepository.CompleteCommand;
 import koready_backend.editorial.application.port.EditorialWorkerRepository.FailCommand;
 
@@ -99,26 +104,87 @@ public class EditorialWorker {
 				job.jobId(), job.leaseToken(), job.sourceFingerprint(),
 				job.promptVersion(), generation, clock.instant()));
 		} catch (IllegalArgumentException exception) {
-			fail(job.jobId(), job.leaseToken(), job.attemptCount(),
-				"AI_OUTPUT_INVALID", "AI output failed validation");
+			fail(job, "AI_OUTPUT_INVALID", "AI output failed validation",
+				"OUTPUT_VALIDATION", exception);
 		} catch (RuntimeException exception) {
-			fail(job.jobId(), job.leaseToken(), job.attemptCount(),
-				"AI_GENERATION_FAILED", "AI generation failed; retry policy applied");
+			FailureDetails details = failureDetails(exception);
+			fail(job, "AI_GENERATION_FAILED", "AI generation failed; retry policy applied",
+				details.category(), exception, details.providerHttpStatus());
 		}
 		return true;
 	}
 
 	private void fail(
-		long jobId,
-		String leaseToken,
-		int attemptCount,
+		ClaimedJob job,
 		String errorCode,
-		String errorMessage
+		String errorMessage,
+		String errorCategory,
+		RuntimeException exception
+	) {
+		fail(job, errorCode, errorMessage, errorCategory, exception, null);
+	}
+
+	private void fail(
+		ClaimedJob job,
+		String errorCode,
+		String errorMessage,
+		String errorCategory,
+		RuntimeException exception,
+		Integer providerHttpStatus
 	) {
 		Instant now = clock.instant();
-		boolean retry = attemptCount < properties.maxAttempts();
+		boolean retry = job.attemptCount() < properties.maxAttempts();
+		Instant nextAttemptAt = retry ? now.plus(properties.retryDelay()) : null;
 		repository.fail(new FailCommand(
-			jobId, leaseToken, retry, errorCode, errorMessage, now,
-			retry ? now.plus(properties.retryDelay()) : null));
+			job.jobId(), job.leaseToken(), retry, errorCode, errorMessage, now, nextAttemptAt));
+		log.error(
+			"Editorial AI job failed jobId={} jobPublicId={} placeId={} attempt={} errorCode={} "
+				+ "errorCategory={} exceptionType={} providerHttpStatus={} retry={} nextAttemptAt={}",
+			job.jobId(), job.publicId(), job.placeId(), job.attemptCount(), errorCode,
+			errorCategory, exception.getClass().getSimpleName(), providerHttpStatus,
+			retry, nextAttemptAt);
+	}
+
+	private static FailureDetails failureDetails(RuntimeException exception) {
+		ApiException apiException = findApiException(exception);
+		if (apiException != null) {
+			int status = apiException.code();
+			return new FailureDetails(providerCategory(status), status);
+		}
+		if (exception instanceof TransientAiException) {
+			return new FailureDetails("PROVIDER_TRANSIENT", null);
+		}
+		if (exception instanceof NonTransientAiException) {
+			return new FailureDetails("PROVIDER_NON_TRANSIENT", null);
+		}
+		return new FailureDetails("UNEXPECTED", null);
+	}
+
+	private static ApiException findApiException(Throwable exception) {
+		Throwable current = exception;
+		for (int depth = 0; current != null && depth < 10; depth++) {
+			if (current instanceof ApiException apiException) {
+				return apiException;
+			}
+			if (current.getCause() == current) {
+				break;
+			}
+			current = current.getCause();
+		}
+		return null;
+	}
+
+	private static String providerCategory(int status) {
+		return switch (status) {
+			case 401, 403 -> "PROVIDER_AUTHORIZATION";
+			case 404 -> "PROVIDER_MODEL_OR_ENDPOINT_NOT_FOUND";
+			case 429 -> "PROVIDER_RATE_LIMIT";
+			default -> status >= 500
+				? "PROVIDER_SERVER_ERROR"
+				: "PROVIDER_CLIENT_ERROR";
+		};
+	}
+
+	private record FailureDetails(String category, Integer providerHttpStatus) {
 	}
 }

@@ -5,12 +5,15 @@ import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -97,6 +100,23 @@ public class AdminEditorialController {
 		return ApiEnvelope.success(
 			"EDITORIAL_JOB_LIST_OK",
 			EditorialDtos.from(service.jobs(status, cursor(cursor), size)),
+			TraceIdFilter.current(request));
+	}
+
+	@PatchMapping("/places/{placeId}/visibility")
+	@Operation(
+		summary = "관리자 장소 공개 상태 변경",
+		description = "공개 시 active와 showFlag를 활성화합니다. 비공개 시 원본 활성 상태는 보존하고 showFlag만 비활성화합니다.")
+	public ApiEnvelope<EditorialDtos.VisibilityResponse> visibility(
+		@PathVariable @Positive long placeId,
+		@Valid @RequestBody EditorialDtos.VisibilityRequest body,
+		Authentication authentication,
+		HttpServletRequest request
+	) {
+		return ApiEnvelope.success(
+			"EDITORIAL_PLACE_VISIBILITY_UPDATED",
+			EditorialDtos.from(service.updateVisibility(
+				placeId, body.visible(), authentication.getName())),
 			TraceIdFilter.current(request));
 	}
 

@@ -3,6 +3,7 @@ package koready_backend.editorial.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -18,6 +19,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.MediaType;
 
 import koready_backend.editorial.application.EditorialService;
 import koready_backend.editorial.domain.EditorialJobPriority;
@@ -91,5 +93,23 @@ class AdminEditorialControllerTest {
 				.param("queueEligible", "false"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.totalCount").value(0));
+	}
+
+	@Test
+	@WithMockUser(username = "admin-subject", roles = "ADMIN")
+	void changesPlaceVisibility() throws Exception {
+		Instant updatedAt = Instant.parse("2026-08-15T06:00:00Z");
+		when(service.updateVisibility(10L, true, "admin-subject")).thenReturn(
+			new EditorialService.PlaceVisibilityView(10L, true, true, true, updatedAt));
+
+		mockMvc.perform(patch("/api/v1/admin/editorial/places/10/visibility")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"visible\":true}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value("EDITORIAL_PLACE_VISIBILITY_UPDATED"))
+			.andExpect(jsonPath("$.data.placeId").value(10))
+			.andExpect(jsonPath("$.data.visible").value(true))
+			.andExpect(jsonPath("$.data.active").value(true))
+			.andExpect(jsonPath("$.data.showFlag").value(true));
 	}
 }

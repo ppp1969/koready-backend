@@ -14,6 +14,7 @@ import koready_backend.editorial.application.port.EditorialRepository.EnqueueCom
 import koready_backend.editorial.application.port.EditorialRepository.EnqueueRecord;
 import koready_backend.editorial.application.port.EditorialRepository.JobQuery;
 import koready_backend.editorial.application.port.EditorialRepository.ReadyContentRecord;
+import koready_backend.editorial.application.port.EditorialRepository.VisibilityCommand;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
 import koready_backend.editorial.domain.EditorialJobStatus;
@@ -113,7 +114,8 @@ public class EditorialService {
 		return new CandidateDetailView(
 			candidate.placeId(), candidate.titleKo(), candidate.titleEn(),
 			candidate.overviewKo(), candidate.address(), candidate.region(),
-			candidate.imageUrls(), candidate.travelStyles(), candidate.status(),
+			candidate.imageUrls(), candidate.travelStyles(), candidate.active(),
+			candidate.showFlag(), candidate.active() && candidate.showFlag(), candidate.status(),
 			candidate.requestedAt());
 	}
 
@@ -130,6 +132,23 @@ public class EditorialService {
 			hasMore && !items.isEmpty()
 				? Long.toString(items.getLast().id()) : null,
 			hasMore);
+	}
+
+	@Transactional
+	public PlaceVisibilityView updateVisibility(
+		long placeId,
+		boolean visible,
+		String actorSubject
+	) {
+		if (placeId <= 0) {
+			throw new IllegalArgumentException("placeId must be positive");
+		}
+		var record = repository.updateVisibility(new VisibilityCommand(
+			placeId, visible, required(actorSubject, "actorSubject"), clock.instant()))
+			.orElseThrow(() -> new EditorialPlaceNotFoundException(placeId));
+		return new PlaceVisibilityView(
+			record.placeId(), record.active(), record.showFlag(), record.visible(),
+			record.updatedAt());
 	}
 
 	public boolean publicationFilterEnabled() {
@@ -235,6 +254,9 @@ public class EditorialService {
 		String imageUrl,
 		boolean hasKoreanOverview,
 		boolean queueEligible,
+		boolean active,
+		boolean showFlag,
+		boolean visible,
 		EditorialJobStatus status,
 		java.time.Instant requestedAt
 	) {
@@ -242,6 +264,7 @@ public class EditorialService {
 			return new CandidateView(
 				record.placeId(), record.titleKo(), record.titleEn(), record.region(),
 				record.imageUrl(), record.hasKoreanOverview(), record.queueEligible(),
+				record.active(), record.showFlag(), record.active() && record.showFlag(),
 				record.status(),
 				record.requestedAt());
 		}
@@ -259,6 +282,9 @@ public class EditorialService {
 		String region,
 		List<String> imageUrls,
 		List<String> travelStyles,
+		boolean active,
+		boolean showFlag,
+		boolean visible,
 		EditorialJobStatus status,
 		java.time.Instant requestedAt
 	) {
@@ -289,5 +315,14 @@ public class EditorialService {
 				record.errorCode(), record.errorMessage(), record.requestedAt(),
 				record.startedAt(), record.completedAt());
 		}
+	}
+
+	public record PlaceVisibilityView(
+		long placeId,
+		boolean active,
+		boolean showFlag,
+		boolean visible,
+		java.time.Instant updatedAt
+	) {
 	}
 }

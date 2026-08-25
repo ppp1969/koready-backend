@@ -103,8 +103,10 @@ MVP에는 승인 버튼을 두지 않는다. 운영상 잘못된 내용이 발�
 
 ### 후보 목록
 
+이 API를 추가한 이유는 KTO가 공식 한국어·영어를 함께 제공한 기존 후보의 품질과 동작을 그대로 보존하면서, 공식 영문이 없는 한국어 장소도 관리자가 사진과 원문을 확인해 선택적으로 확장할 수 있게 하기 위해서다. 관리자 페이지는 `sourceTrack`으로 공식 한영 후보, 한국어 전용 AI 후보 또는 전체를 구분해 조회하고 각 장소의 신뢰 영문 보유 여부와 큐 등록 가능 여부를 확인할 수 있으며, 한국어 설명이 충분한 장소는 기존 큐 API로 한국어·영어 편집 콘텐츠 생성을 요청할 수 있다. 목록 조회만으로는 AI 호출이나 비용이 발생하지 않는다.
+
 ```http
-GET /api/v1/admin/editorial/candidates?query=김천&status=NOT_REQUESTED&size=20
+GET /api/v1/admin/editorial/candidates?sourceTrack=KOREAN_ONLY_AI&query=김천&status=NOT_REQUESTED&size=20
 Authorization: Bearer <admin-access-token>
 ```
 
@@ -120,6 +122,9 @@ Authorization: Bearer <admin-access-token>
       "region": "GYEONGSANG",
       "imageUrl": "https://...",
       "hasKoreanOverview": true,
+      "queueEligible": true,
+      "sourceTrack": "KTO_BILINGUAL",
+      "hasTrustedEnglish": true,
       "editorialStatus": "NOT_REQUESTED",
       "requestedAt": null
     }
@@ -128,6 +133,8 @@ Authorization: Bearer <admin-access-token>
   "hasMore": true
 }
 ```
+
+`sourceTrack` 값은 `KTO_BILINGUAL`, `KOREAN_ONLY_AI`, `ALL`이다. 생략하면 기존 후보군을 유지하는 `KTO_BILINGUAL`이 적용된다. `KOREAN_ONLY_AI` 응답에서는 `titleEn=null`, `hasTrustedEnglish=false`가 정상이며, `queueEligible=true`인 장소만 즉시 AI 가공 요청할 수 있다.
 
 ### 후보 상세
 

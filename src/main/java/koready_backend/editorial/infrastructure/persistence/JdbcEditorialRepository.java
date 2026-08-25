@@ -32,6 +32,7 @@ import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
 import koready_backend.editorial.domain.EditorialLanguage;
 import koready_backend.editorial.domain.TourismPurposeTag;
+import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
 
 @Repository
 public class JdbcEditorialRepository implements EditorialRepository {
@@ -55,7 +56,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 	private static final String CANDIDATE_FROM_SQL = """
 		FROM places p
 		JOIN place_localizations ko ON ko.place_id = p.id AND ko.language = 'KO'
-		JOIN place_localizations en ON en.place_id = p.id AND en.language = 'EN'
+		LEFT JOIN place_localizations en ON en.place_id = p.id AND en.language = 'EN'
 		  AND en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
 		LEFT JOIN place_editorial_jobs latest ON latest.id = (
 		  SELECT j.id FROM place_editorial_jobs j WHERE j.place_id = p.id
@@ -279,6 +280,11 @@ public class JdbcEditorialRepository implements EditorialRepository {
 				? " AND " + QUEUE_ELIGIBLE_SQL
 				: " AND NOT " + QUEUE_ELIGIBLE_SQL);
 		}
+		switch (query.sourceTrack()) {
+			case KTO_BILINGUAL -> sql.append(" AND en.place_id IS NOT NULL");
+			case KOREAN_ONLY_AI -> sql.append(" AND en.place_id IS NULL");
+			case ALL -> { }
+		}
 	}
 
 	@Override
@@ -292,7 +298,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			       latest.requested_at
 			FROM places p
 			JOIN place_localizations ko ON ko.place_id = p.id AND ko.language = 'KO'
-			JOIN place_localizations en ON en.place_id = p.id AND en.language = 'EN'
+			LEFT JOIN place_localizations en ON en.place_id = p.id AND en.language = 'EN'
 			  AND en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
 			LEFT JOIN place_editorial_jobs latest ON latest.id = (
 			  SELECT j.id FROM place_editorial_jobs j WHERE j.place_id = p.id
@@ -340,6 +346,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		return Optional.of(new CandidateDetailRecord(
 			base.placeId(), base.titleKo(), base.titleEn(), base.overviewKo(),
 			base.address(), base.region(), images, orderedImages, styles,
+			sourceTrack(base.titleEn()), base.titleEn() != null,
 			base.active(), base.showFlag(), base.curationPriority(), base.status(),
 			base.requestedAt()));
 	}
@@ -494,11 +501,18 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			rs.getLong("place_id"), rs.getString("title_ko"), rs.getString("title_en"),
 			rs.getString("service_region_code"),
 			rs.getString("image_url"), rs.getBoolean("has_ko_overview"),
-			rs.getBoolean("queue_eligible"),
+			rs.getBoolean("queue_eligible"), sourceTrack(rs.getString("title_en")),
+			rs.getString("title_en") != null,
 			rs.getBoolean("active"), rs.getBoolean("show_flag"),
 			rs.getInt("curation_priority"),
 			EditorialJobStatus.valueOf(rs.getString("editorial_status")),
 			instant(rs, "requested_at"));
+	}
+
+	private static EditorialCandidateSourceTrack sourceTrack(String trustedEnglishTitle) {
+		return trustedEnglishTitle == null
+			? EditorialCandidateSourceTrack.KOREAN_ONLY_AI
+			: EditorialCandidateSourceTrack.KTO_BILINGUAL;
 	}
 
 	private JobRecord job(ResultSet rs, int rowNumber) throws SQLException {

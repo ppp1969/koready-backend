@@ -7,6 +7,7 @@ import java.util.Optional;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
 import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
+import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
 import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
 import koready_backend.editorial.domain.EditorialLanguage;
@@ -75,6 +76,7 @@ public interface EditorialRepository {
 		EditorialCandidateRegionFilter region,
 		Boolean hasKoreanOverview,
 		Boolean queueEligible,
+		EditorialCandidateSourceTrack sourceTrack,
 		long startAfterPlaceId,
 		int limit
 	) {
@@ -88,6 +90,8 @@ public interface EditorialRepository {
 		String imageUrl,
 		boolean hasKoreanOverview,
 		boolean queueEligible,
+		EditorialCandidateSourceTrack sourceTrack,
+		boolean hasTrustedEnglish,
 		boolean active,
 		boolean showFlag,
 		int curationPriority,
@@ -106,6 +110,8 @@ public interface EditorialRepository {
 		List<String> imageUrls,
 		List<PlaceImageRecord> images,
 		List<String> travelStyles,
+		EditorialCandidateSourceTrack sourceTrack,
+		boolean hasTrustedEnglish,
 		boolean active,
 		boolean showFlag,
 		int curationPriority,

@@ -2810,7 +2810,9 @@ paths:
       description: |
         관리자 장소 후보 화면에서 사진, 한·영 제목, 권역, 한국어 원문 보유 여부와 현재 가공 상태를 조회합니다.
         목록 조회만으로는 AI 작업을 만들지 않습니다. `cursor`는 이전 응답의 `nextCursor`를 그대로 사용합니다.
-        후보는 활성 장소 중 KoReady 여행 유형, 이미지 1장 이상, 검증된 영문 제목이 있는 장소만 포함합니다.
+        후보는 활성 장소 중 KoReady 여행 유형과 이미지 1장 이상을 가진 장소입니다.
+        `sourceTrack`을 생략하면 기존과 동일하게 검증된 KTO 한영 후보만 반환합니다.
+        한국어 전용 후보 조회는 AI를 호출하지 않으며, 관리자가 큐 등록 API를 호출할 때만 비용이 발생합니다.
         한국어 원문이 없거나 이미 처리된 장소는 목록에서 확인할 수 있지만 `queueEligible=false`입니다.
       x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN]
@@ -2839,6 +2841,15 @@ paths:
           description: 현재 즉시 큐 등록 가능한 후보 여부
           schema:
             type: boolean
+        - name: sourceTrack
+          in: query
+          description: |
+            `KTO_BILINGUAL`은 KTO 또는 운영자 검증 영문이 있는 기존 후보,
+            `KOREAN_ONLY_AI`는 신뢰 가능한 영문이 없어 AI 한영 가공이 필요한 후보,
+            `ALL`은 두 트랙 전체입니다. 생략 시 `KTO_BILINGUAL`입니다.
+          schema:
+            $ref: '#/components/schemas/EditorialCandidateSourceTrack'
+            default: KTO_BILINGUAL
         - name: cursor
           in: query
           description: 이전 응답의 nextCursor. 첫 요청에서는 생략
@@ -6307,6 +6318,10 @@ components:
       type: string
       description: 관리자 선별 화면용 묶음 상태
       enum: [NOT_REQUESTED, IN_PROGRESS, READY, RETRYABLE]
+    EditorialCandidateSourceTrack:
+      type: string
+      description: 관리자 AI 가공 후보의 원문 출처 트랙
+      enum: [KTO_BILINGUAL, KOREAN_ONLY_AI, ALL]
     EditorialJobPriority:
       type: string
       description: PM 선별 작업은 HIGH, 사용자 상세 조회로 생성된 작업은 NORMAL
@@ -6342,7 +6357,7 @@ components:
           description: 커서를 제외한 현재 필터 전체 결과 수
     EditorialCandidateResponse:
       type: object
-      required: [placeId, titleKo, titleEn, imageUrl, hasKoreanOverview, queueEligible, curationPriority, editorialStatus, active, showFlag, visible]
+      required: [placeId, titleKo, titleEn, imageUrl, hasKoreanOverview, queueEligible, sourceTrack, hasTrustedEnglish, curationPriority, editorialStatus, active, showFlag, visible]
       properties:
         placeId:
           type: integer
@@ -6352,6 +6367,8 @@ components:
           type: string
         titleEn:
           type: string
+          nullable: true
+          description: 신뢰 가능한 KTO·운영자 영문 제목. 한국어 전용 트랙에서는 null
         region:
           allOf:
             - $ref: '#/components/schemas/ServiceRegionCode'
@@ -6364,6 +6381,11 @@ components:
         queueEligible:
           type: boolean
           description: 한국어 원문을 보유하고 현재 미요청·실패·갱신 필요 상태인지 여부
+        sourceTrack:
+          $ref: '#/components/schemas/EditorialCandidateSourceTrack'
+        hasTrustedEnglish:
+          type: boolean
+          description: KTO_EN 또는 MANUAL_EDITED 영문 원문 보유 여부
         curationPriority:
           type: integer
           minimum: 0
@@ -6392,7 +6414,7 @@ components:
               $ref: '#/components/schemas/EditorialCandidateDetailResponse'
     EditorialCandidateDetailResponse:
       type: object
-      required: [placeId, titleKo, titleEn, imageUrls, images, travelStyles, curationPriority, editorialStatus, active, showFlag, visible]
+      required: [placeId, titleKo, titleEn, imageUrls, images, travelStyles, sourceTrack, hasTrustedEnglish, curationPriority, editorialStatus, active, showFlag, visible]
       properties:
         placeId:
           type: integer
@@ -6402,6 +6424,8 @@ components:
           type: string
         titleEn:
           type: string
+          nullable: true
+          description: 신뢰 가능한 KTO·운영자 영문 제목. 한국어 전용 트랙에서는 null
         overviewKo:
           type: string
           nullable: true
@@ -6431,6 +6455,11 @@ components:
           uniqueItems: true
           items:
             $ref: '#/components/schemas/TravelStyle'
+        sourceTrack:
+          $ref: '#/components/schemas/EditorialCandidateSourceTrack'
+        hasTrustedEnglish:
+          type: boolean
+          description: KTO_EN 또는 MANUAL_EDITED 영문 원문 보유 여부
         curationPriority:
           type: integer
           minimum: 0

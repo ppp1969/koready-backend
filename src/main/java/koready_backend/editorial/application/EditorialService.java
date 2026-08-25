@@ -24,6 +24,7 @@ import koready_backend.editorial.domain.EditorialTriggerType;
 import koready_backend.editorial.domain.EditorialLanguage;
 import koready_backend.editorial.domain.TourismPurposeTag;
 import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
+import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
 
 @Service
 public class EditorialService {
@@ -86,16 +87,17 @@ public class EditorialService {
 		EditorialCandidateRegionFilter region,
 		Boolean hasKoreanOverview,
 		Boolean queueEligible,
+		EditorialCandidateSourceTrack sourceTrack,
 		long startAfterPlaceId,
 		int size
 	) {
 		validatePage(startAfterPlaceId, size);
 		List<EditorialRepository.CandidateRecord> records = repository.findCandidates(
 			new CandidateQuery(
-				optional(query), status, region, hasKoreanOverview, queueEligible,
+				optional(query), status, region, hasKoreanOverview, queueEligible, sourceTrack,
 				startAfterPlaceId, size + 1));
 		long totalCount = repository.countCandidates(new CandidateQuery(
-			optional(query), status, region, hasKoreanOverview, queueEligible, 0L, 1));
+			optional(query), status, region, hasKoreanOverview, queueEligible, sourceTrack, 0L, 1));
 		boolean hasMore = records.size() > size;
 		List<CandidateView> items = records.subList(0, Math.min(size, records.size()))
 			.stream().map(CandidateView::from).toList();
@@ -121,7 +123,8 @@ public class EditorialService {
 					image.imageId(), image.imageUrl(), image.displayOrder(),
 					image.displayOrder() == 1))
 				.toList(),
-			candidate.travelStyles(), candidate.active(),
+			candidate.travelStyles(), candidate.sourceTrack(), candidate.hasTrustedEnglish(),
+			candidate.active(),
 			candidate.showFlag(), candidate.active() && candidate.showFlag(),
 			candidate.curationPriority(), candidate.status(),
 			candidate.requestedAt());
@@ -301,6 +304,8 @@ public class EditorialService {
 		String imageUrl,
 		boolean hasKoreanOverview,
 		boolean queueEligible,
+		EditorialCandidateSourceTrack sourceTrack,
+		boolean hasTrustedEnglish,
 		boolean active,
 		boolean showFlag,
 		boolean visible,
@@ -312,6 +317,7 @@ public class EditorialService {
 			return new CandidateView(
 				record.placeId(), record.titleKo(), record.titleEn(), record.region(),
 				record.imageUrl(), record.hasKoreanOverview(), record.queueEligible(),
+				record.sourceTrack(), record.hasTrustedEnglish(),
 				record.active(), record.showFlag(), record.active() && record.showFlag(),
 				record.curationPriority(), record.status(),
 				record.requestedAt());
@@ -331,6 +337,8 @@ public class EditorialService {
 		List<String> imageUrls,
 		List<PlaceImageView> images,
 		List<String> travelStyles,
+		EditorialCandidateSourceTrack sourceTrack,
+		boolean hasTrustedEnglish,
 		boolean active,
 		boolean showFlag,
 		boolean visible,

@@ -106,6 +106,9 @@ public class JdbcEditorialWorkerRepository implements EditorialWorkerRepository 
 		jdbcTemplate.update("DELETE FROM place_editorial_enjoy_points WHERE editorial_content_id = ?", contentId);
 		insertLocalization(contentId, EditorialLanguage.KO, generation.korean());
 		insertLocalization(contentId, EditorialLanguage.EN, generation.english());
+		upsertAiEnglishLocalization(
+			job.placeId(), generation.titleEn(), generation.addressEn(),
+			generation.english().shortIntroduction(), command.completedAt());
 		for (int index = 0; index < generation.tags().size(); index++) {
 			jdbcTemplate.update("""
 				INSERT INTO place_editorial_tags
@@ -230,6 +233,7 @@ public class JdbcEditorialWorkerRepository implements EditorialWorkerRepository 
 			  ON ko.place_id = p.id AND ko.language = 'KO'
 			LEFT JOIN place_localizations en
 			  ON en.place_id = p.id AND en.language = 'EN'
+			 AND en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
 			WHERE p.id = ?
 			""", String.class, placeId);
 	}
@@ -267,6 +271,36 @@ public class JdbcEditorialWorkerRepository implements EditorialWorkerRepository 
 				VALUES (?, ?, ?, ?)
 				""", contentId, language.name(), index + 1, content.enjoyPoints().get(index));
 		}
+	}
+
+	private void upsertAiEnglishLocalization(
+		long placeId,
+		String titleEn,
+		String addressEn,
+		String overviewEn,
+		Instant generatedAt
+	) {
+		jdbcTemplate.update("""
+			INSERT INTO place_localizations
+			    (place_id, language, title, address_text, overview, translation_source,
+			     source_hash, created_at, updated_at)
+			VALUES (?, 'EN', ?, ?, ?, 'AI_TRANSLATED',
+			        SHA2(CONCAT_WS('|', ?, ?, ?), 256), ?, ?)
+			ON DUPLICATE KEY UPDATE
+			    title = IF(translation_source IN ('KTO_EN', 'MANUAL_EDITED'),
+			        title, VALUES(title)),
+			    address_text = IF(translation_source IN ('KTO_EN', 'MANUAL_EDITED'),
+			        address_text, VALUES(address_text)),
+			    overview = IF(translation_source IN ('KTO_EN', 'MANUAL_EDITED'),
+			        overview, VALUES(overview)),
+			    source_hash = IF(translation_source IN ('KTO_EN', 'MANUAL_EDITED'),
+			        source_hash, VALUES(source_hash)),
+			    translation_source = IF(translation_source IN ('KTO_EN', 'MANUAL_EDITED'),
+			        translation_source, 'AI_TRANSLATED'),
+			    updated_at = IF(translation_source IN ('KTO_EN', 'MANUAL_EDITED'),
+			        updated_at, VALUES(updated_at))
+			""", placeId, titleEn, addressEn, overviewEn, titleEn, addressEn, overviewEn,
+			Timestamp.from(generatedAt), Timestamp.from(generatedAt));
 	}
 
 	private ClaimedBase claimedBase(ResultSet rs, int rowNumber) throws SQLException {

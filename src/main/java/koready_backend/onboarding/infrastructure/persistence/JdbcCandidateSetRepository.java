@@ -67,6 +67,9 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		    korean.title AS title_ko,
 		    english.title AS title_en,
 		    english.translation_source AS title_en_source,
+		    EXISTS (SELECT 1 FROM place_editorial_contents editorial_source
+		        WHERE editorial_source.place_id = place.id
+		          AND editorial_source.status = 'READY') AS editorial_ready,
 		    place.first_image_url,
 		    place.service_region_code,
 		    region.name_ko AS service_region_name_ko,
@@ -259,6 +262,9 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			    korean.title AS title_ko,
 			    english.title AS title_en,
 			    english.translation_source AS title_en_source,
+			    EXISTS (SELECT 1 FROM place_editorial_contents editorial_source
+			        WHERE editorial_source.place_id = place.id
+			          AND editorial_source.status = 'READY') AS editorial_ready,
 			    COALESCE(place.road_address, place.address, korean.address_text) AS address_text,
 			    place.latitude,
 			    place.longitude,
@@ -402,6 +408,7 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			resultSet.getString("title_ko"),
 			resultSet.getString("title_en"),
 			resultSet.getString("title_en_source"),
+			resultSet.getBoolean("editorial_ready"),
 			resultSet.getString("address_text"),
 			resultSet.getObject("latitude"),
 			resultSet.getObject("longitude"),
@@ -436,6 +443,7 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 			resultSet.getString("title_ko"),
 			resultSet.getString("title_en"),
 			resultSet.getString("title_en_source"),
+			resultSet.getBoolean("editorial_ready"),
 			resultSet.getString("address_text"),
 			resultSet.getObject("latitude"),
 			resultSet.getObject("longitude"),
@@ -460,8 +468,7 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		if (isBlank(place.titleKo())) {
 			reasons.add("MISSING_TITLE_KO");
 		}
-		if (isBlank(place.titleEn())
-			|| !List.of("KTO_EN", "MANUAL_EDITED").contains(place.titleEnSource())) {
+		if (isBlank(place.titleEn()) || !trustedEnglish(place)) {
 			reasons.add("MISSING_TRUSTED_TITLE_EN");
 		}
 		if (isBlank(place.address())) {
@@ -485,6 +492,11 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		return reasons.isEmpty()
 			? CandidatePlaceReadiness.ready(placeId)
 			: CandidatePlaceReadiness.notReady(placeId, reasons);
+	}
+
+	private static boolean trustedEnglish(PlaceRow place) {
+		return List.of("KTO_EN", "MANUAL_EDITED").contains(place.titleEnSource())
+			|| ("AI_TRANSLATED".equals(place.titleEnSource()) && place.editorialReady());
 	}
 
 	private String json(Object value) {
@@ -528,6 +540,7 @@ public class JdbcCandidateSetRepository implements CandidateSetRepository {
 		String titleKo,
 		String titleEn,
 		String titleEnSource,
+		boolean editorialReady,
 		String address,
 		Object latitude,
 		Object longitude,

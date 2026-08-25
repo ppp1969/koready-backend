@@ -34,6 +34,7 @@ import koready_backend.editorial.domain.EditorialTriggerType;
 import koready_backend.editorial.domain.TourismPurposeTag;
 import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
+import koready_backend.editorial.domain.EditorialLanguage;
 
 @Tag("integration")
 @SpringBootTest
@@ -94,7 +95,8 @@ class JdbcEditorialRepositoryIntegrationTest {
 		var korean = new LocalizedContent("주제", "한줄 설명", "간단 소개", List.of("하나", "둘", "셋"));
 		var english = new LocalizedContent("Topic", "One line", "Introduction", List.of("One", "Two", "Three"));
 		var generation = new EditorialGeneration(
-			korean, english, List.of(TourismPurposeTag.LOCAL, TourismPurposeTag.EXPERIENCE),
+			korean, english, "Generated title must not replace KTO", "Generated address",
+			List.of(TourismPurposeTag.LOCAL, TourismPurposeTag.EXPERIENCE),
 			"openai", "test-model", 10, 20);
 		workerRepository.complete(new CompleteCommand(
 			claimed.jobId(), claimed.leaseToken(), claimed.sourceFingerprint(),
@@ -106,6 +108,13 @@ class JdbcEditorialRepositoryIntegrationTest {
 			"SELECT COUNT(*) FROM place_editorial_localizations", Integer.class));
 		assertEquals(6, jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM place_editorial_enjoy_points", Integer.class));
+		assertEquals("Test Place", jdbcTemplate.queryForObject("""
+			SELECT title FROM place_localizations WHERE place_id = ? AND language = 'EN'
+			""", String.class, placeId));
+		assertEquals("KTO_EN", jdbcTemplate.queryForObject("""
+			SELECT translation_source FROM place_localizations
+			WHERE place_id = ? AND language = 'EN'
+			""", String.class, placeId));
 	}
 
 	@Test
@@ -191,6 +200,7 @@ class JdbcEditorialRepositoryIntegrationTest {
 			new LocalizedContent("주제", "한줄", "소개", List.of("하나", "둘", "셋")),
 			new LocalizedContent("Topic", "One line", "Introduction",
 				List.of("One", "Two", "Three")),
+			"Korean Source Place", "Jongno-gu, Seoul",
 			List.of(TourismPurposeTag.LOCAL, TourismPurposeTag.EXPERIENCE),
 			"google-genai", "test-model", 10, 20);
 		workerRepository.complete(new CompleteCommand(
@@ -203,6 +213,24 @@ class JdbcEditorialRepositoryIntegrationTest {
 			  ON content.id = localized.editorial_content_id
 			WHERE content.place_id = ?
 			""", Integer.class, placeId));
+		assertEquals("Korean Source Place", jdbcTemplate.queryForObject("""
+			SELECT title FROM place_localizations WHERE place_id = ? AND language = 'EN'
+			""", String.class, placeId));
+		assertEquals("Jongno-gu, Seoul", jdbcTemplate.queryForObject("""
+			SELECT address_text FROM place_localizations WHERE place_id = ? AND language = 'EN'
+			""", String.class, placeId));
+		assertEquals("Introduction", jdbcTemplate.queryForObject("""
+			SELECT overview FROM place_localizations WHERE place_id = ? AND language = 'EN'
+			""", String.class, placeId));
+		assertEquals("AI_TRANSLATED", jdbcTemplate.queryForObject("""
+			SELECT translation_source FROM place_localizations
+			WHERE place_id = ? AND language = 'EN'
+			""", String.class, placeId));
+		assertTrue(repository.findReady(placeId, EditorialLanguage.EN, "prompt-v1").isPresent());
+		var candidate = repository.findCandidate(placeId).orElseThrow();
+		assertEquals("Korean Source Place", candidate.titleEn());
+		assertEquals(EditorialCandidateSourceTrack.KOREAN_ONLY_AI, candidate.sourceTrack());
+		assertFalse(candidate.hasTrustedEnglish());
 	}
 
 	private long place() {
@@ -226,8 +254,9 @@ class JdbcEditorialRepositoryIntegrationTest {
 			"SELECT id FROM places WHERE kto_content_id = ?", Long.class, contentId);
 		jdbcTemplate.update("""
 			INSERT INTO place_localizations
-			    (place_id, language, title, overview, translation_source, source_hash)
-			VALUES (?, 'KO', '테스트 장소', ?, 'KTO_KO', 'ko-hash')
+			    (place_id, language, title, overview, address_text,
+			     translation_source, source_hash)
+			VALUES (?, 'KO', '테스트 장소', ?, '서울특별시 종로구', 'KTO_KO', 'ko-hash')
 			""", id, overview);
 		if (includeEnglish) {
 			jdbcTemplate.update("""

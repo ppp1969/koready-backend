@@ -18,7 +18,7 @@ class SpringAiEditorialGeneratorTest {
 			"Subject", "One-line description", "Short introduction",
 			List.of("First activity", "Second activity", "Third activity"));
 		var response = new AiResponse(
-			localized, localized,
+			localized, localized, "Gimcheon Gimbap Festival", "Gimcheon-si, Gyeongsangbuk-do",
 			List.of(TourismPurposeTag.LOCAL, TourismPurposeTag.EXPERIENCE));
 
 		var generation = SpringAiEditorialGenerator.toGeneration(
@@ -26,5 +26,7 @@ class SpringAiEditorialGeneratorTest {
 
 		assertEquals("google-genai", generation.provider());
 		assertEquals("gemini-2.5-flash-lite", generation.model());
+		assertEquals("Gimcheon Gimbap Festival", generation.titleEn());
+		assertEquals("Gimcheon-si, Gyeongsangbuk-do", generation.addressEn());
 	}
 }

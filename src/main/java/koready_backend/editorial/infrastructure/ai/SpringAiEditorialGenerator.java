@@ -36,6 +36,11 @@ public class SpringAiEditorialGenerator implements EditorialGenerator {
 		- shortIntroduction: two or three non-repetitive sentences
 		- enjoyPoints: three to five concrete actions supported by SOURCE_DATA
 
+		Also return titleEn and addressEn. Translate the Korean place title and address into
+		natural English without adding facts. If englishTitle is supplied, preserve that official
+		title exactly. Keep Korean administrative meaning in addressEn and do not invent missing
+		address components.
+
 		Return exactly two distinct tags selected only from these enum codes:
 		FOOD, HISTORY, TRADITION, ART, LOCAL, REST, HEALING, EMOTION, PHOTO,
 		WALK, SCENERY, LEISURE, ROMANCE, ADVENTURE, EXPERIENCE, LEARNING,
@@ -69,6 +74,7 @@ public class SpringAiEditorialGenerator implements EditorialGenerator {
 	static EditorialGeneration toGeneration(AiResponse response, String model) {
 		return new EditorialGeneration(
 			localized(response.korean()), localized(response.english()),
+			response.titleEn(), response.addressEn(),
 			response.tags(), "google-genai", model, null, null);
 	}
 
@@ -106,6 +112,8 @@ public class SpringAiEditorialGenerator implements EditorialGenerator {
 	public record AiResponse(
 		AiLocalizedContent korean,
 		AiLocalizedContent english,
+		String titleEn,
+		String addressEn,
 		List<TourismPurposeTag> tags
 	) {
 	}

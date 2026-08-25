@@ -177,7 +177,7 @@ class JdbcCandidateSetRepositoryIntegrationTest {
 	}
 
 	@Test
-	void rejectsPublicationWhenEnglishContentIsAiTranslated() {
+	void acceptsAiTranslatedEnglishOnlyAfterEditorialIsReady() {
 		AdminCandidateSet draft = service.createDraft(
 			new CreateCandidateSetCommand("Untrusted English", null), "42", true);
 		long aiTranslatedPlaceId = readyPlaceIds.getLast();
@@ -188,6 +188,11 @@ class JdbcCandidateSetRepositoryIntegrationTest {
 			WHERE place_id = ? AND language = 'EN'
 			""",
 			aiTranslatedPlaceId);
+		jdbcTemplate.update("""
+			INSERT INTO place_editorial_contents
+			    (place_id, source_fingerprint, prompt_version, status, provider, model, generated_at)
+			VALUES (?, ?, 'koready-place-editorial-v1', 'READY', 'google-genai', 'test-model', UTC_TIMESTAMP(6))
+			""", aiTranslatedPlaceId, "f".repeat(64));
 
 		AdminCandidateSet updated = service.updateDraft(
 			draft.candidateSetId(),
@@ -195,13 +200,10 @@ class JdbcCandidateSetRepositoryIntegrationTest {
 			"42",
 			true);
 
-		assertFalse(updated.items().getLast().placeReady());
-		assertTrue(updated.items().getLast().notReadyReasons()
-			.contains("MISSING_TRUSTED_TITLE_EN"));
-		CandidateSetPolicyException error = assertThrows(
-			CandidateSetPolicyException.class,
-			() -> service.publish(draft.candidateSetId(), "42", true));
-		assertEquals(List.of(aiTranslatedPlaceId), error.placeIds());
+		assertTrue(updated.items().getLast().placeReady());
+		assertTrue(updated.items().getLast().notReadyReasons().isEmpty());
+		assertEquals(CandidateSetStatus.PUBLISHED,
+			service.publish(draft.candidateSetId(), "42", true).status());
 	}
 
 	private long insertReadyPlace(int index) {

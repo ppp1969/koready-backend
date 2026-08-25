@@ -17,6 +17,9 @@ public class EditorialOutputValidator {
 		}
 		validateLocalized(generation.korean());
 		validateLocalized(generation.english());
+		if (invalid(generation.titleEn(), 300) || invalid(generation.addressEn(), 500)) {
+			throw new IllegalArgumentException("English place title and address are required");
+		}
 	}
 
 	private void validateLocalized(EditorialGeneration.LocalizedContent content) {

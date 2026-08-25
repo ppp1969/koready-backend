@@ -5,6 +5,8 @@ import java.util.List;
 public record EditorialGeneration(
 	LocalizedContent korean,
 	LocalizedContent english,
+	String titleEn,
+	String addressEn,
 	List<TourismPurposeTag> tags,
 	String provider,
 	String model,

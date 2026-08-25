@@ -134,7 +134,7 @@ Authorization: Bearer <admin-access-token>
 }
 ```
 
-`sourceTrack` 값은 `KTO_BILINGUAL`, `KOREAN_ONLY_AI`, `ALL`이다. 생략하면 기존 후보군을 유지하는 `KTO_BILINGUAL`이 적용된다. `KOREAN_ONLY_AI` 응답에서는 `titleEn=null`, `hasTrustedEnglish=false`가 정상이며, `queueEligible=true`인 장소만 즉시 AI 가공 요청할 수 있다.
+`sourceTrack` 값은 `KTO_BILINGUAL`, `KOREAN_ONLY_AI`, `ALL`이다. 생략하면 기존 후보군을 유지하는 `KTO_BILINGUAL`이 적용된다. `KOREAN_ONLY_AI`는 생성 전 `titleEn=null`이고 완료 후 AI 영어명이 표시되지만 `hasTrustedEnglish=false`와 트랙 값은 유지된다. `queueEligible=true`인 장소만 즉시 AI 가공 요청할 수 있다.
 
 ### 후보 상세
 

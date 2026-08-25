@@ -266,7 +266,8 @@ public class KtoDetailJdbcStore implements KtoDetailStore {
 		jdbcTemplate.update(
 			"""
 			UPDATE places
-			SET address = COALESCE(?, address),
+			SET kto_content_type_id = ?,
+			    address = COALESCE(?, address),
 			    latitude = COALESCE(?, latitude),
 			    longitude = COALESCE(?, longitude),
 			    tel = COALESCE(?, tel),
@@ -274,6 +275,7 @@ public class KtoDetailJdbcStore implements KtoDetailStore {
 			    first_image_url = COALESCE(?, first_image_url)
 			WHERE id = ? AND kto_content_id = ?
 			""",
+			target.contentTypeId(),
 			optional(address, 500),
 			decimal(item.get("mapy"), -90, 90),
 			decimal(item.get("mapx"), -180, 180),

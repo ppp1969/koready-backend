@@ -329,6 +329,31 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		return loadAndServePage(userPublicId, deckPublicId, cursor, now);
 	}
 
+	@Override
+	@Transactional
+	public Optional<ExposureHistoryResetRecord> resetExposureHistory(String userPublicId) {
+		List<Long> users = jdbcTemplate.query(
+			"""
+			SELECT id FROM users
+			WHERE public_id = ? AND deleted_at IS NULL
+			FOR UPDATE
+			""",
+			(rs, rowNumber) -> rs.getLong("id"),
+			userPublicId);
+		if (users.isEmpty()) {
+			return Optional.empty();
+		}
+		long userId = users.getFirst();
+		int deletedStates = jdbcTemplate.update(
+			"DELETE FROM user_place_recommendation_states WHERE user_id = ?",
+			userId);
+		int deletedServedEvents = jdbcTemplate.update(
+			"DELETE FROM user_place_events WHERE user_id = ? AND event_type = 'CARD_SERVED'",
+			userId);
+		return Optional.of(new ExposureHistoryResetRecord(
+			userPublicId, deletedStates, deletedServedEvents));
+	}
+
 	private Optional<StoredDeckPage> loadAndServePage(
 		String userPublicId,
 		String deckPublicId,

@@ -41,6 +41,7 @@ class OpenApiContractTests {
 		"POST /recommendation-decks",
 		"GET /recommendation-decks/{deckId}",
 		"POST /recommendation-decks/{deckId}/events",
+		"DELETE /admin/recommendations/users/{userPublicId}/exposure-history",
 		"GET /places",
 		"GET /places/search",
 		"GET /places/{placeId}",
@@ -170,7 +171,7 @@ class OpenApiContractTests {
 			}
 		}
 
-		assertEquals(96, operationCount, "Unexpected API operation count");
+		assertEquals(97, operationCount, "Unexpected API operation count");
 		collectReferences(contract, references);
 		for (String reference : references) {
 			assertLocalReferenceResolves(contract, reference);
@@ -1040,6 +1041,30 @@ class OpenApiContractTests {
 			summary.get("properties"), "MessageThreadSummary.properties")
 			.get("preview"), "MessageThreadSummary.preview");
 		assertEquals(100, preview.get("maxLength"));
+	}
+
+	@Test
+	void recommendationSuppressionIsFourteenDaysAndAdminCanResetExposureHistory()
+		throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> deduplication = asMap(
+			schemas.get("RecommendationDeduplication"), "RecommendationDeduplication");
+		Map<String, Object> suppressionDays = asMap(
+			asMap(deduplication.get("properties"), "deduplication properties")
+				.get("suppressionDays"),
+			"suppressionDays");
+		assertEquals(List.of(14), asList(suppressionDays.get("enum"), "suppression days"));
+
+		Map<String, Object> operation = asMap(asMap(
+			asMap(contract.get("paths"), "paths")
+				.get("/admin/recommendations/users/{userPublicId}/exposure-history"),
+			"reset path").get("delete"), "reset operation");
+		assertEquals(List.of("ADMIN"),
+			asList(operation.get("x-required-roles"), "reset roles"));
+		String description = String.valueOf(operation.get("description"));
+		assertTrue(description.contains("CARD_SERVED"));
+		assertTrue(description.contains("복구할 수 없습니다"));
 	}
 
 	@Test

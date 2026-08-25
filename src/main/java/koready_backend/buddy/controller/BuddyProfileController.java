@@ -35,14 +35,14 @@ public class BuddyProfileController {
 	}
 
 	@PutMapping
-	public ApiEnvelope<BuddyProfileDtos.BuddyProfileResponse> upsertMyProfile(
+	public ApiEnvelope<BuddyProfileDtos.MyBuddyProfileData> upsertMyProfile(
 		@RequestBody @Valid BuddyProfileDtos.BuddyProfileRequest body,
 		Authentication authentication,
 		HttpServletRequest request
 	) {
 		return ApiEnvelope.success(
 			"BUDDY_PROFILE_SAVED",
-			BuddyProfileDtos.from(service.upsertMyProfile(
+			BuddyProfileDtos.fromMy(service.upsertMyProfile(
 				authentication.getName(), body.toCommand())),
 			TraceIdFilter.current(request));
 	}

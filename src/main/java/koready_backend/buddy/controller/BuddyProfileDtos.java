@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import koready_backend.buddy.application.BuddyProfileService;
 import koready_backend.buddy.application.model.BuddyProfileView;
+import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.BuddySocialLink;
 import koready_backend.buddy.domain.KoreanLevel;
 import koready_backend.buddy.domain.ProfileLanguage;
@@ -24,7 +25,16 @@ final class BuddyProfileDtos {
 	static MyBuddyProfileResponse from(BuddyProfileService.MyProfileResult result) {
 		return new MyBuddyProfileResponse(
 			result.exists(),
-			result.profile() == null ? null : from(result.profile()));
+			result.profile() == null ? null : fromMy(result.profile()));
+	}
+
+	static MyBuddyProfileData fromMy(BuddyProfileView profile) {
+		return new MyBuddyProfileData(
+			profile.profileId(), profile.profileImageUrl(), profile.nickname(),
+			profile.nationality(), profile.availableLanguages(), profile.koreanLevel(),
+			profile.travelStyles(), profile.bio(), socialLinks(profile),
+			profile.profilePublic(), profile.snsPublic(), profile.allowsMessages(),
+			profile.canMessage(), profile.blockedByMe(), profile.updatedAt());
 	}
 
 	static BuddyProfileResponse from(BuddyProfileView profile) {
@@ -37,15 +47,20 @@ final class BuddyProfileDtos {
 			profile.koreanLevel(),
 			profile.travelStyles(),
 			profile.bio(),
-			profile.socialLinks().stream()
-				.map(link -> new SocialLinkResponse(link.type(), link.value(), null))
-				.toList(),
+			profile.buddyStyles(),
+			socialLinks(profile),
 			profile.profilePublic(),
 			profile.snsPublic(),
 			profile.allowsMessages(),
 			profile.canMessage(),
 			profile.blockedByMe(),
 			profile.updatedAt());
+	}
+
+	private static List<SocialLinkResponse> socialLinks(BuddyProfileView profile) {
+		return profile.socialLinks().stream()
+			.map(link -> new SocialLinkResponse(link.type(), link.value(), null))
+			.toList();
 	}
 
 	record BuddyProfileRequest(
@@ -94,7 +109,26 @@ final class BuddyProfileDtos {
 
 	record MyBuddyProfileResponse(
 		boolean exists,
-		BuddyProfileResponse profile
+		MyBuddyProfileData profile
+	) {
+	}
+
+	record MyBuddyProfileData(
+		long profileId,
+		String profileImageUrl,
+		String nickname,
+		String nationalityCode,
+		List<ProfileLanguage> availableLanguages,
+		KoreanLevel koreanLevel,
+		List<TravelStyle> travelStyles,
+		String bio,
+		List<SocialLinkResponse> socialLinks,
+		boolean profilePublic,
+		boolean snsPublic,
+		boolean allowsMessages,
+		boolean canMessage,
+		boolean blockedByMe,
+		Instant updatedAt
 	) {
 	}
 
@@ -107,6 +141,7 @@ final class BuddyProfileDtos {
 		KoreanLevel koreanLevel,
 		List<TravelStyle> travelStyles,
 		String bio,
+		List<BuddyStyle> buddyStyles,
 		List<SocialLinkResponse> socialLinks,
 		boolean profilePublic,
 		boolean snsPublic,

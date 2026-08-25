@@ -132,6 +132,42 @@ class KtoDetailEnrichmentServiceTest {
 	}
 
 	@Test
+	void usesTheLatestContentTypeFromCommonForRemainingOperationsAndStorage()
+		throws Exception {
+		when(targetSource.findAfter(40L, 1)).thenReturn(List.of(target));
+		when(targetSource.existsAfter(41L)).thenReturn(false);
+		KtoDetailTarget refreshed = new KtoDetailTarget(41L, "100", "14");
+		when(client.fetch(KtoDetailOperation.COMMON, target))
+			.thenReturn(fetched(KtoDetailOperation.COMMON, Map.of(
+				"contentid", "100",
+				"contenttypeid", "14")));
+		for (KtoDetailOperation operation : List.of(
+			KtoDetailOperation.INTRO,
+			KtoDetailOperation.INFO,
+			KtoDetailOperation.IMAGE)) {
+			when(client.fetch(operation, refreshed)).thenReturn(fetched(operation));
+		}
+		when(snapshotStore.store(any())).thenReturn(new KtoStoredSnapshotMetadata(
+			"kto/kor/detail/test.json.gz",
+			"a".repeat(64),
+			30,
+			Instant.parse("2026-07-27T00:00:02Z")));
+
+		service().enrich(
+			new KtoDetailEnrichmentRequest(40L, 1, false),
+			new KtoBatchExecutionReference(31L, 47L));
+
+		verify(client).fetch(KtoDetailOperation.COMMON, target);
+		verify(client).fetch(KtoDetailOperation.INTRO, refreshed);
+		verify(client).fetch(KtoDetailOperation.INFO, refreshed);
+		verify(client).fetch(KtoDetailOperation.IMAGE, refreshed);
+		ArgumentCaptor<KtoStoreDetailCommand> command =
+			ArgumentCaptor.forClass(KtoStoreDetailCommand.class);
+		verify(detailStore).store(command.capture());
+		assertEquals(refreshed, command.getValue().target());
+	}
+
+	@Test
 	void continuesWithTheNextPlaceAfterOneTransportFailure() throws Exception {
 		KtoDetailTarget first = new KtoDetailTarget(41L, "100", "12");
 		KtoDetailTarget failed = new KtoDetailTarget(42L, "101", "12");
@@ -140,8 +176,10 @@ class KtoDetailEnrichmentServiceTest {
 			.thenReturn(List.of(first, failed, third));
 		when(targetSource.existsAfter(43L)).thenReturn(true);
 		for (KtoDetailOperation operation : KtoDetailOperation.values()) {
-			when(client.fetch(operation, first)).thenReturn(fetched(operation));
-			when(client.fetch(operation, third)).thenReturn(fetched(operation));
+			when(client.fetch(operation, first))
+				.thenReturn(fetched(operation, Map.of("contentid", "100")));
+			when(client.fetch(operation, third))
+				.thenReturn(fetched(operation, Map.of("contentid", "102")));
 		}
 		when(client.fetch(KtoDetailOperation.COMMON, failed))
 			.thenThrow(new KtoTransportException());
@@ -215,11 +253,18 @@ class KtoDetailEnrichmentServiceTest {
 
 	private KtoFetchedDetailOperation fetched(KtoDetailOperation operation)
 		throws Exception {
+		return fetched(operation, Map.of("contentid", "100"));
+	}
+
+	private KtoFetchedDetailOperation fetched(
+		KtoDetailOperation operation,
+		Map<String, String> item
+	) throws Exception {
 		byte[] payload = operation.apiName().getBytes(StandardCharsets.UTF_8);
 		return new KtoFetchedDetailOperation(
 			new KtoDetailOperationResponse(
 				operation,
-				List.of(Map.of("contentid", "100")),
+				List.of(item),
 				payload.length,
 				sha256(payload)),
 			new KtoSuccessfulCallMetadata(

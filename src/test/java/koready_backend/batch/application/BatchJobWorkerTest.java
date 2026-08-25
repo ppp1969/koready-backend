@@ -25,6 +25,7 @@ import koready_backend.batch.application.port.KtoBatchJobRunner;
 import koready_backend.batch.application.model.BatchJobContinuation;
 import koready_backend.batch.domain.BatchJobType;
 import koready_backend.kto.application.exception.KtoProviderException;
+import koready_backend.kto.application.exception.KtoDataConsistencyException;
 
 @ExtendWith(MockitoExtension.class)
 class BatchJobWorkerTest {
@@ -85,6 +86,18 @@ class BatchJobWorkerTest {
 		worker().processNext();
 
 		verify(repository).fail(any(), any(), eq("KTO_QUOTA_EXCEEDED"));
+	}
+
+	@Test
+	void recordsKtoDataConsistencyFailureWithoutPersistingProviderData() {
+		ClaimedJob job = job();
+		when(repository.claimNextQueued()).thenReturn(Optional.of(job));
+		when(runner.run(job)).thenThrow(new KtoDataConsistencyException(
+			"KTO common content ID did not match its target"));
+
+		worker().processNext();
+
+		verify(repository).fail(any(), any(), eq("KTO_DATA_CONSISTENCY_ERROR"));
 	}
 
 	@Test

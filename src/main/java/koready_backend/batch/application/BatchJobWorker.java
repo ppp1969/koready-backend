@@ -16,6 +16,7 @@ import koready_backend.batch.application.port.BatchJobExecutionRepository;
 import koready_backend.batch.application.port.BatchJobExecutionRepository.Completion;
 import koready_backend.batch.application.port.KtoBatchJobRunner;
 import koready_backend.kto.application.exception.KtoProviderException;
+import koready_backend.kto.application.exception.KtoDataConsistencyException;
 
 @Component
 @ConditionalOnProperty(
@@ -59,6 +60,9 @@ public class BatchJobWorker {
 	}
 
 	private static String failureCode(RuntimeException exception) {
+		if (exception instanceof KtoDataConsistencyException) {
+			return "KTO_DATA_CONSISTENCY_ERROR";
+		}
 		if (exception instanceof KtoProviderException providerException
 			&& ("22".equals(providerException.providerCode())
 				|| "HTTP_429".equals(providerException.providerCode()))) {

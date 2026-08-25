@@ -106,6 +106,19 @@ class KtoDetailJdbcStoreIntegrationTest {
 	}
 
 	@Test
+	void refreshesTheStoredContentTypeFromTheValidatedCommonResponse()
+		throws Exception {
+		long placeId = place("100", "12");
+
+		store.store(command(placeId, "14"));
+
+		assertEquals("14", jdbcTemplate.queryForObject(
+			"SELECT kto_content_type_id FROM places WHERE id = ?",
+			String.class,
+			placeId));
+	}
+
+	@Test
 	void storesRepeatedProviderSerialNumbersInResponseOrder() throws Exception {
 		long placeId = place("100", "12");
 		KtoStoreDetailCommand command = command(placeId, List.of(
@@ -280,6 +293,24 @@ class KtoDetailJdbcStoreIntegrationTest {
 			"fldgubun", "1",
 			"infoname", "Admission",
 			"infotext", "Free")));
+	}
+
+	private KtoStoreDetailCommand command(long placeId, String contentTypeId)
+		throws Exception {
+		KtoDetailTarget target = new KtoDetailTarget(placeId, "100", contentTypeId);
+		return new KtoStoreDetailCommand(
+			target,
+			List.of(
+				operation(KtoDetailOperation.COMMON, "common-" + contentTypeId, List.of(Map.of(
+					"contentid", "100",
+					"contenttypeid", contentTypeId,
+					"title", "Provider title"))),
+				operation(KtoDetailOperation.INTRO, "intro-" + contentTypeId, List.of(Map.of(
+					"contentid", "100",
+					"contenttypeid", contentTypeId))),
+				operation(KtoDetailOperation.INFO, "info-" + contentTypeId, List.of()),
+				operation(KtoDetailOperation.IMAGE, "image-" + contentTypeId, List.of())),
+			null);
 	}
 
 	private KtoStoreDetailCommand command(

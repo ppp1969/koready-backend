@@ -12,18 +12,22 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import koready_backend.kto.application.exception.KtoProviderException;
+import koready_backend.kto.application.exception.KtoDataConsistencyException;
 import koready_backend.kto.application.exception.KtoTransportException;
 import koready_backend.kto.application.model.KtoBatchExecutionReference;
 import koready_backend.kto.application.model.KtoDetailEnrichmentRequest;
 import koready_backend.kto.application.model.KtoDetailEnrichmentResult;
+import koready_backend.kto.application.model.KtoFetchedDetailOperation;
 import koready_backend.kto.application.model.KtoRawSnapshot;
 import koready_backend.kto.application.model.KtoStoreDetailCommand;
 import koready_backend.kto.application.model.KtoStoredDetailOperation;
+import koready_backend.kto.application.model.KtoStoredSnapshotMetadata;
 import koready_backend.kto.application.port.KtoDetailClient;
 import koready_backend.kto.application.port.KtoDetailStore;
 import koready_backend.kto.application.port.KtoDetailTargetSource;
 import koready_backend.kto.application.port.KtoRawSnapshotStore;
 import koready_backend.kto.domain.KtoDetailOperation;
+import koready_backend.kto.domain.KtoDetailTarget;
 
 @Service
 public class KtoDetailEnrichmentService {
@@ -83,23 +87,27 @@ public class KtoDetailEnrichmentService {
 			var storedOperations = new ArrayList<KtoStoredDetailOperation>();
 			KtoDetailOperation attemptedOperation = null;
 			try {
+				attemptedOperation = KtoDetailOperation.COMMON;
+				var common = client.fetch(KtoDetailOperation.COMMON, target);
+				Instant commonCapturedAt = Instant.now(clock);
+				storedOperations.add(new KtoStoredDetailOperation(
+					common,
+					storeSnapshot(target, common, commonCapturedAt)));
+				successfulOperations++;
+				KtoDetailTarget effectiveTarget = effectiveTarget(target, common);
 				for (KtoDetailOperation operation : KtoDetailOperation.values()) {
+					if (operation == KtoDetailOperation.COMMON) {
+						continue;
+					}
 					attemptedOperation = operation;
-					var fetched = client.fetch(operation, target);
+					var fetched = client.fetch(operation, effectiveTarget);
 					Instant capturedAt = Instant.now(clock);
-					var snapshot = snapshotStore.store(new KtoRawSnapshot(
-						"kor",
-						operation.apiName(),
-						LocalDate.ofInstant(capturedAt, SEOUL),
-						Math.toIntExact(target.placeId()),
-						fetched.response().responseSha256(),
-						fetched.rawPayload(),
-						capturedAt));
+					var snapshot = storeSnapshot(effectiveTarget, fetched, capturedAt);
 					storedOperations.add(new KtoStoredDetailOperation(fetched, snapshot));
 					successfulOperations++;
 				}
 				detailStore.store(new KtoStoreDetailCommand(
-					target, storedOperations, batchExecution));
+					effectiveTarget, storedOperations, batchExecution));
 				successfulPlaces++;
 				consecutiveFailures = 0;
 			} catch (KtoProviderException exception) {
@@ -131,6 +139,51 @@ public class KtoDetailEnrichmentService {
 			hasMore,
 			request.autoContinue(),
 			continuationAllowed);
+	}
+
+	private KtoStoredSnapshotMetadata storeSnapshot(
+		KtoDetailTarget target,
+		KtoFetchedDetailOperation fetched,
+		Instant capturedAt
+	) {
+		return snapshotStore.store(new KtoRawSnapshot(
+			"kor",
+			fetched.response().operation().apiName(),
+			LocalDate.ofInstant(capturedAt, SEOUL),
+			Math.toIntExact(target.placeId()),
+			fetched.response().responseSha256(),
+			fetched.rawPayload(),
+			capturedAt));
+	}
+
+	private KtoDetailTarget effectiveTarget(
+		KtoDetailTarget storedTarget,
+		KtoFetchedDetailOperation common
+	) {
+		String latestContentTypeId = null;
+		for (var item : common.response().items()) {
+			String contentId = item.get("contentid");
+			if (contentId != null && !storedTarget.contentId().equals(contentId)) {
+				throw new KtoDataConsistencyException(
+					"KTO common content ID did not match its target");
+			}
+			String contentTypeId = item.get("contenttypeid");
+			if (contentTypeId == null || contentTypeId.isBlank()) {
+				continue;
+			}
+			if (latestContentTypeId != null
+				&& !latestContentTypeId.equals(contentTypeId)) {
+				throw new KtoDataConsistencyException(
+					"KTO common response contained multiple content types");
+			}
+			latestContentTypeId = contentTypeId;
+		}
+		if (latestContentTypeId == null
+			|| storedTarget.contentTypeId().equals(latestContentTypeId)) {
+			return storedTarget;
+		}
+		return new KtoDetailTarget(
+			storedTarget.placeId(), storedTarget.contentId(), latestContentTypeId);
 	}
 
 	private static boolean quotaExceeded(KtoProviderException exception) {

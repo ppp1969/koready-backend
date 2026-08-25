@@ -930,8 +930,14 @@ class OpenApiContractTests {
 		assertEquals(true, travelStyles.get("uniqueItems"));
 		assertFalse(properties.containsKey("buddyStyles"));
 		assertFalse(asMap(
-			asMap(schemas.get("BuddyProfile"), "BuddyProfile").get("properties"),
-			"BuddyProfile.properties").containsKey("buddyStyles"));
+			asMap(schemas.get("MyBuddyProfile"), "MyBuddyProfile").get("properties"),
+			"MyBuddyProfile.properties").containsKey("buddyStyles"));
+		Map<String, Object> publicBuddyExtension = asMap(
+			asList(asMap(schemas.get("BuddyProfile"), "BuddyProfile").get("allOf"),
+				"BuddyProfile.allOf").get(1),
+			"BuddyProfile extension");
+		assertTrue(asMap(publicBuddyExtension.get("properties"),
+			"BuddyProfile extension properties").containsKey("buddyStyles"));
 		assertEquals(2,
 			asMap(properties.get("socialLinks"), "socialLinks").get("maxItems"));
 

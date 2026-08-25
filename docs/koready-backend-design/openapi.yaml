@@ -968,7 +968,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '200':
-          $ref: '#/components/responses/BuddyProfileSuccess'
+          $ref: '#/components/responses/MyBuddyProfileSavedSuccess'
   /users/me/profile-image/upload-url:
     post:
       tags: [Buddy]
@@ -3416,6 +3416,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/MyBuddyProfileEnvelope'
+    MyBuddyProfileSavedSuccess:
+      description: 내 Buddy 프로필 저장 성공
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MyBuddyProfileDataEnvelope'
     BuddyProfileSuccess:
       description: Buddy 프로필 상세
       content:
@@ -5910,8 +5916,15 @@ components:
         profile:
           type: object
           allOf:
-            - $ref: '#/components/schemas/BuddyProfile'
+            - $ref: '#/components/schemas/MyBuddyProfile'
           nullable: true
+    MyBuddyProfileDataEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MyBuddyProfile'
     BuddyProfileEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'
@@ -5919,7 +5932,7 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/BuddyProfile'
-    BuddyProfile:
+    MyBuddyProfile:
       type: object
       required: [profileId, nickname, nationalityCode, availableLanguages, koreanLevel, travelStyles, socialLinks, profilePublic, snsPublic, allowsMessages, canMessage, blockedByMe, updatedAt]
       properties:
@@ -5977,6 +5990,18 @@ components:
         updatedAt:
           type: string
           format: date-time
+    BuddyProfile:
+      allOf:
+        - $ref: '#/components/schemas/MyBuddyProfile'
+        - type: object
+          required: [buddyStyles]
+          properties:
+            buddyStyles:
+              type: array
+              uniqueItems: true
+              description: 공개 Buddy 탐색과 장소 메이트 매칭에 사용하는 기존 관심사
+              items:
+                $ref: '#/components/schemas/BuddyStyle'
     SocialLink:
       type: object
       required: [type, displayValue]

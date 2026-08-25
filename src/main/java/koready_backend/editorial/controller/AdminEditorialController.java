@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -117,6 +118,36 @@ public class AdminEditorialController {
 			"EDITORIAL_PLACE_VISIBILITY_UPDATED",
 			EditorialDtos.from(service.updateVisibility(
 				placeId, body.visible(), authentication.getName())),
+			TraceIdFilter.current(request));
+	}
+
+	@PatchMapping("/places/{placeId}/priority")
+	@Operation(summary = "관리자 장소 노출 우선순위 변경")
+	public ApiEnvelope<EditorialDtos.PriorityResponse> priority(
+		@PathVariable @Positive long placeId,
+		@Valid @RequestBody EditorialDtos.PriorityRequest body,
+		Authentication authentication,
+		HttpServletRequest request
+	) {
+		return ApiEnvelope.success(
+			"EDITORIAL_PLACE_PRIORITY_UPDATED",
+			EditorialDtos.from(service.updateCurationPriority(
+				placeId, body.priority(), authentication.getName())),
+			TraceIdFilter.current(request));
+	}
+
+	@PutMapping("/places/{placeId}/images/order")
+	@Operation(summary = "관리자 장소 사진 표시 순서 변경")
+	public ApiEnvelope<EditorialDtos.ImageOrderResponse> imageOrder(
+		@PathVariable @Positive long placeId,
+		@Valid @RequestBody EditorialDtos.ImageOrderRequest body,
+		Authentication authentication,
+		HttpServletRequest request
+	) {
+		return ApiEnvelope.success(
+			"EDITORIAL_PLACE_IMAGES_REORDERED",
+			EditorialDtos.from(service.reorderImages(
+				placeId, body.imageIds(), authentication.getName())),
 			TraceIdFilter.current(request));
 	}
 

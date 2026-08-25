@@ -103,13 +103,13 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 		assertEquals(3, eventCount(plan.deckPublicId()));
 		assertEquals(3, stateCount(user.userId()));
 
-		assertTrue(repository.findEligibleCandidates(
+		assertEquals(2, repository.findEligibleCandidates(
 			user.userId(),
 			NOW.plusSeconds(180),
 			PlaceLanguage.EN,
 			RecommendationScope.NEARBY,
 			ServiceRegionCode.SEOUL,
-			100).isEmpty());
+			100).size());
 		assertEquals(2, repository.findEligibleCandidates(
 			user.userId(),
 			NOW.plusSeconds(30L * 24 * 60 * 60 + 120),
@@ -175,12 +175,14 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 			USER, delayedDeck.deckPublicId(), "rec_delayed_deck-cursor-page-2", NOW.plusSeconds(120))
 			.orElseThrow();
 
-		assertTrue(delayedPage.cards().isEmpty());
-		assertTrue(replayed.cards().isEmpty());
-		assertEquals(1, eventCount(delayedDeck.deckPublicId()));
+		assertEquals(List.of(overlapping),
+			delayedPage.cards().stream().map(CardSnapshot::placeId).toList());
+		assertEquals(List.of(overlapping),
+			replayed.cards().stream().map(CardSnapshot::placeId).toList());
+		assertEquals(2, eventCount(delayedDeck.deckPublicId()));
 		assertEquals(1, eventCount(competingDeck.deckPublicId()));
-		assertEquals(1, servedCount(user.userId(), overlapping));
-		assertEquals(originalSuppression, suppressUntil(user.userId(), overlapping));
+		assertEquals(2, servedCount(user.userId(), overlapping));
+		assertTrue(suppressUntil(user.userId(), overlapping).isAfter(originalSuppression));
 	}
 
 	@Test

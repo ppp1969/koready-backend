@@ -116,11 +116,26 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 		PlaceRow last = firstPage.getLast();
 		List<PlaceRow> secondPage = repository.findByRegion(criteria(
 			PlaceSort.RECOMMENDED,
-			new PlaceCursor(last.qualityScore(), null, last.placeId()),
+			new PlaceCursor(last.curationPriority(), last.qualityScore(), null, last.placeId()),
 			2));
 
 		assertEquals(List.of(first, second), firstPage.stream().map(PlaceRow::placeId).toList());
 		assertEquals(List.of(third), secondPage.stream().map(PlaceRow::placeId).toList());
+	}
+
+	@Test
+	void prioritizesAdminCuratedPlacesBeforeQualityScore() {
+		long qualityFirst = placeWithKorean("priority-quality", "99.00", "고품질 장소");
+		long curatedFirst = placeWithKorean("priority-curated", "10.00", "운영자 선정 장소");
+		jdbcTemplate.update(
+			"UPDATE places SET curation_priority = 100 WHERE id = ?", curatedFirst);
+
+		List<PlaceRow> rows = repository.findByRegion(criteria(
+			PlaceSort.RECOMMENDED, null, 10));
+
+		assertEquals(
+			List.of(curatedFirst, qualityFirst),
+			rows.stream().map(PlaceRow::placeId).toList());
 	}
 
 	@Test
@@ -159,13 +174,13 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 
 		List<PlaceRow> afterEvent = repository.findByRegion(criteria(
 			PlaceSort.DEADLINE,
-			new PlaceCursor(new BigDecimal("50.00"), TODAY.plusDays(3), eventPlace),
+			new PlaceCursor(0, new BigDecimal("50.00"), TODAY.plusDays(3), eventPlace),
 			10));
 		assertEquals(List.of(plainPlace), afterEvent.stream().map(PlaceRow::placeId).toList());
 
 		List<PlaceRow> afterPlain = repository.findByRegion(criteria(
 			PlaceSort.DEADLINE,
-			new PlaceCursor(new BigDecimal("99.00"), null, plainPlace),
+			new PlaceCursor(0, new BigDecimal("99.00"), null, plainPlace),
 			10));
 		assertTrue(afterPlain.isEmpty());
 	}

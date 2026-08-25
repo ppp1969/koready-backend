@@ -3,6 +3,12 @@ package koready_backend.editorial.controller;
 import java.time.Instant;
 import java.util.List;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+
 import koready_backend.editorial.application.EditorialService;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialJobStatus;
@@ -23,7 +29,8 @@ final class EditorialDtos {
 		return new CandidateListResponse(
 			page.items().stream().map(item -> new CandidateResponse(
 				item.placeId(), item.titleKo(), item.titleEn(), item.region(),
-				item.imageUrl(), item.hasKoreanOverview(), item.queueEligible(), item.status(),
+				item.imageUrl(), item.hasKoreanOverview(), item.queueEligible(),
+				item.curationPriority(), item.status(),
 				item.active(), item.showFlag(), item.visible(), item.requestedAt())).toList(),
 			page.nextCursor(), page.hasMore(), page.totalCount());
 	}
@@ -41,13 +48,29 @@ final class EditorialDtos {
 	static CandidateDetailResponse from(EditorialService.CandidateDetailView item) {
 		return new CandidateDetailResponse(
 			item.placeId(), item.titleKo(), item.titleEn(), item.overviewKo(),
-			item.address(), item.region(), item.imageUrls(), item.travelStyles(),
+			item.address(), item.region(), item.imageUrls(), item.images().stream()
+				.map(image -> new ImageOrderItemResponse(
+					image.imageId(), image.imageUrl(), image.displayOrder(), image.thumbnail()))
+				.toList(), item.travelStyles(), item.curationPriority(),
 			item.active(), item.showFlag(), item.visible(), item.status(), item.requestedAt());
 	}
 
 	static VisibilityResponse from(EditorialService.PlaceVisibilityView item) {
 		return new VisibilityResponse(
 			item.placeId(), item.active(), item.showFlag(), item.visible(), item.updatedAt());
+	}
+
+	static PriorityResponse from(EditorialService.PlacePriorityView item) {
+		return new PriorityResponse(item.placeId(), item.priority(), item.updatedAt());
+	}
+
+	static ImageOrderResponse from(EditorialService.PlaceImageOrderView item) {
+		return new ImageOrderResponse(
+			item.placeId(),
+			item.images().stream().map(image -> new ImageOrderItemResponse(
+				image.imageId(), image.imageUrl(), image.displayOrder(), image.thumbnail()))
+				.toList(),
+			item.updatedAt());
 	}
 
 	record QueueResponse(
@@ -77,6 +100,7 @@ final class EditorialDtos {
 		String imageUrl,
 		boolean hasKoreanOverview,
 		boolean queueEligible,
+		int curationPriority,
 		EditorialJobStatus editorialStatus,
 		boolean active,
 		boolean showFlag,
@@ -93,7 +117,9 @@ final class EditorialDtos {
 		String address,
 		String region,
 		List<String> imageUrls,
+		List<ImageOrderItemResponse> images,
 		List<String> travelStyles,
+		int curationPriority,
 		boolean active,
 		boolean showFlag,
 		boolean visible,
@@ -135,6 +161,32 @@ final class EditorialDtos {
 		boolean showFlag,
 		boolean visible,
 		Instant updatedAt
+	) {
+	}
+
+	record PriorityRequest(@NotNull @Min(0) @Max(1000) Integer priority) {
+	}
+
+	record PriorityResponse(long placeId, int priority, Instant updatedAt) {
+	}
+
+	record ImageOrderRequest(
+		@NotNull @Size(min = 1, max = 100) List<@NotNull @Positive Long> imageIds
+	) {
+	}
+
+	record ImageOrderResponse(
+		long placeId,
+		List<ImageOrderItemResponse> images,
+		Instant updatedAt
+	) {
+	}
+
+	record ImageOrderItemResponse(
+		long imageId,
+		String imageUrl,
+		int displayOrder,
+		boolean thumbnail
 	) {
 	}
 }

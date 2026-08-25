@@ -55,6 +55,7 @@ public interface PlaceQueryRepository {
 	}
 
 	record PlaceCursor(
+		int curationPriority,
 		BigDecimal qualityScore,
 		LocalDate deadlineSortDate,
 		long placeId
@@ -78,6 +79,7 @@ public interface PlaceQueryRepository {
 		String imageUrl,
 		TravelStyle travelStyle,
 		String overview,
+		int curationPriority,
 		BigDecimal qualityScore,
 		LocalDate deadlineSortDate,
 		FestivalOccurrence festivalOccurrence

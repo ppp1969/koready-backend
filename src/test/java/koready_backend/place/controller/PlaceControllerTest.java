@@ -69,6 +69,7 @@ class PlaceControllerTest {
 			null,
 			TravelStyle.CULTURE_EXPERIENCE,
 			"A historic palace.",
+			0,
 			new BigDecimal("95.00"),
 			null,
 			null)));

@@ -31,6 +31,10 @@ public interface EditorialRepository {
 
 	Optional<PlaceVisibilityRecord> updateVisibility(VisibilityCommand command);
 
+	Optional<PlacePriorityRecord> updateCurationPriority(PriorityCommand command);
+
+	Optional<PlaceImageOrderRecord> reorderImages(ImageOrderCommand command);
+
 	record EnqueueCommand(
 		long placeId,
 		String promptVersion,
@@ -86,6 +90,7 @@ public interface EditorialRepository {
 		boolean queueEligible,
 		boolean active,
 		boolean showFlag,
+		int curationPriority,
 		EditorialJobStatus status,
 		Instant requestedAt
 	) {
@@ -99,9 +104,11 @@ public interface EditorialRepository {
 		String address,
 		String region,
 		List<String> imageUrls,
+		List<PlaceImageRecord> images,
 		List<String> travelStyles,
 		boolean active,
 		boolean showFlag,
+		int curationPriority,
 		EditorialJobStatus status,
 		Instant requestedAt
 	) {
@@ -143,5 +150,38 @@ public interface EditorialRepository {
 		public boolean visible() {
 			return active && showFlag;
 		}
+	}
+
+	record PriorityCommand(
+		long placeId,
+		int priority,
+		String actorSubject,
+		Instant updatedAt
+	) {
+	}
+
+	record PlacePriorityRecord(long placeId, int priority, Instant updatedAt) {
+	}
+
+	record ImageOrderCommand(
+		long placeId,
+		List<Long> imageIds,
+		String actorSubject,
+		Instant updatedAt
+	) {
+	}
+
+	record PlaceImageRecord(
+		long imageId,
+		String imageUrl,
+		int displayOrder
+	) {
+	}
+
+	record PlaceImageOrderRecord(
+		long placeId,
+		List<PlaceImageRecord> images,
+		Instant updatedAt
+	) {
 	}
 }

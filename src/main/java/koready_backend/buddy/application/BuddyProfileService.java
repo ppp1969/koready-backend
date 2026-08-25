@@ -63,6 +63,11 @@ public class BuddyProfileService {
 			throw new IllegalArgumentException(
 				"Profile image must be a completed upload owned by the user");
 		}
+		List<BuddyStyle> buddyStyles = command.buddyStyles() == null
+			? repository.findByUserId(userId)
+				.map(record -> record.profile().buddyStyles())
+				.orElse(List.of())
+			: command.buddyStyles();
 		BuddyProfileDraft draft = new BuddyProfileDraft(
 			command.profileImageUrl(),
 			command.nickname(),
@@ -71,7 +76,7 @@ public class BuddyProfileService {
 			command.koreanLevel(),
 			command.travelStyles(),
 			command.bio(),
-			command.buddyStyles(),
+			buddyStyles,
 			command.socialLinks(),
 			command.profilePublic(),
 			command.snsPublic(),

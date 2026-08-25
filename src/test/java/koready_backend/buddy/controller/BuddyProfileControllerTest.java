@@ -87,7 +87,7 @@ class BuddyProfileControllerTest {
 			.andExpect(jsonPath("$.data.availableLanguages[0]").value("VI"))
 			.andExpect(jsonPath("$.data.koreanLevel").value("BEGINNER"))
 			.andExpect(jsonPath("$.data.travelStyles[0]").value("LOCAL_FOOD"))
-			.andExpect(jsonPath("$.data.buddyStyles[0]").value("FOODIE"))
+			.andExpect(jsonPath("$.data.buddyStyles").doesNotExist())
 			.andExpect(jsonPath("$.data.socialLinks[0].type").value("INSTAGRAM"))
 			.andExpect(jsonPath("$.data.socialLinks[0].displayValue").value("@emma"))
 			.andExpect(jsonPath("$.data.socialLinks[0].url").doesNotExist())
@@ -206,7 +206,6 @@ class BuddyProfileControllerTest {
 			  "koreanLevel": "BEGINNER",
 			  "travelStyles": ["LOCAL_FOOD", "CULTURE_EXPERIENCE"],
 			  "bio": "Local food fan",
-			  "buddyStyles": ["FOODIE"],
 			  "socialLinks": [{"type":"INSTAGRAM","value":"@emma"}],
 			  "profilePublic": true,
 			  "snsPublic": true,

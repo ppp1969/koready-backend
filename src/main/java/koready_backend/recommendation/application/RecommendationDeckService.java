@@ -139,6 +139,8 @@ public class RecommendationDeckService {
 				|| candidate.serviceRegionCode() == context.serviceRegionCode())
 			.sorted(Comparator
 				.comparing(RecommendationCandidate::endedFestival)
+				.thenComparing(RecommendationCandidate::suppressed)
+				.thenComparing(RecommendationCandidate::curationPriority, Comparator.reverseOrder())
 				.thenComparing(RecommendationCandidate::heartCount, Comparator.reverseOrder())
 				.thenComparingInt(candidate -> matchRank(candidate, context.travelStyles()))
 				.thenComparing(RecommendationCandidate::qualityScore, Comparator.reverseOrder())

@@ -55,6 +55,8 @@ public interface RecommendationDeckRepository {
 		List<TravelStyle> travelStyles,
 		long heartCount,
 		boolean endedFestival,
+		int curationPriority,
+		boolean suppressed,
 		BigDecimal qualityScore
 	) {
 	}

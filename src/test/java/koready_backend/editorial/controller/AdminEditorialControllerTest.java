@@ -2,6 +2,7 @@ package koready_backend.editorial.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -26,6 +27,7 @@ import koready_backend.editorial.application.EditorialService;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
+import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -71,19 +73,22 @@ class AdminEditorialControllerTest {
 	@Test
 	@WithMockUser(roles = "ADMIN")
 	void listsCandidatePlaces() throws Exception {
-		when(service.candidates(any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
+		when(service.candidates(any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
 			.thenReturn(new EditorialService.CandidatePage(List.of(), null, false, 0));
 
 		mockMvc.perform(get("/api/v1/admin/editorial/candidates"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.items").isArray())
 			.andExpect(jsonPath("$.data.hasMore").value(false));
+		verify(service).candidates(any(), any(), any(), any(), any(),
+			org.mockito.ArgumentMatchers.eq(EditorialCandidateSourceTrack.KTO_BILINGUAL),
+			any(Long.class), any(Integer.class));
 	}
 
 	@Test
 	@WithMockUser(roles = "ADMIN")
 	void acceptsSelectionFiltersAndReturnsTotalCount() throws Exception {
-		when(service.candidates(any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
+		when(service.candidates(any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
 			.thenReturn(new EditorialService.CandidatePage(List.of(), null, false, 0));
 
 		mockMvc.perform(get("/api/v1/admin/editorial/candidates")
@@ -91,9 +96,13 @@ class AdminEditorialControllerTest {
 				.param("status", "IN_PROGRESS")
 				.param("region", "SEOUL")
 				.param("hasKoreanOverview", "true")
-				.param("queueEligible", "false"))
+				.param("queueEligible", "false")
+				.param("sourceTrack", "KOREAN_ONLY_AI"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.totalCount").value(0));
+		verify(service).candidates(any(), any(), any(), any(), any(),
+			org.mockito.ArgumentMatchers.eq(EditorialCandidateSourceTrack.KOREAN_ONLY_AI),
+			any(Long.class), any(Integer.class));
 	}
 
 	@Test

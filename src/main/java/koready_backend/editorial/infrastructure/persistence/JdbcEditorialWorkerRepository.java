@@ -183,7 +183,8 @@ public class JdbcEditorialWorkerRepository implements EditorialWorkerRepository 
 			FROM place_editorial_jobs j
 			JOIN places p ON p.id = j.place_id
 			JOIN place_localizations ko ON ko.place_id = p.id AND ko.language = 'KO'
-			JOIN place_localizations en ON en.place_id = p.id AND en.language = 'EN'
+			LEFT JOIN place_localizations en ON en.place_id = p.id AND en.language = 'EN'
+			  AND en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
 			WHERE j.id = ? AND j.status = 'PROCESSING'
 			""", this::claimedBase, jobId);
 		if (rows.isEmpty()) {

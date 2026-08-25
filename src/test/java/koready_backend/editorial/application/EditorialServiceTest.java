@@ -18,6 +18,7 @@ import koready_backend.editorial.application.port.EditorialRepository;
 import koready_backend.editorial.application.port.EditorialRepository.EnqueueRecord;
 import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
 import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
+import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
@@ -71,7 +72,8 @@ class EditorialServiceTest {
 
 		EditorialService.CandidatePage result = service.candidates(
 			" 4 ", EditorialCandidateStatusFilter.IN_PROGRESS,
-			EditorialCandidateRegionFilter.SEOUL, true, false, 10L, 20);
+			EditorialCandidateRegionFilter.SEOUL, true, false,
+			EditorialCandidateSourceTrack.KOREAN_ONLY_AI, 10L, 20);
 
 		assertEquals(42L, result.totalCount());
 		verify(repository).findCandidates(Mockito.argThat(query ->
@@ -80,6 +82,7 @@ class EditorialServiceTest {
 				&& query.region() == EditorialCandidateRegionFilter.SEOUL
 				&& Boolean.TRUE.equals(query.hasKoreanOverview())
 				&& Boolean.FALSE.equals(query.queueEligible())
+				&& query.sourceTrack() == EditorialCandidateSourceTrack.KOREAN_ONLY_AI
 				&& query.startAfterPlaceId() == 10L
 				&& query.limit() == 21));
 		verify(repository).countCandidates(Mockito.argThat(query ->

@@ -30,6 +30,7 @@ final class EditorialDtos {
 			page.items().stream().map(item -> new CandidateResponse(
 				item.placeId(), item.titleKo(), item.titleEn(), item.region(),
 				item.imageUrl(), item.hasKoreanOverview(), item.queueEligible(),
+				item.sourceTrack(), item.hasTrustedEnglish(),
 				item.curationPriority(), item.status(),
 				item.active(), item.showFlag(), item.visible(), item.requestedAt())).toList(),
 			page.nextCursor(), page.hasMore(), page.totalCount());
@@ -52,6 +53,7 @@ final class EditorialDtos {
 				.map(image -> new ImageOrderItemResponse(
 					image.imageId(), image.imageUrl(), image.displayOrder(), image.thumbnail()))
 				.toList(), item.travelStyles(), item.curationPriority(),
+			item.sourceTrack(), item.hasTrustedEnglish(),
 			item.active(), item.showFlag(), item.visible(), item.status(), item.requestedAt());
 	}
 
@@ -100,6 +102,8 @@ final class EditorialDtos {
 		String imageUrl,
 		boolean hasKoreanOverview,
 		boolean queueEligible,
+		koready_backend.editorial.domain.EditorialCandidateSourceTrack sourceTrack,
+		boolean hasTrustedEnglish,
 		int curationPriority,
 		EditorialJobStatus editorialStatus,
 		boolean active,
@@ -120,6 +124,8 @@ final class EditorialDtos {
 		List<ImageOrderItemResponse> images,
 		List<String> travelStyles,
 		int curationPriority,
+		koready_backend.editorial.domain.EditorialCandidateSourceTrack sourceTrack,
+		boolean hasTrustedEnglish,
 		boolean active,
 		boolean showFlag,
 		boolean visible,

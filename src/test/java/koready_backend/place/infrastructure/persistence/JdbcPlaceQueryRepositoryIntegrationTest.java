@@ -80,6 +80,7 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 		insertLocalizationWithSource(
 			ai, "EN", "AI Place", "Seoul", "Generated overview", "AI_TRANSLATED");
 		insertStyle(ai, "NATURE", "0.8500");
+		insertReadyEditorial(ai);
 
 		long hidden = insertPlace("hidden", "SEOUL", false, true, "99.00");
 		insertLocalization(hidden, "KO", "숨김 장소", "서울", null);
@@ -98,11 +99,14 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 			PlaceLanguage.EN,
 			TODAY));
 
-		assertEquals(List.of(high), rows.stream().map(PlaceRow::placeId).toList());
+		assertEquals(List.of(high, ai), rows.stream().map(PlaceRow::placeId).toList());
 		assertEquals("English Nature", rows.getFirst().title());
 		assertEquals(TravelStyle.NATURE, rows.getFirst().travelStyle());
 		assertTrue(repository.findDetail(fallback, PlaceLanguage.KO).isEmpty());
-		assertTrue(repository.findDetail(ai, PlaceLanguage.EN).isEmpty());
+		assertEquals("AI Place", repository.findDetail(ai, PlaceLanguage.EN).orElseThrow().title());
+		assertEquals("Seoul", repository.findDetail(ai, PlaceLanguage.EN).orElseThrow().address());
+		assertEquals("AI_TRANSLATED",
+			repository.findDetail(ai, PlaceLanguage.EN).orElseThrow().translationSource());
 	}
 
 	@Test
@@ -376,6 +380,14 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 			placeId,
 			style,
 			new BigDecimal(confidence));
+	}
+
+	private void insertReadyEditorial(long placeId) {
+		jdbcTemplate.update("""
+			INSERT INTO place_editorial_contents
+			    (place_id, source_fingerprint, prompt_version, status, provider, model, generated_at)
+			VALUES (?, ?, 'koready-place-editorial-v1', 'READY', 'google-genai', 'test-model', UTC_TIMESTAMP(6))
+			""", placeId, "f".repeat(64));
 	}
 
 	private void insertOccurrence(long placeId, LocalDate startDate, LocalDate endDate) {

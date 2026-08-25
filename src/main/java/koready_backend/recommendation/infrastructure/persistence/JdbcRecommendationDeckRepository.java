@@ -103,7 +103,13 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		      FROM place_localizations publication_en
 		      WHERE publication_en.place_id = place.id
 		        AND publication_en.language = 'EN'
-		        AND publication_en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+		        AND (
+		            publication_en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+		            OR (publication_en.translation_source = 'AI_TRANSLATED'
+		                AND EXISTS (SELECT 1 FROM place_editorial_contents editorial_source
+		                    WHERE editorial_source.place_id = place.id
+		                      AND editorial_source.status = 'READY'))
+		        )
 		        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
 		  )
 		  AND (? <> 'NEARBY' OR place.service_region_code = ?)

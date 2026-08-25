@@ -58,6 +58,8 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		JOIN place_localizations ko ON ko.place_id = p.id AND ko.language = 'KO'
 		LEFT JOIN place_localizations en ON en.place_id = p.id AND en.language = 'EN'
 		  AND en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+		LEFT JOIN place_localizations ai_en ON ai_en.place_id = p.id AND ai_en.language = 'EN'
+		  AND ai_en.translation_source = 'AI_TRANSLATED'
 		LEFT JOIN place_editorial_jobs latest ON latest.id = (
 		  SELECT j.id FROM place_editorial_jobs j WHERE j.place_id = p.id
 		  ORDER BY j.requested_at DESC, j.id DESC LIMIT 1)
@@ -69,6 +71,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 
 	private static final String QUEUE_ELIGIBLE_SQL = """
 		(NULLIF(TRIM(ko.overview), '') IS NOT NULL
+		 AND NULLIF(TRIM(COALESCE(ko.address_text, p.road_address, p.address)), '') IS NOT NULL
 		 AND COALESCE(latest.status, 'NOT_REQUESTED') IN ('NOT_REQUESTED', 'FAILED', 'STALE'))
 		""";
 
@@ -88,7 +91,8 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		Source source = findSource(command.placeId())
 			.orElseThrow(() -> new EditorialPlaceNotFoundException(command.placeId()));
 		String requestKey = sha256(
-			command.placeId() + "|" + source.fingerprint() + "|" + command.promptVersion());
+			command.placeId() + "|" + source.fingerprint() + "|" + command.promptVersion()
+				+ (source.hasTrustedEnglish() ? "" : "|ai-place-localization-v2"));
 		Optional<EnqueueRecord> existing = findEnqueueByRequestKey(requestKey);
 		String publicId = existing.map(EnqueueRecord::jobId)
 			.orElseGet(() -> UUID.randomUUID().toString());
@@ -154,6 +158,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			  ON ko.place_id = p.id AND ko.language = 'KO'
 			LEFT JOIN place_localizations en
 			  ON en.place_id = p.id AND en.language = 'EN'
+			 AND en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
 			JOIN place_editorial_contents content
 			  ON content.place_id = p.id
 			 AND content.status = 'READY'
@@ -210,7 +215,9 @@ public class JdbcEditorialRepository implements EditorialRepository {
 	@Override
 	public List<CandidateRecord> findCandidates(CandidateQuery query) {
 		StringBuilder sql = new StringBuilder("""
-			SELECT p.id AS place_id, ko.title AS title_ko, en.title AS title_en,
+			SELECT p.id AS place_id, ko.title AS title_ko,
+			       COALESCE(en.title, ai_en.title) AS title_en,
+			       (en.id IS NOT NULL) AS has_trusted_english,
 			       p.service_region_code, p.active, p.show_flag, p.curation_priority,
 			       COALESCE((SELECT i.image_url FROM place_images i
 			          WHERE i.place_id = p.id
@@ -246,7 +253,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		CandidateQuery query
 	) {
 		if (query.query() != null) {
-			sql.append(" AND (ko.title LIKE :query OR en.title LIKE :query");
+			sql.append(" AND (ko.title LIKE :query OR en.title LIKE :query OR ai_en.title LIKE :query");
 			params.addValue("query", "%" + query.query() + "%");
 			try {
 				params.addValue("queryPlaceId", Long.parseLong(query.query()));
@@ -290,7 +297,9 @@ public class JdbcEditorialRepository implements EditorialRepository {
 	@Override
 	public Optional<CandidateDetailRecord> findCandidate(long placeId) {
 		List<CandidateDetailBase> rows = jdbcTemplate.query("""
-			SELECT p.id AS place_id, ko.title AS title_ko, en.title AS title_en,
+			SELECT p.id AS place_id, ko.title AS title_ko,
+			       COALESCE(en.title, ai_en.title) AS title_en,
+			       (en.id IS NOT NULL) AS has_trusted_english,
 			       ko.overview AS overview_ko,
 			       COALESCE(ko.address_text, p.road_address, p.address) AS address,
 			       p.service_region_code, p.active, p.show_flag, p.curation_priority,
@@ -300,6 +309,8 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			JOIN place_localizations ko ON ko.place_id = p.id AND ko.language = 'KO'
 			LEFT JOIN place_localizations en ON en.place_id = p.id AND en.language = 'EN'
 			  AND en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+			LEFT JOIN place_localizations ai_en ON ai_en.place_id = p.id AND ai_en.language = 'EN'
+			  AND ai_en.translation_source = 'AI_TRANSLATED'
 			LEFT JOIN place_editorial_jobs latest ON latest.id = (
 			  SELECT j.id FROM place_editorial_jobs j WHERE j.place_id = p.id
 			  ORDER BY j.requested_at DESC, j.id DESC LIMIT 1)
@@ -312,6 +323,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 				rs.getString("title_en"), rs.getString("overview_ko"),
 				rs.getString("address"),
 				rs.getString("service_region_code"),
+				rs.getBoolean("has_trusted_english"),
 				rs.getBoolean("active"), rs.getBoolean("show_flag"),
 				rs.getInt("curation_priority"),
 				EditorialJobStatus.valueOf(rs.getString("editorial_status")),
@@ -346,7 +358,10 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		return Optional.of(new CandidateDetailRecord(
 			base.placeId(), base.titleKo(), base.titleEn(), base.overviewKo(),
 			base.address(), base.region(), images, orderedImages, styles,
-			sourceTrack(base.titleEn()), base.titleEn() != null,
+			base.hasTrustedEnglish()
+				? EditorialCandidateSourceTrack.KTO_BILINGUAL
+				: EditorialCandidateSourceTrack.KOREAN_ONLY_AI,
+			base.hasTrustedEnglish(),
 			base.active(), base.showFlag(), base.curationPriority(), base.status(),
 			base.requestedAt()));
 	}
@@ -467,7 +482,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 
 	private Optional<Source> findSource(long placeId) {
 		return namedJdbcTemplate.query("""
-			SELECT p.id,
+			SELECT p.id, (en.id IS NOT NULL) AS has_trusted_english,
 			""" + SOURCE_FINGERPRINT + """
 			AS fingerprint
 			FROM places p
@@ -475,10 +490,12 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			  ON ko.place_id = p.id AND ko.language = 'KO'
 			LEFT JOIN place_localizations en
 			  ON en.place_id = p.id AND en.language = 'EN'
+			 AND en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
 			WHERE p.id = :placeId AND p.active = TRUE
 			""", Map.of("placeId", placeId),
 			(rs, rowNumber) -> new Source(
-				rs.getLong("id"), rs.getString("fingerprint")))
+				rs.getLong("id"), rs.getString("fingerprint"),
+				rs.getBoolean("has_trusted_english")))
 			.stream().findFirst();
 	}
 
@@ -501,18 +518,15 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			rs.getLong("place_id"), rs.getString("title_ko"), rs.getString("title_en"),
 			rs.getString("service_region_code"),
 			rs.getString("image_url"), rs.getBoolean("has_ko_overview"),
-			rs.getBoolean("queue_eligible"), sourceTrack(rs.getString("title_en")),
-			rs.getString("title_en") != null,
+			rs.getBoolean("queue_eligible"),
+			rs.getBoolean("has_trusted_english")
+				? EditorialCandidateSourceTrack.KTO_BILINGUAL
+				: EditorialCandidateSourceTrack.KOREAN_ONLY_AI,
+			rs.getBoolean("has_trusted_english"),
 			rs.getBoolean("active"), rs.getBoolean("show_flag"),
 			rs.getInt("curation_priority"),
 			EditorialJobStatus.valueOf(rs.getString("editorial_status")),
 			instant(rs, "requested_at"));
-	}
-
-	private static EditorialCandidateSourceTrack sourceTrack(String trustedEnglishTitle) {
-		return trustedEnglishTitle == null
-			? EditorialCandidateSourceTrack.KOREAN_ONLY_AI
-			: EditorialCandidateSourceTrack.KTO_BILINGUAL;
 	}
 
 	private JobRecord job(ResultSet rs, int rowNumber) throws SQLException {
@@ -545,7 +559,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		}
 	}
 
-	private record Source(long placeId, String fingerprint) {
+	private record Source(long placeId, String fingerprint, boolean hasTrustedEnglish) {
 	}
 
 	private record ReadyBase(
@@ -567,6 +581,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		String overviewKo,
 		String address,
 		String region,
+		boolean hasTrustedEnglish,
 		boolean active,
 		boolean showFlag,
 		int curationPriority,

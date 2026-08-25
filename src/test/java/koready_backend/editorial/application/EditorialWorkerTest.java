@@ -132,6 +132,7 @@ class EditorialWorkerTest {
 				"A local festival where you can taste and make gimbap.",
 				"Explore different kinds of gimbap and local food. Enjoy the lively festival atmosphere in Gimcheon.",
 				List.of("Taste gimbap at food booths", "Join a gimbap-making activity", "Take photos at the festival zone")),
+			"Gimcheon Gimbap Festival", "Gimcheon-si, Gyeongsangbuk-do",
 			List.of(TourismPurposeTag.FOOD, TourismPurposeTag.EXPERIENCE),
 			"openai", "test-model", 100, 200);
 	}

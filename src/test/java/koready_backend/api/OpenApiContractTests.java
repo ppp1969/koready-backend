@@ -1043,6 +1043,44 @@ class OpenApiContractTests {
 	}
 
 	@Test
+	void adminEditorialCurationContractExplainsRangesAndImageOrdering() throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> paths = asMap(contract.get("paths"), "paths");
+		Map<String, Object> priority = asMap(asMap(
+			paths.get("/admin/editorial/places/{placeId}/priority"), "priority path")
+			.get("patch"), "priority operation");
+		Map<String, Object> imageOrder = asMap(asMap(
+			paths.get("/admin/editorial/places/{placeId}/images/order"), "image order path")
+			.get("put"), "image order operation");
+
+		String priorityDescription = String.valueOf(priority.get("description"));
+		assertTrue(priorityDescription.contains("0~1000"));
+		assertTrue(priorityDescription.contains("100~499"));
+		assertTrue(priorityDescription.contains("GET /places?sort=RECOMMENDED"));
+		String imageOrderDescription = String.valueOf(imageOrder.get("description"));
+		assertTrue(imageOrderDescription.contains("1~100개"));
+		assertTrue(imageOrderDescription.contains("thumbnail: true"));
+		assertTrue(imageOrderDescription.contains("삭제되지 않으며"));
+
+		Map<String, Object> schemas = componentSchemas(contract);
+		Map<String, Object> priorityProperty = asMap(asMap(
+			asMap(schemas.get("EditorialPriorityRequest"), "EditorialPriorityRequest")
+				.get("properties"), "EditorialPriorityRequest.properties")
+			.get("priority"), "EditorialPriorityRequest.priority");
+		assertEquals(0, priorityProperty.get("minimum"));
+		assertEquals(1000, priorityProperty.get("maximum"));
+		assertEquals(500, priorityProperty.get("example"));
+
+		Map<String, Object> imageIds = asMap(asMap(
+			asMap(schemas.get("EditorialImageOrderRequest"), "EditorialImageOrderRequest")
+				.get("properties"), "EditorialImageOrderRequest.properties")
+			.get("imageIds"), "EditorialImageOrderRequest.imageIds");
+		assertEquals(1, imageIds.get("minItems"));
+		assertEquals(100, imageIds.get("maxItems"));
+		assertEquals(Boolean.TRUE, imageIds.get("uniqueItems"));
+	}
+
+	@Test
 	void buddyReportContractDocumentsIdempotencyOwnershipAndSeparateBlocking()
 		throws IOException {
 		Map<String, Object> contract = loadContract();

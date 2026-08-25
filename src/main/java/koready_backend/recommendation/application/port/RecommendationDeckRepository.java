@@ -35,6 +35,8 @@ public interface RecommendationDeckRepository {
 		Instant now
 	);
 
+	Optional<ExposureHistoryResetRecord> resetExposureHistory(String userPublicId);
+
 	record UserRecommendationContext(
 		long userId,
 		String userPublicId,
@@ -117,6 +119,13 @@ public interface RecommendationDeckRepository {
 		boolean hasMore,
 		String suppressionPolicyVersion,
 		int suppressionDays
+	) {
+	}
+
+	record ExposureHistoryResetRecord(
+		String userPublicId,
+		int deletedSuppressionStateCount,
+		int deletedCardServedEventCount
 	) {
 	}
 }

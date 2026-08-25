@@ -98,7 +98,7 @@ class RecommendationDeckControllerTest {
 			.andExpect(jsonPath("$.data.cards[0].saved").value(false))
 			.andExpect(jsonPath("$.data.nextCursor").value("next-cursor"))
 			.andExpect(jsonPath("$.data.deduplication.guaranteedWithinDeck").value(true))
-			.andExpect(jsonPath("$.data.deduplication.suppressionDays").value(30));
+			.andExpect(jsonPath("$.data.deduplication.suppressionDays").value(14));
 	}
 
 	@Test
@@ -173,6 +173,6 @@ class RecommendationDeckControllerTest {
 			"next-cursor",
 			true,
 			5,
-			new RecommendationDeckService.Deduplication(true, 30));
+			new RecommendationDeckService.Deduplication(true, 14));
 	}
 }

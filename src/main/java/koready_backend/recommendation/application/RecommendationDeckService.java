@@ -35,8 +35,8 @@ import koready_backend.recommendation.domain.RecommendationScope;
 @Service
 public class RecommendationDeckService {
 
-	public static final String SUPPRESSION_POLICY_VERSION = "recommendation-suppression-v1";
-	public static final int SUPPRESSION_DAYS = 30;
+	public static final String SUPPRESSION_POLICY_VERSION = "recommendation-suppression-v2";
+	public static final int SUPPRESSION_DAYS = 14;
 	private static final int CURSOR_VERSION = 1;
 	private static final int MAX_CANDIDATES = 500;
 	private static final int MAX_DECK_ITEMS = 200;

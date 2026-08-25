@@ -187,7 +187,7 @@ class RecommendationDeckServiceTest {
 		assertEquals(1, plan.pages().size());
 		assertEquals(2, result.cards().size());
 		assertFalse(result.hasMore());
-		assertEquals(30, result.deduplication().suppressionDays());
+		assertEquals(14, result.deduplication().suppressionDays());
 		assertTrue(result.deduplication().guaranteedWithinDeck());
 	}
 

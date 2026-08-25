@@ -85,7 +85,7 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 		assertEquals(2, eventCount(plan.deckPublicId()));
 		assertEquals(2, stateCount(user.userId()));
 		Instant firstSuppression = suppressUntil(user.userId(), first);
-		assertEquals(NOW.plusSeconds(30L * 24 * 60 * 60), firstSuppression);
+		assertEquals(NOW.plusSeconds(14L * 24 * 60 * 60), firstSuppression);
 
 		StoredDeckPage replayed = repository.findPage(USER, plan.deckPublicId(), null, NOW.plusSeconds(60))
 			.orElseThrow();
@@ -112,7 +112,7 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 			100).size());
 		assertEquals(2, repository.findEligibleCandidates(
 			user.userId(),
-			NOW.plusSeconds(30L * 24 * 60 * 60 + 120),
+			NOW.plusSeconds(14L * 24 * 60 * 60 + 120),
 			PlaceLanguage.EN,
 			RecommendationScope.NEARBY,
 			ServiceRegionCode.SEOUL,
@@ -139,6 +139,34 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 			"usr_other", plan.deckPublicId(), null, NOW.plusSeconds(10)).isEmpty());
 		assertTrue(repository.findPage(
 			USER, plan.deckPublicId(), "unknown-cursor", NOW.plusSeconds(10)).isEmpty());
+	}
+
+	@Test
+	void resetsOnlyTheRequestedUsersSuppressionAndServedEvents() {
+		UserFixture target = user(USER, "SEOUL", TravelStyle.NATURE);
+		UserFixture other = user("usr_reset_other", "SEOUL", TravelStyle.NATURE);
+		long targetPlace = place("reset-target", "SEOUL", TravelStyle.NATURE, "90.00");
+		long otherPlace = place("reset-other", "SEOUL", TravelStyle.NATURE, "80.00");
+		repository.createDeck(plan(target, "rec_reset_target", List.of(
+			card(targetPlace, "Target", ServiceRegionCode.SEOUL, TravelStyle.NATURE, 2)), 1));
+		repository.createDeck(plan(other, "rec_reset_other", List.of(
+			card(otherPlace, "Other", ServiceRegionCode.SEOUL, TravelStyle.NATURE, 2)), 1));
+		jdbcTemplate.update("""
+			INSERT INTO user_place_events
+			    (public_id, user_id, place_id, event_type, deck_id, occurred_at)
+			SELECT 'recevt_expanded_reset', ?, ?, 'CARD_EXPANDED', id, ?
+			FROM recommendation_decks WHERE public_id = 'rec_reset_target'
+			""", target.userId(), targetPlace, Timestamp.from(NOW.plusSeconds(1)));
+
+		var result = repository.resetExposureHistory(USER).orElseThrow();
+
+		assertEquals(1, result.deletedSuppressionStateCount());
+		assertEquals(1, result.deletedCardServedEventCount());
+		assertEquals(0, stateCount(target.userId()));
+		assertEquals(1, stateCount(other.userId()));
+		assertEquals(0, eventTypeCount(target.userId(), "CARD_SERVED"));
+		assertEquals(1, eventTypeCount(target.userId(), "CARD_EXPANDED"));
+		assertEquals(1, eventTypeCount(other.userId(), "CARD_SERVED"));
 	}
 
 	@Test
@@ -456,6 +484,14 @@ class JdbcRecommendationDeckRepositoryIntegrationTest {
 			"SELECT COUNT(*) FROM user_place_recommendation_states WHERE user_id = ?",
 			Integer.class,
 			userId);
+	}
+
+	private int eventTypeCount(long userId, String eventType) {
+		return jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM user_place_events WHERE user_id = ? AND event_type = ?",
+			Integer.class,
+			userId,
+			eventType);
 	}
 
 	private int servedCount(long userId, long placeId) {

@@ -15,8 +15,11 @@ import koready_backend.common.controller.ApiErrorResponse;
 import koready_backend.common.controller.TraceIdFilter;
 import koready_backend.recommendation.application.exception.RecommendationContextUnavailableException;
 import koready_backend.recommendation.application.exception.RecommendationDeckNotFoundException;
+import koready_backend.recommendation.application.exception.RecommendationUserNotFoundException;
 
-@RestControllerAdvice(assignableTypes = RecommendationDeckController.class)
+@RestControllerAdvice(assignableTypes = {
+	RecommendationDeckController.class, AdminRecommendationController.class
+})
 public class RecommendationDeckExceptionHandler {
 
 	@ExceptionHandler(RecommendationContextUnavailableException.class)
@@ -39,6 +42,18 @@ public class RecommendationDeckExceptionHandler {
 		return error(
 			HttpStatus.NOT_FOUND,
 			"RECOMMENDATION_DECK_NOT_FOUND",
+			exception.getMessage(),
+			request);
+	}
+
+	@ExceptionHandler(RecommendationUserNotFoundException.class)
+	ResponseEntity<ApiErrorResponse> handleUserNotFound(
+		RecommendationUserNotFoundException exception,
+		HttpServletRequest request
+	) {
+		return error(
+			HttpStatus.NOT_FOUND,
+			"RECOMMENDATION_USER_NOT_FOUND",
 			exception.getMessage(),
 			request);
 	}

@@ -11,7 +11,6 @@ import jakarta.validation.constraints.Size;
 import koready_backend.buddy.application.BuddyProfileService;
 import koready_backend.buddy.application.model.BuddyProfileView;
 import koready_backend.buddy.domain.BuddySocialLink;
-import koready_backend.buddy.domain.BuddyStyle;
 import koready_backend.buddy.domain.KoreanLevel;
 import koready_backend.buddy.domain.ProfileLanguage;
 import koready_backend.buddy.domain.SocialLinkType;
@@ -38,7 +37,6 @@ final class BuddyProfileDtos {
 			profile.koreanLevel(),
 			profile.travelStyles(),
 			profile.bio(),
-			profile.buddyStyles(),
 			profile.socialLinks().stream()
 				.map(link -> new SocialLinkResponse(link.type(), link.value(), null))
 				.toList(),
@@ -60,7 +58,6 @@ final class BuddyProfileDtos {
 		@NotNull @Size(min = 1, max = 4)
 		List<@NotNull TravelStyle> travelStyles,
 		@Size(max = 120) String bio,
-		@Size(max = 6) List<@NotNull BuddyStyle> buddyStyles,
 		@Size(max = 2) List<@NotNull @Valid SocialLinkInput> socialLinks,
 		@NotNull Boolean profilePublic,
 		@NotNull Boolean snsPublic,
@@ -78,7 +75,7 @@ final class BuddyProfileDtos {
 				koreanLevel,
 				travelStyles,
 				bio,
-				buddyStyles == null ? List.of() : buddyStyles,
+				null,
 				links,
 				profilePublic,
 				snsPublic,
@@ -110,7 +107,6 @@ final class BuddyProfileDtos {
 		KoreanLevel koreanLevel,
 		List<TravelStyle> travelStyles,
 		String bio,
-		List<BuddyStyle> buddyStyles,
 		List<SocialLinkResponse> socialLinks,
 		boolean profilePublic,
 		boolean snsPublic,

@@ -15,6 +15,8 @@ import koready_backend.editorial.application.port.EditorialRepository.EnqueueRec
 import koready_backend.editorial.application.port.EditorialRepository.JobQuery;
 import koready_backend.editorial.application.port.EditorialRepository.ReadyContentRecord;
 import koready_backend.editorial.application.port.EditorialRepository.VisibilityCommand;
+import koready_backend.editorial.application.port.EditorialRepository.PriorityCommand;
+import koready_backend.editorial.application.port.EditorialRepository.ImageOrderCommand;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
 import koready_backend.editorial.domain.EditorialJobStatus;
@@ -100,7 +102,7 @@ public class EditorialService {
 		return new CandidatePage(
 			items,
 			hasMore && !items.isEmpty()
-			? Long.toString(items.getLast().placeId()) : null,
+			? Long.toString(startAfterPlaceId + items.size()) : null,
 			hasMore, totalCount);
 	}
 
@@ -114,8 +116,14 @@ public class EditorialService {
 		return new CandidateDetailView(
 			candidate.placeId(), candidate.titleKo(), candidate.titleEn(),
 			candidate.overviewKo(), candidate.address(), candidate.region(),
-			candidate.imageUrls(), candidate.travelStyles(), candidate.active(),
-			candidate.showFlag(), candidate.active() && candidate.showFlag(), candidate.status(),
+			candidate.imageUrls(), candidate.images().stream()
+				.map(image -> new PlaceImageView(
+					image.imageId(), image.imageUrl(), image.displayOrder(),
+					image.displayOrder() == 1))
+				.toList(),
+			candidate.travelStyles(), candidate.active(),
+			candidate.showFlag(), candidate.active() && candidate.showFlag(),
+			candidate.curationPriority(), candidate.status(),
 			candidate.requestedAt());
 	}
 
@@ -149,6 +157,45 @@ public class EditorialService {
 		return new PlaceVisibilityView(
 			record.placeId(), record.active(), record.showFlag(), record.visible(),
 			record.updatedAt());
+	}
+
+	@Transactional
+	public PlacePriorityView updateCurationPriority(
+		long placeId,
+		int priority,
+		String actorSubject
+	) {
+		if (placeId <= 0 || priority < 0 || priority > 1000) {
+			throw new IllegalArgumentException("Place priority request is invalid");
+		}
+		var record = repository.updateCurationPriority(new PriorityCommand(
+			placeId, priority, required(actorSubject, "actorSubject"), clock.instant()))
+			.orElseThrow(() -> new EditorialPlaceNotFoundException(placeId));
+		return new PlacePriorityView(record.placeId(), record.priority(), record.updatedAt());
+	}
+
+	@Transactional
+	public PlaceImageOrderView reorderImages(
+		long placeId,
+		List<Long> imageIds,
+		String actorSubject
+	) {
+		if (placeId <= 0 || imageIds == null || imageIds.isEmpty()
+			|| imageIds.size() > 100 || imageIds.stream().anyMatch(id -> id == null || id <= 0)
+			|| imageIds.stream().distinct().count() != imageIds.size()) {
+			throw new IllegalArgumentException("Place image order request is invalid");
+		}
+		var record = repository.reorderImages(new ImageOrderCommand(
+			placeId, List.copyOf(imageIds), required(actorSubject, "actorSubject"), clock.instant()))
+			.orElseThrow(() -> new EditorialPlaceNotFoundException(placeId));
+		List<PlaceImageView> images = java.util.stream.IntStream.range(0, record.images().size())
+			.mapToObj(index -> {
+				var image = record.images().get(index);
+				return new PlaceImageView(
+					image.imageId(), image.imageUrl(), image.displayOrder(), index == 0);
+			})
+			.toList();
+		return new PlaceImageOrderView(record.placeId(), images, record.updatedAt());
 	}
 
 	public boolean publicationFilterEnabled() {
@@ -257,6 +304,7 @@ public class EditorialService {
 		boolean active,
 		boolean showFlag,
 		boolean visible,
+		int curationPriority,
 		EditorialJobStatus status,
 		java.time.Instant requestedAt
 	) {
@@ -265,7 +313,7 @@ public class EditorialService {
 				record.placeId(), record.titleKo(), record.titleEn(), record.region(),
 				record.imageUrl(), record.hasKoreanOverview(), record.queueEligible(),
 				record.active(), record.showFlag(), record.active() && record.showFlag(),
-				record.status(),
+				record.curationPriority(), record.status(),
 				record.requestedAt());
 		}
 	}
@@ -281,15 +329,18 @@ public class EditorialService {
 		String address,
 		String region,
 		List<String> imageUrls,
+		List<PlaceImageView> images,
 		List<String> travelStyles,
 		boolean active,
 		boolean showFlag,
 		boolean visible,
+		int curationPriority,
 		EditorialJobStatus status,
 		java.time.Instant requestedAt
 	) {
 		public CandidateDetailView {
 			imageUrls = List.copyOf(imageUrls);
+			images = List.copyOf(images);
 			travelStyles = List.copyOf(travelStyles);
 		}
 	}
@@ -322,6 +373,24 @@ public class EditorialService {
 		boolean active,
 		boolean showFlag,
 		boolean visible,
+		java.time.Instant updatedAt
+	) {
+	}
+
+	public record PlacePriorityView(long placeId, int priority, java.time.Instant updatedAt) {
+	}
+
+	public record PlaceImageView(
+		long imageId,
+		String imageUrl,
+		int displayOrder,
+		boolean thumbnail
+	) {
+	}
+
+	public record PlaceImageOrderView(
+		long placeId,
+		List<PlaceImageView> images,
 		java.time.Instant updatedAt
 	) {
 	}

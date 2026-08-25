@@ -688,7 +688,8 @@ paths:
         **관광유형:** travelStyles를 여러 개 보내면 그중 하나 이상에 매핑된 장소를 반환합니다.
         예: `travelStyles=NATURE,LOCAL_FESTIVAL`. 빈 값이면 유형으로 제한하지 않습니다.
 
-        **정렬:** RECOMMENDED는 데이터 품질점수가 높은 순서이고 같은 점수는 최신 내부 ID 순서입니다.
+        **정렬:** RECOMMENDED는 운영자가 지정한 노출 우선순위가 높은 장소를 먼저 배치하고,
+        같은 우선순위에서는 데이터 품질점수와 최신 내부 ID 순으로 정렬합니다.
         DEADLINE은 현재 노출 가능한 진행·예정 축제의 종료일이 가까운 장소를 먼저 배치하고,
         축제 회차가 없는 장소는 뒤에 배치합니다. 사용자 개인화 점수는 로그인 기능 이후 별도 적용합니다.
 
@@ -2944,6 +2945,70 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /admin/editorial/places/{placeId}/priority:
+    patch:
+      tags: [Admin Editorial]
+      operationId: updateAdminEditorialPlacePriority
+      summary: 관리자 장소 노출 우선순위 변경
+      description: 0은 일반 장소이며 숫자가 클수록 관리자 선별 목록과 추천 덱에서 먼저 노출됩니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditorialPriorityRequest'
+      responses:
+        '200':
+          description: 우선순위 변경 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditorialPriorityEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /admin/editorial/places/{placeId}/images/order:
+    put:
+      tags: [Admin Editorial]
+      operationId: reorderAdminEditorialPlaceImages
+      summary: 관리자 장소 사진 표시 순서 변경
+      description: |
+        전달한 이미지 ID 순서대로 관리자 표시 순서를 저장합니다. 첫 이미지가 카드와 상세의 대표 사진입니다.
+        목록에 없는 같은 장소 사진은 관리자 지정 사진 뒤에서 기존 KTO 우선순위를 따릅니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditorialImageOrderRequest'
+      responses:
+        '200':
+          description: 사진 순서 변경 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditorialImageOrderEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /admin/editorial/jobs:
     get:
       tags: [Admin Editorial]
@@ -4661,12 +4726,6 @@ components:
           type: string
           maxLength: 120
           nullable: true
-        buddyStyles:
-          type: array
-          maxItems: 6
-          uniqueItems: true
-          items:
-            $ref: '#/components/schemas/BuddyStyle'
         socialLinks:
           type: array
           maxItems: 2
@@ -5862,7 +5921,7 @@ components:
               $ref: '#/components/schemas/BuddyProfile'
     BuddyProfile:
       type: object
-      required: [profileId, nickname, nationalityCode, availableLanguages, koreanLevel, travelStyles, buddyStyles, socialLinks, profilePublic, snsPublic, allowsMessages, canMessage, blockedByMe, updatedAt]
+      required: [profileId, nickname, nationalityCode, availableLanguages, koreanLevel, travelStyles, socialLinks, profilePublic, snsPublic, allowsMessages, canMessage, blockedByMe, updatedAt]
       properties:
         profileId:
           type: integer
@@ -5898,11 +5957,6 @@ components:
           type: string
           nullable: true
           maxLength: 120
-        buddyStyles:
-          type: array
-          uniqueItems: true
-          items:
-            $ref: '#/components/schemas/BuddyStyle'
         socialLinks:
           type: array
           maxItems: 2
@@ -6218,7 +6272,7 @@ components:
           description: 커서를 제외한 현재 필터 전체 결과 수
     EditorialCandidateResponse:
       type: object
-      required: [placeId, titleKo, titleEn, imageUrl, hasKoreanOverview, queueEligible, editorialStatus, active, showFlag, visible]
+      required: [placeId, titleKo, titleEn, imageUrl, hasKoreanOverview, queueEligible, curationPriority, editorialStatus, active, showFlag, visible]
       properties:
         placeId:
           type: integer
@@ -6240,6 +6294,11 @@ components:
         queueEligible:
           type: boolean
           description: 한국어 원문을 보유하고 현재 미요청·실패·갱신 필요 상태인지 여부
+        curationPriority:
+          type: integer
+          minimum: 0
+          maximum: 1000
+          description: 관리자 노출 우선순위. 높을수록 먼저 조회
         editorialStatus:
           $ref: '#/components/schemas/EditorialJobStatus'
         active:
@@ -6262,7 +6321,7 @@ components:
               $ref: '#/components/schemas/EditorialCandidateDetailResponse'
     EditorialCandidateDetailResponse:
       type: object
-      required: [placeId, titleKo, titleEn, imageUrls, travelStyles, editorialStatus, active, showFlag, visible]
+      required: [placeId, titleKo, titleEn, imageUrls, images, travelStyles, curationPriority, editorialStatus, active, showFlag, visible]
       properties:
         placeId:
           type: integer
@@ -6290,12 +6349,21 @@ components:
           items:
             type: string
             format: uri
+        images:
+          type: array
+          description: 관리자 사진 순서 편집에 사용하는 이미지 ID와 현재 표시 순서
+          items:
+            $ref: '#/components/schemas/EditorialImageOrderItem'
         travelStyles:
           type: array
           minItems: 1
           uniqueItems: true
           items:
             $ref: '#/components/schemas/TravelStyle'
+        curationPriority:
+          type: integer
+          minimum: 0
+          maximum: 1000
         editorialStatus:
           $ref: '#/components/schemas/EditorialJobStatus'
         active:
@@ -6370,6 +6438,84 @@ components:
         updatedAt:
           type: string
           format: date-time
+    EditorialPriorityRequest:
+      type: object
+      required: [priority]
+      properties:
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 1000
+    EditorialPriorityEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/EditorialPriorityResponse'
+    EditorialPriorityResponse:
+      type: object
+      required: [placeId, priority, updatedAt]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 1000
+        updatedAt:
+          type: string
+          format: date-time
+    EditorialImageOrderRequest:
+      type: object
+      required: [imageIds]
+      properties:
+        imageIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          uniqueItems: true
+          items:
+            type: integer
+            format: int64
+            minimum: 1
+    EditorialImageOrderEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/EditorialImageOrderResponse'
+    EditorialImageOrderResponse:
+      type: object
+      required: [placeId, images, updatedAt]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/EditorialImageOrderItem'
+        updatedAt:
+          type: string
+          format: date-time
+    EditorialImageOrderItem:
+      type: object
+      required: [imageId, imageUrl, displayOrder, thumbnail]
+      properties:
+        imageId:
+          type: integer
+          format: int64
+        imageUrl:
+          type: string
+          format: uri
+        displayOrder:
+          type: integer
+          minimum: 1
+        thumbnail:
+          type: boolean
     EditorialJobListEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'

@@ -88,6 +88,35 @@ class RecommendationDeckServiceTest {
 	}
 
 	@Test
+	void prefersUnseenThenAdminPriorityButKeepsSuppressedFallbackCards() {
+		when(repository.findUserContext(USER_PUBLIC_ID, null))
+			.thenReturn(Optional.of(context()));
+		when(repository.findEligibleCandidates(
+			eq(7L), eq(NOW), eq(PlaceLanguage.KO),
+			eq(RecommendationScope.NATIONWIDE), eq(ServiceRegionCode.SEOUL),
+			any(Integer.class)))
+			.thenReturn(List.of(
+				candidate(1L, ServiceRegionCode.SEOUL, TravelStyle.NATURE,
+					"90.00", 0L, false, 1000, true),
+				candidate(2L, ServiceRegionCode.SEOUL, TravelStyle.NATURE,
+					"80.00", 0L, false, 100, false),
+				candidate(3L, ServiceRegionCode.SEOUL, TravelStyle.NATURE,
+					"70.00", 0L, false, 900, false)));
+		when(repository.createDeck(any())).thenAnswer(invocation ->
+			storedFirstPage(invocation.getArgument(0)));
+
+		service.createDeck(
+			USER_PUBLIC_ID, RecommendationScope.NATIONWIDE, null, 20,
+			PlaceLanguage.KO);
+
+		ArgumentCaptor<CreateDeckPlan> captor =
+			ArgumentCaptor.forClass(CreateDeckPlan.class);
+		org.mockito.Mockito.verify(repository).createDeck(captor.capture());
+		assertEquals(List.of(3L, 2L, 1L), captor.getValue().items().stream()
+			.map(CardSnapshot::placeId).toList());
+	}
+
+	@Test
 	void reflectsTheAuthenticatedUsersSavedStateOnTheReturnedDeckPage() {
 		when(repository.findUserContext(USER_PUBLIC_ID, null))
 			.thenReturn(Optional.of(context()));
@@ -230,6 +259,20 @@ class RecommendationDeckServiceTest {
 		long heartCount,
 		boolean endedFestival
 	) {
+		return candidate(
+			placeId, region, style, qualityScore, heartCount, endedFestival, 0, false);
+	}
+
+	private RecommendationCandidate candidate(
+		long placeId,
+		ServiceRegionCode region,
+		TravelStyle style,
+		String qualityScore,
+		long heartCount,
+		boolean endedFestival,
+		int curationPriority,
+		boolean suppressed
+	) {
 		return new RecommendationCandidate(
 			placeId,
 			"Place " + placeId,
@@ -240,6 +283,8 @@ class RecommendationDeckServiceTest {
 			List.of(style),
 			heartCount,
 			endedFestival,
+			curationPriority,
+			suppressed,
 			new BigDecimal(qualityScore));
 	}
 

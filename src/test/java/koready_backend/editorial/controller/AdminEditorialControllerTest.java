@@ -5,6 +5,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -111,5 +112,43 @@ class AdminEditorialControllerTest {
 			.andExpect(jsonPath("$.data.visible").value(true))
 			.andExpect(jsonPath("$.data.active").value(true))
 			.andExpect(jsonPath("$.data.showFlag").value(true));
+	}
+
+	@Test
+	@WithMockUser(username = "admin-subject", roles = "ADMIN")
+	void changesPlaceCurationPriority() throws Exception {
+		Instant updatedAt = Instant.parse("2026-08-25T07:00:00Z");
+		when(service.updateCurationPriority(10L, 900, "admin-subject")).thenReturn(
+			new EditorialService.PlacePriorityView(10L, 900, updatedAt));
+
+		mockMvc.perform(patch("/api/v1/admin/editorial/places/10/priority")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"priority\":900}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value("EDITORIAL_PLACE_PRIORITY_UPDATED"))
+			.andExpect(jsonPath("$.data.placeId").value(10))
+			.andExpect(jsonPath("$.data.priority").value(900));
+	}
+
+	@Test
+	@WithMockUser(username = "admin-subject", roles = "ADMIN")
+	void reordersPlaceImagesAndSelectsTheFirstAsThumbnail() throws Exception {
+		Instant updatedAt = Instant.parse("2026-08-25T07:00:00Z");
+		when(service.reorderImages(10L, List.of(103L, 101L), "admin-subject"))
+			.thenReturn(new EditorialService.PlaceImageOrderView(
+				10L,
+				List.of(
+					new EditorialService.PlaceImageView(103L, "https://img/3.jpg", 1, true),
+					new EditorialService.PlaceImageView(101L, "https://img/1.jpg", 2, false)),
+				updatedAt));
+
+		mockMvc.perform(put("/api/v1/admin/editorial/places/10/images/order")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"imageIds\":[103,101]}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value("EDITORIAL_PLACE_IMAGES_REORDERED"))
+			.andExpect(jsonPath("$.data.images[0].imageId").value(103))
+			.andExpect(jsonPath("$.data.images[0].thumbnail").value(true))
+			.andExpect(jsonPath("$.data.images[1].displayOrder").value(2));
 	}
 }

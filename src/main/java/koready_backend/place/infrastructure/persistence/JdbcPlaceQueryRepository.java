@@ -51,7 +51,8 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		    COALESCE(
 		        (SELECT image.image_url FROM place_images image
 		         WHERE image.place_id = p.id
-		         ORDER BY image.source_priority DESC, image.source_order ASC, image.id ASC
+		         ORDER BY image.admin_display_order IS NULL, image.admin_display_order,
+		                  image.source_priority DESC, image.source_order ASC, image.id ASC
 		         LIMIT 1),
 		        NULLIF(TRIM(p.first_image_url), '')
 		    ) AS image_url,
@@ -61,6 +62,7 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		     ORDER BY style.is_primary DESC, style.confidence DESC, style.travel_style ASC
 		     LIMIT 1) AS travel_style,
 		    requested.overview AS overview,
+		    p.curation_priority,
 		    p.data_quality_score,
 		    %s AS deadline_sort_date
 		FROM places p
@@ -132,7 +134,8 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		    COALESCE(
 		        (SELECT image.image_url FROM place_images image
 		         WHERE image.place_id = p.id
-		         ORDER BY image.source_priority DESC, image.source_order ASC, image.id ASC
+		         ORDER BY image.admin_display_order IS NULL, image.admin_display_order,
+		                  image.source_priority DESC, image.source_order ASC, image.id ASC
 		         LIMIT 1),
 		        NULLIF(TRIM(p.first_image_url), '')
 		    ) AS image_url,
@@ -170,12 +173,15 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		    SELECT
 		        candidate.image_url,
 		        candidate.alt_text,
+		        candidate.admin_display_order,
 		        candidate.source_priority,
 		        candidate.source_order,
 		        candidate.id,
 		        ROW_NUMBER() OVER (
 		            PARTITION BY candidate.image_url
 		            ORDER BY
+		                candidate.admin_display_order IS NULL,
+		                candidate.admin_display_order ASC,
 		                candidate.source_priority DESC,
 		                candidate.source_order ASC,
 		                candidate.id ASC
@@ -187,6 +193,7 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		                NULLIF(TRIM(image.source_image_name), ''),
 		                localized.title
 		            ) AS alt_text,
+		            image.admin_display_order,
 		            image.source_priority,
 		            image.source_order,
 		            image.id
@@ -201,6 +208,7 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		        SELECT
 		            place.first_image_url,
 		            localized.title,
+		            NULL AS admin_display_order,
 		            200 AS source_priority,
 		            1 AS source_order,
 		            0 AS id
@@ -214,6 +222,8 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		) ranked
 		WHERE url_rank = 1
 		ORDER BY
+		    admin_display_order IS NULL,
+		    admin_display_order ASC,
 		    source_priority DESC,
 		    source_order ASC,
 		    id ASC
@@ -237,6 +247,8 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		            FROM place_images image
 		            WHERE image.place_id = related.id
 		            ORDER BY
+		                image.admin_display_order IS NULL,
+		                image.admin_display_order ASC,
 		                image.source_priority DESC,
 		                image.source_order ASC,
 		                image.id ASC
@@ -449,12 +461,18 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		if (cursor != null) {
 			parameters.addValue("cursorPlaceId", cursor.placeId());
 			if (sort == PlaceSort.RECOMMENDED) {
+				parameters.addValue("cursorPriority", cursor.curationPriority());
 				parameters.addValue("cursorScore", cursor.qualityScore());
 				sql.append("""
 					AND (
-					    candidate.data_quality_score < :cursorScore
+					    candidate.curation_priority < :cursorPriority
 					    OR (
-					        candidate.data_quality_score = :cursorScore
+					        candidate.curation_priority = :cursorPriority
+					        AND candidate.data_quality_score < :cursorScore
+					    )
+					    OR (
+					        candidate.curation_priority = :cursorPriority
+					        AND candidate.data_quality_score = :cursorScore
 					        AND candidate.place_id < :cursorPlaceId
 					    )
 					)
@@ -480,7 +498,7 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		}
 
 		if (sort == PlaceSort.RECOMMENDED) {
-			sql.append("ORDER BY candidate.data_quality_score DESC, candidate.place_id DESC\n");
+			sql.append("ORDER BY candidate.curation_priority DESC, candidate.data_quality_score DESC, candidate.place_id DESC\n");
 		} else {
 			sql.append("""
 				ORDER BY
@@ -523,6 +541,7 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 				row.imageUrl(),
 				row.travelStyle(),
 				row.overview(),
+				row.curationPriority(),
 				row.qualityScore(),
 				row.deadlineSortDate(),
 				occurrences.get(row.placeId())))
@@ -540,6 +559,7 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 			resultSet.getString("image_url"),
 			travelStyle == null ? null : TravelStyle.valueOf(travelStyle),
 			resultSet.getString("overview"),
+			resultSet.getInt("curation_priority"),
 			resultSet.getBigDecimal("data_quality_score"),
 			resultSet.getObject("deadline_sort_date", LocalDate.class),
 			null);

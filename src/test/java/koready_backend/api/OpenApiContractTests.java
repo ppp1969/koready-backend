@@ -106,6 +106,8 @@ class OpenApiContractTests {
 		"GET /admin/editorial/candidates/{placeId}",
 		"POST /admin/editorial/places/{placeId}/queue",
 		"PATCH /admin/editorial/places/{placeId}/visibility",
+		"PATCH /admin/editorial/places/{placeId}/priority",
+		"PUT /admin/editorial/places/{placeId}/images/order",
 		"GET /admin/editorial/jobs",
 		"GET /admin/batch-jobs",
 		"POST /admin/batch-jobs",
@@ -168,7 +170,7 @@ class OpenApiContractTests {
 			}
 		}
 
-		assertEquals(94, operationCount, "Unexpected API operation count");
+		assertEquals(96, operationCount, "Unexpected API operation count");
 		collectReferences(contract, references);
 		for (String reference : references) {
 			assertLocalReferenceResolves(contract, reference);
@@ -926,9 +928,10 @@ class OpenApiContractTests {
 		assertEquals(1, travelStyles.get("minItems"));
 		assertEquals(4, travelStyles.get("maxItems"));
 		assertEquals(true, travelStyles.get("uniqueItems"));
-		Map<String, Object> styles = asMap(properties.get("buddyStyles"), "buddyStyles");
-		assertEquals(6, styles.get("maxItems"));
-		assertEquals(true, styles.get("uniqueItems"));
+		assertFalse(properties.containsKey("buddyStyles"));
+		assertFalse(asMap(
+			asMap(schemas.get("BuddyProfile"), "BuddyProfile").get("properties"),
+			"BuddyProfile.properties").containsKey("buddyStyles"));
 		assertEquals(2,
 			asMap(properties.get("socialLinks"), "socialLinks").get("maxItems"));
 

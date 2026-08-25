@@ -235,7 +235,8 @@ public class PlaceQueryService {
 			nextCursor = encodeCursor(
 				fingerprint,
 				sort,
-				new PlaceCursor(last.qualityScore(), last.deadlineSortDate(), last.placeId()));
+				new PlaceCursor(last.curationPriority(), last.qualityScore(),
+					last.deadlineSortDate(), last.placeId()));
 		}
 
 		return new PlacePage(items, nextCursor, hasMore, null);
@@ -349,7 +350,8 @@ public class PlaceQueryService {
 		String deadline = cursor.deadlineSortDate() == null
 			? "" : cursor.deadlineSortDate().toString();
 		String payload = String.join("\t",
-			"1", fingerprint, sort.name(), score, deadline, Long.toString(cursor.placeId()));
+			"2", fingerprint, sort.name(), Integer.toString(cursor.curationPriority()),
+			score, deadline, Long.toString(cursor.placeId()));
 		return Base64.getUrlEncoder().withoutPadding()
 			.encodeToString(payload.getBytes(StandardCharsets.UTF_8));
 	}
@@ -370,19 +372,21 @@ public class PlaceQueryService {
 			String payload = new String(
 				Base64.getUrlDecoder().decode(token), StandardCharsets.UTF_8);
 			String[] parts = payload.split("\t", -1);
-			if (parts.length != 6
-				|| !"1".equals(parts[0])
+			if (parts.length != 7
+				|| !"2".equals(parts[0])
 				|| !expectedFingerprint.equals(parts[1])
 				|| !expectedSort.name().equals(parts[2])) {
 				throw new InvalidPlaceCursorException();
 			}
-			BigDecimal score = parts[3].isBlank() ? null : new BigDecimal(parts[3]);
-			LocalDate deadline = parts[4].isBlank() ? null : LocalDate.parse(parts[4]);
-			long placeId = Long.parseLong(parts[5]);
-			if (placeId <= 0 || (expectedSort == PlaceSort.RECOMMENDED && score == null)) {
+			int priority = Integer.parseInt(parts[3]);
+			BigDecimal score = parts[4].isBlank() ? null : new BigDecimal(parts[4]);
+			LocalDate deadline = parts[5].isBlank() ? null : LocalDate.parse(parts[5]);
+			long placeId = Long.parseLong(parts[6]);
+			if (priority < 0 || priority > 1000 || placeId <= 0
+				|| (expectedSort == PlaceSort.RECOMMENDED && score == null)) {
 				throw new InvalidPlaceCursorException();
 			}
-			return new PlaceCursor(score, deadline, placeId);
+			return new PlaceCursor(priority, score, deadline, placeId);
 		} catch (InvalidPlaceCursorException exception) {
 			throw exception;
 		} catch (RuntimeException exception) {

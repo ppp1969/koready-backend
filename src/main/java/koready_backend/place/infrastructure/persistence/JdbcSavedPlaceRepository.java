@@ -43,7 +43,8 @@ public class JdbcSavedPlaceRepository implements SavedPlaceRepository {
 		    COALESCE(
 		        (SELECT image.image_url FROM place_images image
 		         WHERE image.place_id = place.id
-		         ORDER BY image.source_priority DESC, image.source_order ASC, image.id ASC
+		         ORDER BY image.admin_display_order IS NULL, image.admin_display_order,
+		                  image.source_priority DESC, image.source_order ASC, image.id ASC
 		         LIMIT 1),
 		        NULLIF(TRIM(place.first_image_url), '')
 		    ) AS image_url,

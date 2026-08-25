@@ -8,12 +8,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -52,7 +50,8 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		    COALESCE(
 		        (SELECT image.image_url FROM place_images image
 		         WHERE image.place_id = place.id
-		         ORDER BY image.source_priority DESC, image.source_order ASC, image.id ASC
+		         ORDER BY image.admin_display_order IS NULL, image.admin_display_order,
+		                  image.source_priority DESC, image.source_order ASC, image.id ASC
 		         LIMIT 1),
 		        NULLIF(TRIM(place.first_image_url), '')
 		    ) AS first_image_url,
@@ -68,6 +67,13 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		          AND current_event.date_validation_status = 'VALID'
 		          AND current_event.end_date >= DATE(?)
 		    ) THEN TRUE ELSE FALSE END AS ended_festival,
+		    place.curation_priority,
+		    CASE WHEN EXISTS (
+		        SELECT 1 FROM user_place_recommendation_states active_state
+		        WHERE active_state.user_id = ?
+		          AND active_state.place_id = place.id
+		          AND active_state.suppress_until > ?
+		    ) THEN TRUE ELSE FALSE END AS suppressed,
 		    place.data_quality_score
 		FROM places place
 		JOIN service_regions region ON region.code = place.service_region_code
@@ -100,17 +106,12 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		        AND publication_en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
 		        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
 		  )
-		  AND NOT EXISTS (
-		      SELECT 1
-		      FROM user_place_recommendation_states state
-		      WHERE state.user_id = ?
-		        AND state.place_id = place.id
-		        AND state.suppress_until > ?
-		  )
 		  AND (? <> 'NEARBY' OR place.service_region_code = ?)
 		  /*EDITORIAL_READY_FILTER*/
 		ORDER BY
 		    ended_festival ASC,
+		    suppressed ASC,
+		    place.curation_priority DESC,
 		    heart_count DESC,
 		    CASE WHEN EXISTS (
 		        SELECT 1
@@ -244,9 +245,9 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 			this::candidateRow,
 			language.name(),
 			Timestamp.from(now),
-			language.name(),
 			userId,
 			Timestamp.from(now),
+			language.name(),
 			scope.name(),
 			originServiceRegionCode.name(),
 			userId,
@@ -267,6 +268,8 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 				styles.getOrDefault(row.placeId(), List.of()),
 				row.heartCount(),
 				row.endedFestival(),
+				row.curationPriority(),
+				row.suppressed(),
 				row.qualityScore()))
 			.toList();
 	}
@@ -386,7 +389,6 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 				page.endOrder());
 		List<CardSnapshot> cards = storedCards;
 		if (page.servedAt() == null) {
-			cards = withoutActiveSuppression(page.userId(), storedCards, now);
 			recordServed(page, cards, now);
 		}
 		String nextCursor = jdbcTemplate.query(
@@ -579,33 +581,6 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 			stateArguments);
 	}
 
-	private List<CardSnapshot> withoutActiveSuppression(
-		long userId,
-		List<CardSnapshot> cards,
-		Instant now
-	) {
-		if (cards.isEmpty()) {
-			return List.of();
-		}
-		MapSqlParameterSource parameters = new MapSqlParameterSource()
-			.addValue("userId", userId)
-			.addValue("now", Timestamp.from(now))
-			.addValue("placeIds", cards.stream().map(CardSnapshot::placeId).toList());
-		Set<Long> suppressed = new HashSet<>(namedJdbcTemplate.query(
-			"""
-			SELECT place_id
-			FROM user_place_recommendation_states
-			WHERE user_id = :userId
-			  AND suppress_until > :now
-			  AND place_id IN (:placeIds)
-			""",
-			parameters,
-			(rs, rowNumber) -> rs.getLong("place_id")));
-		return cards.stream()
-			.filter(card -> !suppressed.contains(card.placeId()))
-			.toList();
-	}
-
 	private Map<Long, List<TravelStyle>> styles(List<Long> placeIds) {
 		MapSqlParameterSource parameters = new MapSqlParameterSource("placeIds", placeIds);
 		Map<Long, List<TravelStyle>> result = new HashMap<>();
@@ -641,6 +616,8 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 			rs.getString("overview"),
 			rs.getLong("heart_count"),
 			rs.getBoolean("ended_festival"),
+			rs.getInt("curation_priority"),
+			rs.getBoolean("suppressed"),
 			rs.getBigDecimal("data_quality_score"));
 	}
 
@@ -720,6 +697,8 @@ public class JdbcRecommendationDeckRepository implements RecommendationDeckRepos
 		String overview,
 		long heartCount,
 		boolean endedFestival,
+		int curationPriority,
+		boolean suppressed,
 		java.math.BigDecimal qualityScore
 	) {
 	}

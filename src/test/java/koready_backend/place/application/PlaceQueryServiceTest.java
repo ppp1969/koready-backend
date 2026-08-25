@@ -151,6 +151,7 @@ class PlaceQueryServiceTest {
 			null,
 			TravelStyle.LOCAL_FESTIVAL,
 			"A local festival.",
+			0,
 			new BigDecimal("88.00"),
 			TODAY.plusDays(4),
 			occurrence);
@@ -294,6 +295,7 @@ class PlaceQueryServiceTest {
 			null,
 			TravelStyle.NATURE,
 			null,
+			0,
 			new BigDecimal(score),
 			deadline,
 			null);

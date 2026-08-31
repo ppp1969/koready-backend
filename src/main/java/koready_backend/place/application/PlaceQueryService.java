@@ -154,17 +154,23 @@ public class PlaceQueryService {
 		PlaceQueryRepository.PlaceDetailFacts facts = java.util.Optional
 			.ofNullable(repository.findDetailFacts(placeId))
 			.orElseGet(PlaceQueryRepository.PlaceDetailFacts::empty);
-		List<PlaceQueryRepository.RelatedPlaceRow> confirmedRelated =
-			repository.findRelatedPlaces(placeId, language, 3);
-		List<PlaceQueryRepository.RelatedPlaceRow> completedRelated =
-			new ArrayList<>(confirmedRelated);
+		List<PlaceQueryRepository.RelatedPlaceRow> completedRelated = new ArrayList<>();
+		appendUniqueRelated(completedRelated,
+			repository.findRelatedPlacesWithSameStyle(
+				placeId, language, List.of(placeId), 3), placeId, 3);
+		if (completedRelated.size() < 3) {
+			appendUniqueRelated(completedRelated,
+				repository.findRelatedPlaces(placeId, language, 20), placeId, 3);
+		}
 		if (completedRelated.size() < 3) {
 			List<Long> excludedPlaceIds = new ArrayList<>();
 			excludedPlaceIds.add(placeId);
 			excludedPlaceIds.addAll(completedRelated.stream()
 				.map(PlaceQueryRepository.RelatedPlaceRow::placeId).toList());
-			completedRelated.addAll(repository.findRelatedPlaceFallbacks(
-				placeId, language, excludedPlaceIds, 3 - completedRelated.size()));
+			appendUniqueRelated(completedRelated,
+				repository.findRelatedPlaceFallbacks(
+					placeId, language, excludedPlaceIds, 3 - completedRelated.size()),
+				placeId, 3);
 		}
 		List<RelatedPlace> relatedPlaces = completedRelated
 			.stream()
@@ -206,6 +212,26 @@ public class PlaceQueryService {
 			description,
 			relatedPlaces,
 			availableTabs);
+	}
+
+	private static void appendUniqueRelated(
+		List<PlaceQueryRepository.RelatedPlaceRow> target,
+		List<PlaceQueryRepository.RelatedPlaceRow> candidates,
+		long sourcePlaceId,
+		int limit
+	) {
+		Set<Long> placeIds = target.stream()
+			.map(PlaceQueryRepository.RelatedPlaceRow::placeId)
+			.collect(java.util.stream.Collectors.toSet());
+		placeIds.add(sourcePlaceId);
+		for (PlaceQueryRepository.RelatedPlaceRow candidate : candidates) {
+			if (target.size() >= limit) {
+				return;
+			}
+			if (placeIds.add(candidate.placeId())) {
+				target.add(candidate);
+			}
+		}
 	}
 
 	private List<PlaceImage> images(long placeId, PlaceDetailRow row) {

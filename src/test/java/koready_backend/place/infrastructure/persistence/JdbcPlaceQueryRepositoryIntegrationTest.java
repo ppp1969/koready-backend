@@ -18,6 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
+import koready_backend.editorial.application.EditorialProperties;
 import koready_backend.place.application.port.PlaceQueryRepository;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceCursor;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceImageRow;
@@ -288,6 +290,54 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 		assertEquals("09:00-18:00", facts.operatingHours());
 		assertEquals("Monday", facts.closedDays());
 		assertEquals("Free", facts.usageFee());
+	}
+
+	@Test
+	void prioritizesRelatedFallbacksWithTheSameTravelStyle() {
+		long source = insertPlace("related-market-source", "SEOUL", true, true, "100.00");
+		insertLocalization(source, "KO", "기준 전통시장", "서울", "시장 설명");
+		insertLocalization(source, "EN", "Source Market", "Seoul", null);
+		insertStyle(source, "TRADITIONAL_MARKET", "1.0000");
+
+		long highPriorityFestival = insertPlace(
+			"related-festival", "SEOUL", true, true, "100.00");
+		insertLocalization(highPriorityFestival, "KO", "우선 축제", "서울", "축제 설명");
+		insertLocalization(highPriorityFestival, "EN", "Priority Festival", "Seoul", null);
+		insertStyle(highPriorityFestival, "LOCAL_FESTIVAL", "1.0000");
+		insertReadyEditorial(highPriorityFestival);
+		jdbcTemplate.update(
+			"UPDATE places SET curation_priority = 900 WHERE id = ?",
+			highPriorityFestival);
+
+		long sameStyleMarket = insertPlace(
+			"related-market", "SEOUL", true, true, "10.00");
+		insertLocalization(sameStyleMarket, "KO", "같은 유형 전통시장", "서울", "시장 설명");
+		insertLocalization(sameStyleMarket, "EN", "Related Market", "Seoul", null);
+		insertStyle(sameStyleMarket, "TRADITIONAL_MARKET", "1.0000");
+		insertReadyEditorial(sameStyleMarket);
+		jdbcTemplate.update(
+			"UPDATE places SET curation_priority = 100 WHERE id = ?",
+			sameStyleMarket);
+
+		long unprocessedMarket = insertPlace(
+			"related-unprocessed-market", "SEOUL", true, true, "100.00");
+		insertLocalization(unprocessedMarket, "KO", "미가공 전통시장", "서울", "시장 설명");
+		insertLocalization(unprocessedMarket, "EN", "Unprocessed Market", "Seoul", null);
+		insertStyle(unprocessedMarket, "TRADITIONAL_MARKET", "1.0000");
+		jdbcTemplate.update(
+			"UPDATE places SET curation_priority = 1000 WHERE id = ?",
+			unprocessedMarket);
+
+		PlaceQueryRepository strictRepository = new JdbcPlaceQueryRepository(
+			new NamedParameterJdbcTemplate(jdbcTemplate),
+			new EditorialProperties("koready-place-editorial-v1", true));
+		List<PlaceQueryRepository.RelatedPlaceRow> rows =
+			strictRepository.findRelatedPlacesWithSameStyle(
+				source, PlaceLanguage.KO, List.of(source), 2);
+
+		assertEquals(
+			List.of(sameStyleMarket),
+			rows.stream().map(PlaceQueryRepository.RelatedPlaceRow::placeId).toList());
 	}
 
 	private PlaceListCriteria criteria(PlaceSort sort, PlaceCursor cursor, int limit) {

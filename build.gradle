@@ -65,6 +65,7 @@ tasks.named('test') {
 	useJUnitPlatform {
 		excludeTags 'integration'
 	}
+	systemProperty 'koready.scheduling.enabled', 'false'
 	jacoco {
 		destinationFile = layout.buildDirectory.file('jacoco/test.exec').get().asFile
 	}
@@ -78,6 +79,7 @@ def integrationTest = tasks.register('integrationTest', Test) {
 	useJUnitPlatform {
 		includeTags 'integration'
 	}
+	systemProperty 'koready.scheduling.enabled', 'false'
 	jacoco {
 		destinationFile = layout.buildDirectory.file('jacoco/integrationTest.exec').get().asFile
 	}

@@ -312,6 +312,15 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		        )
 		        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
 		  )
+		  AND (
+		      :publicationFilterEnabled = FALSE
+		      OR EXISTS (
+		          SELECT 1 FROM place_editorial_contents publication_editorial
+		          WHERE publication_editorial.place_id = related.id
+		            AND publication_editorial.status = 'READY'
+		            AND publication_editorial.prompt_version = :editorialPromptVersion
+		      )
+		  )
 		ORDER BY
 		    relation.relation_rank ASC,
 		    relation.relation_id ASC
@@ -360,6 +369,26 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		                      AND editorial_source.status = 'READY'))
 		        )
 		        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+		  )
+		  AND (
+		      :publicationFilterEnabled = FALSE
+		      OR EXISTS (
+		          SELECT 1 FROM place_editorial_contents publication_editorial
+		          WHERE publication_editorial.place_id = related.id
+		            AND publication_editorial.status = 'READY'
+		            AND publication_editorial.prompt_version = :editorialPromptVersion
+		      )
+		  )
+		  AND (
+		      :sameStyleOnly = FALSE
+		      OR EXISTS (
+		          SELECT 1
+		          FROM place_style_mappings related_style
+		          JOIN place_style_mappings source_style
+		            ON source_style.place_id = :placeId
+		           AND source_style.travel_style = related_style.travel_style
+		          WHERE related_style.place_id = related.id
+		      )
 		  )
 		ORDER BY related.curation_priority DESC,
 		         related.data_quality_score DESC,
@@ -496,6 +525,9 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 			new MapSqlParameterSource()
 				.addValue("placeId", placeId)
 				.addValue("language", language.name())
+				.addValue("publicationFilterEnabled",
+					editorialProperties.publicationFilterEnabled())
+				.addValue("editorialPromptVersion", editorialProperties.promptVersion())
 				.addValue("limit", limit),
 			(resultSet, rowNumber) -> new RelatedPlaceRow(
 				resultSet.getLong("place_id"),
@@ -514,12 +546,41 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		if (limit <= 0) {
 			return List.of();
 		}
+		return findRelatedPlaceFallbacks(
+			placeId, language, excludedPlaceIds, limit, false);
+	}
+
+	@Override
+	public List<RelatedPlaceRow> findRelatedPlacesWithSameStyle(
+		long placeId,
+		PlaceLanguage language,
+		List<Long> excludedPlaceIds,
+		int limit
+	) {
+		return findRelatedPlaceFallbacks(
+			placeId, language, excludedPlaceIds, limit, true);
+	}
+
+	private List<RelatedPlaceRow> findRelatedPlaceFallbacks(
+		long placeId,
+		PlaceLanguage language,
+		List<Long> excludedPlaceIds,
+		int limit,
+		boolean sameStyleOnly
+	) {
+		if (limit <= 0) {
+			return List.of();
+		}
 		return jdbcTemplate.query(
 			RELATED_PLACE_FALLBACKS,
 			new MapSqlParameterSource()
 				.addValue("placeId", placeId)
 				.addValue("language", language.name())
 				.addValue("excludedPlaceIds", excludedPlaceIds)
+				.addValue("sameStyleOnly", sameStyleOnly)
+				.addValue("publicationFilterEnabled",
+					editorialProperties.publicationFilterEnabled())
+				.addValue("editorialPromptVersion", editorialProperties.promptVersion())
 				.addValue("limit", limit),
 			(resultSet, rowNumber) -> new RelatedPlaceRow(
 				resultSet.getLong("place_id"),

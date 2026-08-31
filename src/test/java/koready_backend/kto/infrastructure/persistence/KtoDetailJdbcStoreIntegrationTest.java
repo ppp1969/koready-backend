@@ -364,6 +364,7 @@ class KtoDetailJdbcStoreIntegrationTest {
 		String suffix,
 		List<Map<String, String>> items
 	) throws Exception {
+		Instant capturedAt = Instant.now();
 		byte[] raw = suffix.getBytes(StandardCharsets.UTF_8);
 		String rawHash = sha256(raw);
 		return new KtoStoredDetailOperation(
@@ -380,7 +381,7 @@ class KtoDetailJdbcStoreIntegrationTest {
 				"kto/kor/" + operation.apiName() + "/20260727/" + suffix + ".json.gz",
 				"b".repeat(64),
 				20,
-				Instant.parse("2026-07-27T00:00:02Z")));
+				capturedAt));
 	}
 
 	private long place(String contentId, String contentTypeId) {

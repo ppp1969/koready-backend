@@ -758,7 +758,7 @@ paths:
         설명만 반환합니다. 아직 수집하지 않은 운영시간·휴무일·요금·주차 정보는 추측하지 않고 null입니다.
         대표 이미지가 없으면 images는 빈 배열이며, 설명 원문이 없으면 description은 null이고
         availableTabs에 DESCRIPTION이 포함되지 않습니다. Buddy 메이트 조회가 구현되어 MATES는
-        모든 표출 장소에 포함합니다. TMAP Route는 아직 PLANNED이므로 ROUTE는 포함하지 않습니다.
+        모든 표출 장소에 포함하며, 좌표가 있는 장소에는 ROUTE를 포함합니다.
 
         **언어:** MVP에서는 `KTO_EN` 또는 운영자 수정 영문 제목이 있는 장소만 조회됩니다.
         Accept-Language가 en 계열이고 영문 소개가 없으면 overview는 null이며 한국어 또는 AI 소개로 대체하지 않습니다.
@@ -862,7 +862,7 @@ paths:
         정규화 경로를 준비한 뒤 현재 ACTIVE인 운영진 Hori Tip을 목적지와 trigger로 매칭해 summary 또는 segment에 조합합니다.
         Hori Tip 본문은 TMAP이나 AI가 생성하지 않으며 Route 캐시에 포함하지 않습니다.
         422 ROUTE_NOT_FOUND 또는 ROUTE_NOT_AVAILABLE_AT_DEPARTURE_TIME이면 조건 안내를 표시하고, 503이면 현재 화면을 유지한 채 재시도 버튼을 제공합니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       requestBody:
         required: true
         content:
@@ -923,7 +923,7 @@ paths:
         segments의 order 순서로 도보, 버스, 지하철, 기차 등의 구간을 표시합니다.
         캐시된 정규화 경로에 현재 ACTIVE인 운영진 Hori Tip을 다시 매칭하므로 운영진의 비활성화가 기존 routeId에도 반영됩니다.
         410 ROUTE_EXPIRED면 같은 routeId를 반복하지 않고 POST /routes로 새 경로를 생성합니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/RouteId'
       responses:

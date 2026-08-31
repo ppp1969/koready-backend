@@ -38,6 +38,8 @@ class OpenApiContractTests {
 		"GET /users/me/onboarding",
 		"PUT /users/me/onboarding",
 		"GET /monthly-recommendations",
+		"POST /routes",
+		"GET /routes/{routeId}",
 		"POST /recommendation-decks",
 		"GET /recommendation-decks/{deckId}",
 		"POST /recommendation-decks/{deckId}/events",

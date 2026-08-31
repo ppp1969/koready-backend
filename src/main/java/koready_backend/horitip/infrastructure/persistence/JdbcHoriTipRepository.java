@@ -145,6 +145,31 @@ public class JdbcHoriTipRepository implements HoriTipRepository {
 	}
 
 	@Override
+	public List<HoriTipRecord> findActiveForRoute(long destinationPlaceId, Instant now) {
+		List<Long> ids = jdbcTemplate.query(
+			"""
+			SELECT tip.id
+			FROM hori_tips tip
+			WHERE tip.status = 'ACTIVE'
+			  AND (tip.valid_from IS NULL OR tip.valid_from <= ?)
+			  AND (tip.valid_until IS NULL OR tip.valid_until > ?)
+			  AND (
+			      tip.scope_type = 'ALL_ROUTES'
+			      OR EXISTS (
+			          SELECT 1
+			          FROM hori_tip_destination_places destination
+			          WHERE destination.hori_tip_id = tip.id
+			            AND destination.place_id = ?
+			      )
+			  )
+			ORDER BY tip.priority DESC, tip.code ASC
+			""",
+			(resultSet, rowNumber) -> resultSet.getLong("id"),
+			timestamp(now), timestamp(now), destinationPlaceId);
+		return ids.stream().map(id -> findById(id).orElseThrow()).toList();
+	}
+
+	@Override
 	public Set<Long> findVisiblePlaceIds(List<Long> placeIds) {
 		if (placeIds.isEmpty()) {
 			return Set.of();

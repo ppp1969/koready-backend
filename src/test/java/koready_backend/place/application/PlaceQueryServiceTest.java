@@ -186,7 +186,7 @@ class PlaceQueryServiceTest {
 
 		PlaceQueryService.PlaceDetail detail = service.getPlace(10L, PlaceLanguage.KO);
 
-		assertEquals(List.of("DESCRIPTION", "MATES"), detail.availableTabs());
+		assertEquals(List.of("DESCRIPTION", "ROUTE", "MATES"), detail.availableTabs());
 		assertEquals(2, detail.description().introParagraphs().size());
 		assertEquals("MANUAL_EDITED", detail.description().sourceType());
 		assertEquals(1, detail.images().size());

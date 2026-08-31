@@ -61,7 +61,22 @@ final class PlaceDtos {
 			detail.relatedPlaces().stream()
 				.map(place -> from(place, relatedEditorialContents.get(place.placeId())))
 				.toList(),
-			content == null ? List.of("MATES") : List.of("DESCRIPTION", "MATES"));
+			availableTabs(detail, content));
+	}
+
+	private static List<String> availableTabs(
+		PlaceQueryService.PlaceDetail detail,
+		EditorialService.EditorialContent content
+	) {
+		var tabs = new java.util.ArrayList<String>();
+		if (content != null) {
+			tabs.add("DESCRIPTION");
+		}
+		if (detail.latitude() != null && detail.longitude() != null) {
+			tabs.add("ROUTE");
+		}
+		tabs.add("MATES");
+		return List.copyOf(tabs);
 	}
 
 	private static PlaceCardResponse from(

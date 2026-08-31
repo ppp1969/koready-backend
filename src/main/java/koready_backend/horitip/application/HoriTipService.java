@@ -76,6 +76,13 @@ public class HoriTipService {
 		return view(load(horiTipId), editableAllowed, clock.instant());
 	}
 
+	@Transactional(readOnly = true)
+	public List<ActiveRouteTip> findActiveRouteTips(long destinationPlaceId) {
+		return repository.findActiveForRoute(destinationPlaceId, clock.instant()).stream()
+			.map(record -> new ActiveRouteTip(record.code(), record.draft()))
+			.toList();
+	}
+
 	@Transactional
 	public HoriTipView update(
 		long horiTipId,
@@ -370,5 +377,8 @@ public class HoriTipService {
 		Instant createdAt,
 		Instant updatedAt
 	) {
+	}
+
+	public record ActiveRouteTip(String code, HoriTipDraft draft) {
 	}
 }

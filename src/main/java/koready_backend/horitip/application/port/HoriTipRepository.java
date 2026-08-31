@@ -18,6 +18,8 @@ public interface HoriTipRepository {
 
 	List<HoriTipRecord> findPage(ListCriteria criteria);
 
+	List<HoriTipRecord> findActiveForRoute(long destinationPlaceId, Instant now);
+
 	Set<Long> findVisiblePlaceIds(List<Long> placeIds);
 
 	HoriTipRecord updateDraft(long id, HoriTipDraft draft, String actorSubject, Instant now);

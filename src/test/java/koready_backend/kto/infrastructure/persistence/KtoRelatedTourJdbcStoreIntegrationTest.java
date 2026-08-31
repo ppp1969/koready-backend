@@ -94,6 +94,8 @@ class KtoRelatedTourJdbcStoreIntegrationTest {
 			place("related-3b", "모호한 장소", "11", "11530");
 		changeStyle(ambiguousRelatedPlaceId, "LOCAL_FOOD");
 		changeStyle(duplicateAmbiguousPlaceId, "LOCAL_FOOD");
+		hideFromPublication(ambiguousRelatedPlaceId);
+		hideFromPublication(duplicateAmbiguousPlaceId);
 	}
 
 	@Test
@@ -426,6 +428,12 @@ class KtoRelatedTourJdbcStoreIntegrationTest {
 		jdbcTemplate.update(
 			"UPDATE place_style_mappings SET travel_style = ? WHERE place_id = ?",
 			travelStyle,
+			placeId);
+	}
+
+	private void hideFromPublication(long placeId) {
+		jdbcTemplate.update(
+			"UPDATE places SET show_flag = FALSE WHERE id = ?",
 			placeId);
 	}
 }

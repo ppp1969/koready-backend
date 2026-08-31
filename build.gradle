@@ -65,6 +65,7 @@ tasks.named('test') {
 	useJUnitPlatform {
 		excludeTags 'integration'
 	}
+	systemProperty 'koready.scheduling.enabled', 'false'
 	jacoco {
 		destinationFile = layout.buildDirectory.file('jacoco/test.exec').get().asFile
 	}

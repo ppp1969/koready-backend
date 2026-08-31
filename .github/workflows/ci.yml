@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: "Java 21 설정"
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: "temurin"
           java-version: "21"
@@ -122,7 +122,7 @@ jobs:
 
       - name: "AWS OIDC 자격 증명 설정"
         if: steps.runtime_changes.outputs.deploy == 'true'
-        uses: aws-actions/configure-aws-credentials@v6.1.0
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           role-to-assume: ${{ env.AWS_EB_DEPLOY_ROLE_ARN }}
           role-session-name: koready-eb-deploy-${{ github.run_id }}

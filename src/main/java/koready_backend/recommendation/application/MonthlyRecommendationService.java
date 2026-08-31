@@ -41,7 +41,6 @@ public class MonthlyRecommendationService {
 
 	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 	private static final int MAX_CURSOR_LENGTH = 512;
-	private static final int SHORT_DESCRIPTION_LENGTH = 160;
 
 	private final MonthlyRecommendationRepository repository;
 	private final SavedPlaceStatusPort savedPlaceStatusPort;
@@ -231,7 +230,7 @@ public class MonthlyRecommendationService {
 				row.placeId(), row.title(), row.serviceRegionCode(),
 				row.serviceRegionName(), row.addressSummary(), row.imageUrl(), null,
 				row.operatingHours(),
-				row.travelStyle(), List.of(), shortDescription(row.overview()), saved);
+				row.travelStyle(), List.of(), null, saved);
 		}
 		FestivalOccurrenceStatus status = FestivalOccurrenceStatus.from(
 			row.startDate(), row.endDate(), today);
@@ -256,20 +255,10 @@ public class MonthlyRecommendationService {
 			row.operatingHours(),
 			row.travelStyle(),
 			List.of(),
-			shortDescription(row.overview()),
+			null,
 			saved);
 	}
 
-	private static String shortDescription(String overview) {
-		if (overview == null || overview.isBlank()) {
-			return null;
-		}
-		String normalized = overview.strip().replaceAll("\\s+", " ");
-		if (normalized.length() <= SHORT_DESCRIPTION_LENGTH) {
-			return normalized;
-		}
-		return normalized.substring(0, SHORT_DESCRIPTION_LENGTH - 3).stripTrailing() + "...";
-	}
 
 	private static String fingerprint(String... values) {
 		try {

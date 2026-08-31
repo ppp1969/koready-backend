@@ -1,6 +1,7 @@
 package koready_backend.home.controller;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +23,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.common.controller.TraceIdFilter;
+import koready_backend.editorial.application.EditorialService;
+import koready_backend.editorial.domain.TourismPurposeTag;
 import koready_backend.home.application.HomeService;
 import koready_backend.home.application.exception.HomeUserUnavailableException;
 import koready_backend.home.application.port.HomeRepository.HomeLocation;
@@ -43,9 +47,16 @@ class HomeControllerTest {
 	@MockitoBean
 	HomeService service;
 
+	@MockitoBean
+	EditorialService editorialService;
+
 	@BeforeEach
 	void serviceDefaults() {
 		when(service.getHome(USER_PUBLIC_ID)).thenReturn(home());
+		when(editorialService.findReadyCardContents(any(), any())).thenReturn(Map.of(
+			101L, new EditorialService.CardEditorialContent(
+				"Enjoy a summer festival with local culture.",
+				List.of(TourismPurposeTag.LOCAL, TourismPurposeTag.FUN))));
 	}
 
 	@Test
@@ -70,7 +81,11 @@ class HomeControllerTest {
 			.andExpect(jsonPath("$.data.monthlyRecommendation.totalCount").value(12))
 			.andExpect(jsonPath("$.data.monthlyRecommendation.items", hasSize(1)))
 			.andExpect(jsonPath("$.data.monthlyRecommendation.items[0].festivalOccurrence.status")
-				.value("ONGOING"));
+				.value("ONGOING"))
+			.andExpect(jsonPath("$.data.monthlyRecommendation.items[0].tags[0]")
+				.value("#Local"))
+			.andExpect(jsonPath("$.data.monthlyRecommendation.items[0].shortDescription")
+				.value("Enjoy a summer festival with local culture."));
 	}
 
 	@Test

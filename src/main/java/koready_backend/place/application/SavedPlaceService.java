@@ -36,7 +36,6 @@ public class SavedPlaceService {
 
 	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 	private static final int MAX_CURSOR_LENGTH = 512;
-	private static final int SHORT_DESCRIPTION_LENGTH = 160;
 
 	private final SavedPlaceRepository repository;
 	private final Clock clock;
@@ -115,7 +114,7 @@ public class SavedPlaceService {
 			occurrence(row.festivalOccurrence(), language, today),
 			row.travelStyle(),
 			List.of(),
-			shortDescription(row.overview()),
+			null,
 			true,
 			row.savedAt());
 	}
@@ -149,16 +148,6 @@ public class SavedPlaceService {
 				+ " - " + formatter.format(occurrence.endDate()));
 	}
 
-	private static String shortDescription(String overview) {
-		if (overview == null || overview.isBlank()) {
-			return null;
-		}
-		String normalized = overview.strip().replaceAll("\\s+", " ");
-		if (normalized.length() <= SHORT_DESCRIPTION_LENGTH) {
-			return normalized;
-		}
-		return normalized.substring(0, SHORT_DESCRIPTION_LENGTH - 3).stripTrailing() + "...";
-	}
 
 	private static String fingerprint(String... values) {
 		try {

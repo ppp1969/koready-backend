@@ -49,10 +49,10 @@ final class SavedPlaceDtos {
 			card.imageUrl(),
 			from(card.festivalOccurrence()),
 			card.travelStyle(),
-			editorial == null ? card.tags() : editorial.tags().stream()
+			editorial == null ? List.of() : editorial.tags().stream()
 				.map(tag -> language == PlaceLanguage.EN ? tag.labelEn() : tag.labelKo())
 				.toList(),
-			editorial == null ? card.shortDescription() : editorial.shortDescription(),
+			editorial == null ? null : editorial.shortDescription(),
 			card.saved(),
 			card.savedAt());
 	}

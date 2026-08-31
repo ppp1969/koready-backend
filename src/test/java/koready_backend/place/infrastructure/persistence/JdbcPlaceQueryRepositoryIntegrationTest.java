@@ -338,6 +338,14 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 		assertEquals(
 			List.of(sameStyleMarket),
 			rows.stream().map(PlaceQueryRepository.RelatedPlaceRow::placeId).toList());
+		assertNull(rows.getFirst().shortDescription());
+		assertEquals(
+			TravelStyle.TRADITIONAL_MARKET,
+			repository.findPrimaryTravelStyle(source).orElseThrow());
+		assertEquals(
+			TravelStyle.TRADITIONAL_MARKET,
+			repository.findPrimaryTravelStyles(List.of(source, sameStyleMarket))
+				.get(sameStyleMarket));
 	}
 
 	private PlaceListCriteria criteria(PlaceSort sort, PlaceCursor cursor, int limit) {

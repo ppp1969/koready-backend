@@ -165,7 +165,7 @@ class PlaceQueryServiceTest {
 		assertEquals("local festival", captor.getValue().query());
 		assertEquals("UPCOMING", result.items().getFirst().festivalOccurrence().status());
 		assertTrue(result.items().getFirst().festivalOccurrence().dateRangeText().contains("2026"));
-		assertEquals("A local festival.", result.items().getFirst().shortDescription());
+		assertNull(result.items().getFirst().shortDescription());
 		assertFalse(result.items().getFirst().saved());
 	}
 
@@ -255,6 +255,11 @@ class PlaceQueryServiceTest {
 				new PlaceQueryRepository.RelatedPlaceRow(
 					23L, "세 번째 장소",
 					null, null)));
+		when(repository.findPrimaryTravelStyles(List.of(21L, 22L, 23L)))
+			.thenReturn(java.util.Map.of(
+				21L, TravelStyle.CULTURE_EXPERIENCE,
+				22L, TravelStyle.NATURE,
+				23L, TravelStyle.TRADITIONAL_MARKET));
 
 		PlaceQueryService.PlaceDetail detail =
 			service.getPlace(10L, PlaceLanguage.KO);
@@ -264,9 +269,10 @@ class PlaceQueryServiceTest {
 			detail.relatedPlaces().stream()
 				.map(PlaceQueryService.RelatedPlace::placeId)
 				.toList());
+		assertNull(detail.relatedPlaces().getFirst().shortDescription());
 		assertEquals(
-			"첫 번째 설명",
-			detail.relatedPlaces().getFirst().shortDescription());
+			TravelStyle.CULTURE_EXPERIENCE,
+			detail.relatedPlaces().getFirst().travelStyle());
 	}
 
 	@Test

@@ -39,7 +39,6 @@ public class PlaceQueryService {
 
 	private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 	private static final int MAX_CURSOR_LENGTH = 512;
-	private static final int SHORT_DESCRIPTION_LENGTH = 160;
 
 	private final PlaceQueryRepository repository;
 	private final SavedPlaceStatusPort savedPlaceStatusPort;
@@ -172,13 +171,16 @@ public class PlaceQueryService {
 					placeId, language, excludedPlaceIds, 3 - completedRelated.size()),
 				placeId, 3);
 		}
+		var relatedStyles = repository.findPrimaryTravelStyles(completedRelated.stream()
+			.map(PlaceQueryRepository.RelatedPlaceRow::placeId).toList());
 		List<RelatedPlace> relatedPlaces = completedRelated
 			.stream()
 			.map(related -> new RelatedPlace(
 				related.placeId(),
 				related.title(),
 				related.imageUrl(),
-				related.shortDescription()))
+				relatedStyles.get(related.placeId()),
+				null))
 			.toList();
 		var tabBuilder = new java.util.ArrayList<String>();
 		if (description != null) {
@@ -207,6 +209,7 @@ public class PlaceQueryService {
 			facts.usageFee(),
 			facts.parkingInfo(),
 			images,
+			repository.findPrimaryTravelStyle(placeId).orElse(null),
 			List.of(),
 			saved,
 			description,
@@ -302,7 +305,7 @@ public class PlaceQueryService {
 			occurrence,
 			row.travelStyle(),
 			List.of(),
-			shortDescription(row.overview()),
+			null,
 			saved);
 	}
 
@@ -363,16 +366,6 @@ public class PlaceQueryService {
 		};
 	}
 
-	private static String shortDescription(String overview) {
-		if (overview == null || overview.isBlank()) {
-			return null;
-		}
-		String normalized = overview.strip().replaceAll("\\s+", " ");
-		if (normalized.length() <= SHORT_DESCRIPTION_LENGTH) {
-			return normalized;
-		}
-		return normalized.substring(0, SHORT_DESCRIPTION_LENGTH - 3).stripTrailing() + "...";
-	}
 
 	private static String fingerprint(String... values) {
 		try {
@@ -487,6 +480,7 @@ public class PlaceQueryService {
 		String usageFee,
 		String parkingInfo,
 		List<PlaceImage> images,
+		TravelStyle travelStyle,
 		List<String> tags,
 		boolean isSaved,
 		PlaceDescription description,
@@ -507,6 +501,12 @@ public class PlaceQueryService {
 	) {
 	}
 
-	public record RelatedPlace(long placeId, String title, String imageUrl, String shortDescription) {
+	public record RelatedPlace(
+		long placeId,
+		String title,
+		String imageUrl,
+		TravelStyle travelStyle,
+		String shortDescription
+	) {
 	}
 }

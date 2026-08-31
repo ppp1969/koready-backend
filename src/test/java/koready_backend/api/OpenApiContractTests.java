@@ -405,8 +405,16 @@ class OpenApiContractTests {
 		Map<String, Object> placeCard = asMap(schemas.get("PlaceCard"), "PlaceCard");
 		Map<String, Object> placeCardProperties = asMap(placeCard.get("properties"), "PlaceCard.properties");
 		assertTrue(placeCardProperties.containsKey("festivalOccurrence"));
+		assertTrue(placeCardProperties.containsKey("travelStyle"));
+		assertTrue(placeCardProperties.containsKey("tags"));
+		assertTrue(placeCardProperties.containsKey("shortDescription"));
 		assertFalse(placeCardProperties.containsKey("startDate"));
 		assertFalse(placeCardProperties.containsKey("endDate"));
+		Map<String, Object> relatedPlace = asMap(
+			schemas.get("RelatedPlace"), "RelatedPlace");
+		assertEquals(
+			List.of("placeId", "title", "travelStyle", "tags", "shortDescription"),
+			asList(relatedPlace.get("required"), "RelatedPlace.required"));
 
 		assertRequiredContains(schemas, "MonthlyRecommendationPreview", "year");
 		assertRequiredContains(schemas, "MonthlyRecommendationListResponse", "year");

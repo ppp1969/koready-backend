@@ -244,7 +244,7 @@ class PlaceQueryServiceTest {
 			new PlaceDetailRow(
 				10L, "기준 장소", ServiceRegionCode.SEOUL, "서울", "주소",
 				null, null, null, "설명", "KTO_KO")));
-		when(repository.findRelatedPlaces(10L, PlaceLanguage.KO, 3))
+		when(repository.findRelatedPlaces(10L, PlaceLanguage.KO, 20))
 			.thenReturn(List.of(
 				new PlaceQueryRepository.RelatedPlaceRow(
 					21L, "첫 번째 장소",
@@ -275,7 +275,7 @@ class PlaceQueryServiceTest {
 			new PlaceDetailRow(
 				10L, "기준 장소", ServiceRegionCode.SEOUL, "서울", "주소",
 				null, null, null, "설명", "KTO_KO")));
-		when(repository.findRelatedPlaces(10L, PlaceLanguage.KO, 3))
+		when(repository.findRelatedPlaces(10L, PlaceLanguage.KO, 20))
 			.thenReturn(List.of(new PlaceQueryRepository.RelatedPlaceRow(
 				21L, "확정 장소", "https://example.invalid/confirmed.jpg", "확정 설명")));
 		when(repository.findRelatedPlaceFallbacks(
@@ -290,6 +290,35 @@ class PlaceQueryServiceTest {
 
 		assertEquals(
 			List.of(21L, 22L, 23L),
+			detail.relatedPlaces().stream().map(PlaceQueryService.RelatedPlace::placeId).toList());
+	}
+
+	@Test
+	void prioritizesSameRegionAndTravelStyleBeforeProviderRelations() {
+		when(repository.findDetail(10L, PlaceLanguage.KO)).thenReturn(Optional.of(
+			new PlaceDetailRow(
+				10L, "기준 전통시장", ServiceRegionCode.SEOUL, "서울", "주소",
+				null, null, null, "설명", "KTO_KO")));
+		when(repository.findRelatedPlacesWithSameStyle(
+			10L, PlaceLanguage.KO, List.of(10L), 3))
+			.thenReturn(List.of(
+				new PlaceQueryRepository.RelatedPlaceRow(
+					31L, "같은 유형 시장 1", "https://example.invalid/market-1.jpg", "시장 설명 1"),
+				new PlaceQueryRepository.RelatedPlaceRow(
+					32L, "같은 유형 시장 2", "https://example.invalid/market-2.jpg", "시장 설명 2")));
+		when(repository.findRelatedPlaces(10L, PlaceLanguage.KO, 20))
+			.thenReturn(List.of(
+				new PlaceQueryRepository.RelatedPlaceRow(
+					10L, "자기 자신", "https://example.invalid/source.jpg", "기준 설명"),
+				new PlaceQueryRepository.RelatedPlaceRow(
+					21L, "KTO 추천 장소", "https://example.invalid/provider.jpg", "추천 설명"),
+				new PlaceQueryRepository.RelatedPlaceRow(
+					31L, "중복 시장", "https://example.invalid/market-1.jpg", "시장 설명 1")));
+
+		PlaceQueryService.PlaceDetail detail = service.getPlace(10L, PlaceLanguage.KO);
+
+		assertEquals(
+			List.of(31L, 32L, 21L),
 			detail.relatedPlaces().stream().map(PlaceQueryService.RelatedPlace::placeId).toList());
 	}
 

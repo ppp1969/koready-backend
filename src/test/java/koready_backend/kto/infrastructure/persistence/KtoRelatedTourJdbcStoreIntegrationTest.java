@@ -90,7 +90,10 @@ class KtoRelatedTourJdbcStoreIntegrationTest {
 			place("related-2", "두 번째 장소", "11", "11530");
 		ambiguousRelatedPlaceId =
 			place("related-3a", "모호한 장소", "11", "11530");
-		place("related-3b", "모호한 장소", "11", "11530");
+		long duplicateAmbiguousPlaceId =
+			place("related-3b", "모호한 장소", "11", "11530");
+		changeStyle(ambiguousRelatedPlaceId, "LOCAL_FOOD");
+		changeStyle(duplicateAmbiguousPlaceId, "LOCAL_FOOD");
 	}
 
 	@Test
@@ -417,5 +420,12 @@ class KtoRelatedTourJdbcStoreIntegrationTest {
 		return jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM " + table,
 			Integer.class);
+	}
+
+	private void changeStyle(long placeId, String travelStyle) {
+		jdbcTemplate.update(
+			"UPDATE place_style_mappings SET travel_style = ? WHERE place_id = ?",
+			travelStyle,
+			placeId);
 	}
 }

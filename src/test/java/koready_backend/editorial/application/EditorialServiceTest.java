@@ -9,6 +9,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,7 @@ import org.mockito.Mockito;
 
 import koready_backend.editorial.application.port.EditorialRepository;
 import koready_backend.editorial.application.port.EditorialRepository.EnqueueRecord;
+import koready_backend.editorial.application.port.EditorialRepository.ReadyCardContentRecord;
 import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
 import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
@@ -23,6 +25,7 @@ import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
 import koready_backend.editorial.domain.EditorialLanguage;
+import koready_backend.editorial.domain.TourismPurposeTag;
 
 class EditorialServiceTest {
 
@@ -87,5 +90,24 @@ class EditorialServiceTest {
 				&& query.limit() == 21));
 		verify(repository).countCandidates(Mockito.argThat(query ->
 			query.query().equals("4") && query.startAfterPlaceId() == 0L));
+	}
+
+	@Test
+	void returnsReadyCardContentByPlaceWithoutQueuingWork() {
+		when(repository.findReadyCardContents(
+			List.of(2L, 3L), EditorialLanguage.EN, "koready-place-editorial-v1"))
+			.thenReturn(List.of(new ReadyCardContentRecord(
+				2L,
+				"A concise introduction.",
+				List.of(TourismPurposeTag.HISTORY, TourismPurposeTag.TRADITION))));
+
+		Map<Long, EditorialService.CardEditorialContent> result =
+			service.findReadyCardContents(List.of(2L, 3L), EditorialLanguage.EN);
+
+		assertEquals("A concise introduction.", result.get(2L).shortDescription());
+		assertEquals(
+			List.of(TourismPurposeTag.HISTORY, TourismPurposeTag.TRADITION),
+			result.get(2L).tags());
+		assertFalse(result.containsKey(3L));
 	}
 }

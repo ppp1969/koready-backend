@@ -785,7 +785,10 @@ paths:
       description: |
         **호출 시점:** 하단 저장 탭에 들어갈 때 호출합니다.
         cursor 무한 스크롤을 사용하며 저장 취소 성공 시 해당 item을 로컬 목록에서 제거합니다.
-        저장 이후 공개 조건을 잃은 장소는 목록에서 숨기며, 영문 소개가 없으면 overview는 null입니다.
+        저장 이후 공개 조건을 잃은 장소는 목록에서 숨깁니다.
+        현재 AI 가공본이 READY이면 `tags`에는 선택 언어의 해시태그 2개,
+        `shortDescription`에는 AI 한줄설명을 반환합니다. 가공 전이거나 원문 변경으로
+        가공본이 오래된 경우 `tags`는 빈 배열이고 `shortDescription`은 원문 요약 또는 null입니다.
       x-implementation-status: IMPLEMENTED
       parameters:
         - $ref: '#/components/parameters/Cursor'
@@ -4644,7 +4647,8 @@ components:
         tags:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/PlaceTag'
+          description: READY AI 가공본의 관광목적 태그. 가공 전에는 빈 배열
         isSaved:
           type: boolean
           description: 익명 조회에서는 항상 false
@@ -4655,6 +4659,11 @@ components:
           description: 검증된 원문 설명이 없으면 null
         relatedPlaces:
           type: array
+          maxItems: 3
+          description: |
+            KTO에서 확정된 연관 장소를 순위대로 먼저 반환합니다. 3개보다 적으면
+            같은 서비스 권역에서 공개 조건을 만족하는 장소를 운영자 우선순위와
+            데이터 품질 순으로 보완하며, 자기 자신과 중복 장소는 제외합니다.
           items:
             $ref: '#/components/schemas/RelatedPlace'
         availableTabs:
@@ -5761,31 +5770,39 @@ components:
           nullable: true
     PlaceDescription:
       type: object
-      required: [impactTitle, impactSubtitle, introParagraphs, enjoyPoints, sourceType]
+      required: [topic, oneLineDescription, shortIntroduction, enjoyPoints, contentVersion]
       properties:
-        impactTitle:
+        topic:
           type: string
-          example: 김천에서 만나는
-        impactSubtitle:
+          example: 김천에서 만나는 가장 맛있는 한 줄 여행
+        oneLineDescription:
           type: string
-          example: 가장 맛있는 한 줄 여행
-        introParagraphs:
-          type: array
-          items:
-            type: string
-          example: [김밥을 주제로 먹고 만들고 즐길 수 있는 지역 축제예요.]
+          example: 김밥을 주제로 먹고, 만들고, 즐길 수 있는 김천의 지역 축제예요.
+        shortIntroduction:
+          type: string
+          example: 익숙한 김밥을 색다른 방식으로 만나고 지역 먹거리와 축제 분위기를 즐길 수 있어요.
         enjoyPoints:
           type: array
           items:
             type: string
           example: [다양한 김밥 맛보기, 김밥 만들기 체험, 포토존에서 사진 찍기]
-        sourceType:
+        contentVersion:
           type: string
-          enum: [KTO_ORIGINAL, AI_GENERATED, MANUAL_EDITED]
-          description: 화면에는 노출하지 않아도 되는 콘텐츠 계보 값
+          example: koready-place-editorial-v1
+          description: 현재 AI 가공 프롬프트 버전. 화면 표시에는 사용하지 않습니다.
+    PlaceTag:
+      type: object
+      required: [code, label]
+      properties:
+        code:
+          type: string
+          example: FOOD
+        label:
+          type: string
+          example: '#음식'
     RelatedPlace:
       type: object
-      required: [placeId, title, shortDescription]
+      required: [placeId, title]
       properties:
         placeId:
           type: integer
@@ -5799,6 +5816,7 @@ components:
           nullable: true
         shortDescription:
           type: string
+          nullable: true
           example: 김천에서 함께 둘러보기 좋은 전통 명소예요.
     RoutePoint:
       type: object

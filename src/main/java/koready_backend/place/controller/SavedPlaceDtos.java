@@ -3,9 +3,12 @@ package koready_backend.place.controller;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import jakarta.validation.constraints.NotNull;
+import koready_backend.editorial.application.EditorialService;
 import koready_backend.place.application.SavedPlaceService;
+import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.SavedPlaceSource;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
@@ -19,14 +22,24 @@ final class SavedPlaceDtos {
 		return new SavePlaceResponse(result.placeId(), result.saved(), result.savedAt());
 	}
 
-	static SavedPlaceListResponse from(SavedPlaceService.SavedPlacePage page) {
+	static SavedPlaceListResponse from(
+		SavedPlaceService.SavedPlacePage page,
+		Map<Long, EditorialService.CardEditorialContent> editorialContents,
+		PlaceLanguage language
+	) {
 		return new SavedPlaceListResponse(
-			page.items().stream().map(SavedPlaceDtos::from).toList(),
+			page.items().stream()
+				.map(card -> from(card, editorialContents.get(card.placeId()), language))
+				.toList(),
 			page.nextCursor(),
 			page.hasMore());
 	}
 
-	private static SavedPlaceCardResponse from(SavedPlaceService.SavedPlaceCard card) {
+	private static SavedPlaceCardResponse from(
+		SavedPlaceService.SavedPlaceCard card,
+		EditorialService.CardEditorialContent editorial,
+		PlaceLanguage language
+	) {
 		return new SavedPlaceCardResponse(
 			card.placeId(),
 			card.title(),
@@ -36,8 +49,10 @@ final class SavedPlaceDtos {
 			card.imageUrl(),
 			from(card.festivalOccurrence()),
 			card.travelStyle(),
-			card.tags(),
-			card.shortDescription(),
+			editorial == null ? card.tags() : editorial.tags().stream()
+				.map(tag -> language == PlaceLanguage.EN ? tag.labelEn() : tag.labelKo())
+				.toList(),
+			editorial == null ? card.shortDescription() : editorial.shortDescription(),
 			card.saved(),
 			card.savedAt());
 	}

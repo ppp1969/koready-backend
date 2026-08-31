@@ -20,6 +20,9 @@ public interface EditorialRepository {
 	Optional<ReadyContentRecord> findReady(
 		long placeId, EditorialLanguage language, String promptVersion);
 
+	List<ReadyCardContentRecord> findReadyCardContents(
+		List<Long> placeIds, EditorialLanguage language, String promptVersion);
+
 	Optional<JobRecord> findLatestJob(long placeId, String promptVersion);
 
 	List<CandidateRecord> findCandidates(CandidateQuery query);
@@ -137,6 +140,16 @@ public interface EditorialRepository {
 		Instant startedAt,
 		Instant completedAt
 	) {
+	}
+
+	record ReadyCardContentRecord(
+		long placeId,
+		String shortDescription,
+		List<TourismPurposeTag> tags
+	) {
+		public ReadyCardContentRecord {
+			tags = List.copyOf(tags);
+		}
 	}
 
 	record VisibilityCommand(

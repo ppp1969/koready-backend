@@ -60,16 +60,21 @@ public class PlaceController {
 		HttpServletRequest request
 	) {
 		String userPublicId = AuthenticatedSubject.optional(authentication);
+		var language = languageResolver.resolve(userPublicId, acceptLanguage);
 		PlaceQueryService.PlacePage page = placeQueryService.getPlaces(
 			serviceRegionCode,
 			travelStyles,
 			sort,
 			cursor,
 			size,
-			languageResolver.resolve(userPublicId, acceptLanguage),
+			language,
 			userPublicId);
+		var editorialContents = editorialService.findReadyCardContents(
+			page.items().stream().map(PlaceQueryService.PlaceCard::placeId).toList(),
+			EditorialLanguage.valueOf(language.name()));
 		return ApiEnvelope.success(
-			"PLACE_LIST_OK", PlaceDtos.from(page), TraceIdFilter.current(request));
+			"PLACE_LIST_OK", PlaceDtos.from(page, editorialContents, language),
+			TraceIdFilter.current(request));
 	}
 
 	@GetMapping("/search")
@@ -82,14 +87,19 @@ public class PlaceController {
 		HttpServletRequest request
 	) {
 		String userPublicId = AuthenticatedSubject.optional(authentication);
+		var language = languageResolver.resolve(userPublicId, acceptLanguage);
 		PlaceQueryService.PlacePage page = placeQueryService.search(
 			query,
 			cursor,
 			size,
-			languageResolver.resolve(userPublicId, acceptLanguage),
+			language,
 			userPublicId);
+		var editorialContents = editorialService.findReadyCardContents(
+			page.items().stream().map(PlaceQueryService.PlaceCard::placeId).toList(),
+			EditorialLanguage.valueOf(language.name()));
 		return ApiEnvelope.success(
-			"PLACE_SEARCH_OK", PlaceDtos.from(page), TraceIdFilter.current(request));
+			"PLACE_SEARCH_OK", PlaceDtos.from(page, editorialContents, language),
+			TraceIdFilter.current(request));
 	}
 
 	@GetMapping("/{placeId}")
@@ -107,8 +117,12 @@ public class PlaceController {
 			userPublicId);
 		EditorialService.PublicEditorial editorial = editorialService.findOrEnqueue(
 			placeId, EditorialLanguage.valueOf(language.name()), userPublicId);
+		var relatedEditorialContents = editorialService.findReadyCardContents(
+			detail.relatedPlaces().stream().map(PlaceQueryService.RelatedPlace::placeId).toList(),
+			EditorialLanguage.valueOf(language.name()));
 		return ApiEnvelope.success(
-			"PLACE_DETAIL_OK", PlaceDtos.from(detail, editorial, language),
+			"PLACE_DETAIL_OK",
+			PlaceDtos.from(detail, editorial, relatedEditorialContents, language),
 			TraceIdFilter.current(request));
 	}
 }

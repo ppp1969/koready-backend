@@ -174,9 +174,15 @@ public class PlaceQueryService {
 				related.imageUrl(),
 				related.shortDescription()))
 			.toList();
-		List<String> availableTabs = description == null
-			? List.of("MATES")
-			: List.of("DESCRIPTION", "MATES");
+		var tabBuilder = new java.util.ArrayList<String>();
+		if (description != null) {
+			tabBuilder.add("DESCRIPTION");
+		}
+		if (row.latitude() != null && row.longitude() != null) {
+			tabBuilder.add("ROUTE");
+		}
+		tabBuilder.add("MATES");
+		List<String> availableTabs = List.copyOf(tabBuilder);
 		boolean saved = savedPlaceStatusPort
 			.findSavedPlaceIds(userPublicId, List.of(placeId))
 			.contains(placeId);

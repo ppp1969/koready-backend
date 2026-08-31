@@ -90,6 +90,13 @@ koready:
       max-response-bytes: ${KAKAO_LOCAL_MAX_RESPONSE_BYTES:524288}
       connect-timeout: ${KAKAO_LOCAL_CONNECT_TIMEOUT:3s}
       read-timeout: ${KAKAO_LOCAL_READ_TIMEOUT:5s}
+  route:
+    tmap:
+      base-url: ${TMAP_BASE_URL:https://apis.openapi.sk.com}
+      app-key: ${TMAP_APP_KEY:}
+      max-response-bytes: ${TMAP_MAX_RESPONSE_BYTES:4194304}
+      connect-timeout: ${TMAP_CONNECT_TIMEOUT:3s}
+      read-timeout: ${TMAP_READ_TIMEOUT:10s}
   evidence-bundle:
     directory: ${EVIDENCE_BUNDLE_DIRECTORY:${user.home}/.koready/evidence-bundles}
     download-expiration: ${EVIDENCE_BUNDLE_DOWNLOAD_EXPIRATION:5m}

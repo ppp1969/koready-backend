@@ -22,6 +22,8 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import koready_backend.common.controller.ApiEnvelope;
 import koready_backend.common.controller.TraceIdFilter;
+import koready_backend.editorial.application.EditorialService;
+import koready_backend.editorial.domain.EditorialLanguage;
 import koready_backend.place.application.SavedPlaceService;
 import koready_backend.place.application.port.ResponseLanguageResolver;
 
@@ -32,13 +34,16 @@ public class SavedPlaceController {
 
 	private final SavedPlaceService service;
 	private final ResponseLanguageResolver languageResolver;
+	private final EditorialService editorialService;
 
 	public SavedPlaceController(
 		SavedPlaceService service,
-		ResponseLanguageResolver languageResolver
+		ResponseLanguageResolver languageResolver,
+		EditorialService editorialService
 	) {
 		this.service = service;
 		this.languageResolver = languageResolver;
+		this.editorialService = editorialService;
 	}
 
 	@GetMapping
@@ -50,14 +55,18 @@ public class SavedPlaceController {
 		Authentication authentication,
 		HttpServletRequest request
 	) {
+		var language = languageResolver.resolve(authentication.getName(), acceptLanguage);
 		var page = service.getSavedPlaces(
 			authentication.getName(),
 			cursor,
 			size,
-			languageResolver.resolve(authentication.getName(), acceptLanguage));
+			language);
+		var editorialContents = editorialService.findReadyCardContents(
+			page.items().stream().map(SavedPlaceService.SavedPlaceCard::placeId).toList(),
+			EditorialLanguage.valueOf(language.name()));
 		return ApiEnvelope.success(
 			"SAVED_PLACE_LIST_OK",
-			SavedPlaceDtos.from(page),
+			SavedPlaceDtos.from(page, editorialContents, language),
 			TraceIdFilter.current(request));
 	}
 

@@ -3,6 +3,7 @@ package koready_backend.place.controller;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import koready_backend.editorial.application.EditorialService;
 import koready_backend.editorial.domain.EditorialJobStatus;
@@ -17,9 +18,15 @@ final class PlaceDtos {
 	private PlaceDtos() {
 	}
 
-	static PlaceListResponse from(PlaceQueryService.PlacePage page) {
+	static PlaceListResponse from(
+		PlaceQueryService.PlacePage page,
+		Map<Long, EditorialService.CardEditorialContent> editorialContents,
+		PlaceLanguage language
+	) {
 		return new PlaceListResponse(
-			page.items().stream().map(PlaceDtos::from).toList(),
+			page.items().stream()
+				.map(card -> from(card, editorialContents.get(card.placeId()), language))
+				.toList(),
 			page.nextCursor(),
 			page.hasMore(),
 			page.totalCount());
@@ -28,6 +35,7 @@ final class PlaceDtos {
 	static PlaceDetailResponse from(
 		PlaceQueryService.PlaceDetail detail,
 		EditorialService.PublicEditorial editorial,
+		Map<Long, EditorialService.CardEditorialContent> relatedEditorialContents,
 		PlaceLanguage language
 	) {
 		EditorialService.EditorialContent content = editorial.content();
@@ -50,11 +58,17 @@ final class PlaceDtos {
 			detail.isSaved(),
 			from(content),
 			editorial.status(),
-			detail.relatedPlaces().stream().map(PlaceDtos::from).toList(),
+			detail.relatedPlaces().stream()
+				.map(place -> from(place, relatedEditorialContents.get(place.placeId())))
+				.toList(),
 			content == null ? List.of("MATES") : List.of("DESCRIPTION", "MATES"));
 	}
 
-	private static PlaceCardResponse from(PlaceQueryService.PlaceCard card) {
+	private static PlaceCardResponse from(
+		PlaceQueryService.PlaceCard card,
+		EditorialService.CardEditorialContent editorial,
+		PlaceLanguage language
+	) {
 		return new PlaceCardResponse(
 			card.placeId(),
 			card.title(),
@@ -64,8 +78,10 @@ final class PlaceDtos {
 			card.imageUrl(),
 			from(card.festivalOccurrence()),
 			card.travelStyle(),
-			card.tags(),
-			card.shortDescription(),
+			editorial == null ? card.tags() : editorial.tags().stream()
+				.map(tag -> language == PlaceLanguage.EN ? tag.labelEn() : tag.labelKo())
+				.toList(),
+			editorial == null ? card.shortDescription() : editorial.shortDescription(),
 			card.saved());
 	}
 
@@ -105,9 +121,13 @@ final class PlaceDtos {
 			tag.name(), language == PlaceLanguage.EN ? tag.labelEn() : tag.labelKo());
 	}
 
-	private static RelatedPlaceResponse from(PlaceQueryService.RelatedPlace place) {
+	private static RelatedPlaceResponse from(
+		PlaceQueryService.RelatedPlace place,
+		EditorialService.CardEditorialContent editorial
+	) {
 		return new RelatedPlaceResponse(
-			place.placeId(), place.title(), place.imageUrl(), place.shortDescription());
+			place.placeId(), place.title(), place.imageUrl(),
+			editorial == null ? place.shortDescription() : editorial.shortDescription());
 	}
 
 	record PlaceListResponse(

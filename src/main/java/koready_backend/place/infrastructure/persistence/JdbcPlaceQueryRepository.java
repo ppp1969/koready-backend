@@ -318,6 +318,55 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		LIMIT :limit
 		""";
 
+	private static final String RELATED_PLACE_FALLBACKS = """
+		SELECT
+		    related.id AS place_id,
+		    COALESCE(requested.title, korean.title) AS title,
+		    COALESCE(
+		        (SELECT image.image_url FROM place_images image
+		         WHERE image.place_id = related.id
+		         ORDER BY image.admin_display_order IS NULL, image.admin_display_order,
+		                  image.source_priority DESC, image.source_order ASC, image.id ASC
+		         LIMIT 1),
+		        NULLIF(TRIM(related.first_image_url), '')
+		    ) AS image_url,
+		    requested.overview AS short_description
+		FROM places related
+		LEFT JOIN place_localizations requested
+		  ON requested.place_id = related.id AND requested.language = :language
+		LEFT JOIN place_localizations korean
+		  ON korean.place_id = related.id AND korean.language = 'KO'
+		WHERE related.service_region_code = (
+		    SELECT source.service_region_code FROM places source WHERE source.id = :placeId
+		)
+		  AND related.id NOT IN (:excludedPlaceIds)
+		  AND related.active = TRUE
+		  AND related.show_flag = TRUE
+		  AND COALESCE(requested.id, korean.id) IS NOT NULL
+		  AND EXISTS (SELECT 1 FROM place_style_mappings style WHERE style.place_id = related.id)
+		  AND (
+		      NULLIF(TRIM(related.first_image_url), '') IS NOT NULL
+		      OR EXISTS (SELECT 1 FROM place_images image WHERE image.place_id = related.id)
+		  )
+		  AND EXISTS (
+		      SELECT 1 FROM place_localizations publication_en
+		      WHERE publication_en.place_id = related.id
+		        AND publication_en.language = 'EN'
+		        AND (
+		            publication_en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+		            OR (publication_en.translation_source = 'AI_TRANSLATED'
+		                AND EXISTS (SELECT 1 FROM place_editorial_contents editorial_source
+		                    WHERE editorial_source.place_id = related.id
+		                      AND editorial_source.status = 'READY'))
+		        )
+		        AND NULLIF(TRIM(publication_en.title), '') IS NOT NULL
+		  )
+		ORDER BY related.curation_priority DESC,
+		         related.data_quality_score DESC,
+		         related.id ASC
+		LIMIT :limit
+		""";
+
 	private final NamedParameterJdbcTemplate jdbcTemplate;
 	private final EditorialProperties editorialProperties;
 
@@ -447,6 +496,30 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 			new MapSqlParameterSource()
 				.addValue("placeId", placeId)
 				.addValue("language", language.name())
+				.addValue("limit", limit),
+			(resultSet, rowNumber) -> new RelatedPlaceRow(
+				resultSet.getLong("place_id"),
+				resultSet.getString("title"),
+				resultSet.getString("image_url"),
+				resultSet.getString("short_description")));
+	}
+
+	@Override
+	public List<RelatedPlaceRow> findRelatedPlaceFallbacks(
+		long placeId,
+		PlaceLanguage language,
+		List<Long> excludedPlaceIds,
+		int limit
+	) {
+		if (limit <= 0) {
+			return List.of();
+		}
+		return jdbcTemplate.query(
+			RELATED_PLACE_FALLBACKS,
+			new MapSqlParameterSource()
+				.addValue("placeId", placeId)
+				.addValue("language", language.name())
+				.addValue("excludedPlaceIds", excludedPlaceIds)
 				.addValue("limit", limit),
 			(resultSet, rowNumber) -> new RelatedPlaceRow(
 				resultSet.getLong("place_id"),

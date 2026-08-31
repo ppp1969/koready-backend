@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.place.application.SavedPlaceService;
+import koready_backend.editorial.application.EditorialService;
+import koready_backend.editorial.domain.TourismPurposeTag;
 import koready_backend.place.application.port.ResponseLanguageResolver;
 import koready_backend.place.application.exception.PlaceNotFoundException;
 import koready_backend.place.application.exception.SavedPlaceUserUnavailableException;
@@ -50,12 +53,17 @@ class SavedPlaceControllerTest {
 	@MockitoBean
 	private ResponseLanguageResolver languageResolver;
 
+	@MockitoBean
+	private EditorialService editorialService;
+
 	@BeforeEach
 	void languageDefaults() {
 		when(languageResolver.resolve("usr_saved", "en-US"))
 			.thenReturn(PlaceLanguage.EN);
 		when(languageResolver.resolve("usr_missing", null))
 			.thenReturn(PlaceLanguage.KO);
+		when(editorialService.findReadyCardContents(any(), any()))
+			.thenReturn(Map.of());
 	}
 
 	@Test
@@ -89,6 +97,10 @@ class SavedPlaceControllerTest {
 			eq("usr_saved"), eq(null), eq(20), eq(PlaceLanguage.EN)))
 			.thenReturn(new SavedPlaceService.SavedPlacePage(
 				List.of(card()), "opaque-next", true));
+		when(editorialService.findReadyCardContents(any(), any()))
+			.thenReturn(Map.of(1001L, new EditorialService.CardEditorialContent(
+				"A concise AI introduction.",
+				List.of(TourismPurposeTag.HISTORY, TourismPurposeTag.TRADITION))));
 
 		mockMvc.perform(get("/api/v1/users/me/saved-places")
 				.with(user("usr_saved").roles("USER"))
@@ -97,6 +109,10 @@ class SavedPlaceControllerTest {
 			.andExpect(jsonPath("$.code").value("SAVED_PLACE_LIST_OK"))
 			.andExpect(jsonPath("$.data.items", hasSize(1)))
 			.andExpect(jsonPath("$.data.items[0].title").value("Saved Place"))
+			.andExpect(jsonPath("$.data.items[0].tags[0]").value("#History"))
+			.andExpect(jsonPath("$.data.items[0].tags[1]").value("#Tradition"))
+			.andExpect(jsonPath("$.data.items[0].shortDescription")
+				.value("A concise AI introduction."))
 			.andExpect(jsonPath("$.data.items[0].saved").value(true))
 			.andExpect(jsonPath("$.data.items[0].savedAt")
 				.value("2026-07-19T03:00:00Z"))

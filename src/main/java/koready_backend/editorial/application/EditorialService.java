@@ -2,6 +2,8 @@ package koready_backend.editorial.application;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -143,6 +145,22 @@ public class EditorialService {
 			hasMore && !items.isEmpty()
 				? Long.toString(items.getLast().id()) : null,
 			hasMore);
+	}
+
+	@Transactional(readOnly = true)
+	public Map<Long, CardEditorialContent> findReadyCardContents(
+		List<Long> placeIds,
+		EditorialLanguage language
+	) {
+		if (placeIds == null || placeIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<Long, CardEditorialContent> result = new LinkedHashMap<>();
+		repository.findReadyCardContents(
+			placeIds.stream().distinct().toList(), language, properties.promptVersion())
+			.forEach(record -> result.put(record.placeId(), new CardEditorialContent(
+				record.shortDescription(), record.tags())));
+		return Map.copyOf(result);
 	}
 
 	@Transactional
@@ -373,6 +391,15 @@ public class EditorialService {
 				record.priority(), record.triggerType(), record.attemptCount(),
 				record.errorCode(), record.errorMessage(), record.requestedAt(),
 				record.startedAt(), record.completedAt());
+		}
+	}
+
+	public record CardEditorialContent(
+		String shortDescription,
+		List<TourismPurposeTag> tags
+	) {
+		public CardEditorialContent {
+			tags = List.copyOf(tags);
 		}
 	}
 

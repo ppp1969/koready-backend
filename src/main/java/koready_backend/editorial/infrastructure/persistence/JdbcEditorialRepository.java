@@ -239,6 +239,63 @@ public class JdbcEditorialRepository implements EditorialRepository {
 	}
 
 	@Override
+	public List<ReadyCardContentRecord> findReadyCardContents(
+		List<Long> placeIds,
+		EditorialLanguage language,
+		String promptVersion
+	) {
+		if (placeIds.isEmpty()) {
+			return List.of();
+		}
+		return namedJdbcTemplate.query("""
+			SELECT ranked.place_id, ranked.one_line_description,
+			       GROUP_CONCAT(tag.tag_code ORDER BY tag.display_order SEPARATOR ',') AS tag_codes
+			FROM (
+			    SELECT p.id AS place_id, content.id AS content_id,
+			           localized.one_line_description,
+			           ROW_NUMBER() OVER (
+			               PARTITION BY p.id ORDER BY content.generated_at DESC, content.id DESC
+			           ) AS content_rank
+			    FROM places p
+			    LEFT JOIN place_localizations ko
+			      ON ko.place_id = p.id AND ko.language = 'KO'
+			    LEFT JOIN place_localizations en
+			      ON en.place_id = p.id AND en.language = 'EN'
+			     AND en.translation_source IN ('KTO_EN', 'MANUAL_EDITED')
+			    JOIN place_editorial_contents content
+			      ON content.place_id = p.id
+			     AND content.status = 'READY'
+			     AND content.prompt_version = :promptVersion
+			     AND content.source_fingerprint = """ + SOURCE_FINGERPRINT + """
+			    JOIN place_editorial_localizations localized
+			      ON localized.editorial_content_id = content.id
+			     AND localized.language = :language
+			    WHERE p.id IN (:placeIds)
+			) ranked
+			LEFT JOIN place_editorial_tags tag
+			  ON tag.editorial_content_id = ranked.content_id
+			WHERE ranked.content_rank = 1
+			GROUP BY ranked.place_id, ranked.content_id, ranked.one_line_description
+			""", new MapSqlParameterSource()
+			.addValue("placeIds", placeIds)
+			.addValue("language", language.name())
+			.addValue("promptVersion", promptVersion),
+			(rs, rowNumber) -> new ReadyCardContentRecord(
+				rs.getLong("place_id"),
+				rs.getString("one_line_description"),
+				tags(rs.getString("tag_codes"))));
+	}
+
+	private static List<TourismPurposeTag> tags(String tagCodes) {
+		if (tagCodes == null || tagCodes.isBlank()) {
+			return List.of();
+		}
+		return java.util.Arrays.stream(tagCodes.split(","))
+			.map(TourismPurposeTag::valueOf)
+			.toList();
+	}
+
+	@Override
 	public long countCandidates(CandidateQuery query) {
 		StringBuilder sql = new StringBuilder("SELECT COUNT(*) " + CANDIDATE_FROM_SQL);
 		MapSqlParameterSource params = new MapSqlParameterSource();

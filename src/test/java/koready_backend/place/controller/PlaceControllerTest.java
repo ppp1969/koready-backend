@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +57,7 @@ class PlaceControllerTest {
 		when(editorialService.findOrEnqueue(any(Long.class), any(), any()))
 			.thenReturn(new EditorialService.PublicEditorial(
 				EditorialJobStatus.QUEUED, false, null));
+		when(editorialService.findReadyCardContents(any(), any())).thenReturn(Map.of());
 	}
 
 	@Test

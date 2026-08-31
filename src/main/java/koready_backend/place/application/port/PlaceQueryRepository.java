@@ -34,6 +34,15 @@ public interface PlaceQueryRepository {
 		return List.of();
 	}
 
+	default List<RelatedPlaceRow> findRelatedPlaceFallbacks(
+		long placeId,
+		PlaceLanguage language,
+		List<Long> excludedPlaceIds,
+		int limit
+	) {
+		return List.of();
+	}
+
 	record PlaceListCriteria(
 		ServiceRegionCode serviceRegionCode,
 		List<TravelStyle> travelStyles,

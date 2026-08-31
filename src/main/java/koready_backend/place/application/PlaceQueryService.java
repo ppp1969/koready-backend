@@ -154,8 +154,19 @@ public class PlaceQueryService {
 		PlaceQueryRepository.PlaceDetailFacts facts = java.util.Optional
 			.ofNullable(repository.findDetailFacts(placeId))
 			.orElseGet(PlaceQueryRepository.PlaceDetailFacts::empty);
-		List<RelatedPlace> relatedPlaces = repository.findRelatedPlaces(
-				placeId, language, 3)
+		List<PlaceQueryRepository.RelatedPlaceRow> confirmedRelated =
+			repository.findRelatedPlaces(placeId, language, 3);
+		List<PlaceQueryRepository.RelatedPlaceRow> completedRelated =
+			new ArrayList<>(confirmedRelated);
+		if (completedRelated.size() < 3) {
+			List<Long> excludedPlaceIds = new ArrayList<>();
+			excludedPlaceIds.add(placeId);
+			excludedPlaceIds.addAll(completedRelated.stream()
+				.map(PlaceQueryRepository.RelatedPlaceRow::placeId).toList());
+			completedRelated.addAll(repository.findRelatedPlaceFallbacks(
+				placeId, language, excludedPlaceIds, 3 - completedRelated.size()));
+		}
+		List<RelatedPlace> relatedPlaces = completedRelated
 			.stream()
 			.map(related -> new RelatedPlace(
 				related.placeId(),

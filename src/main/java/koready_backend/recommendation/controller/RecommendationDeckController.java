@@ -20,6 +20,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import koready_backend.common.controller.ApiEnvelope;
 import koready_backend.common.controller.TraceIdFilter;
+import koready_backend.editorial.application.EditorialService;
+import koready_backend.editorial.domain.EditorialLanguage;
 import koready_backend.place.application.port.ResponseLanguageResolver;
 import koready_backend.recommendation.application.RecommendationDeckService;
 import koready_backend.recommendation.application.RecommendationEventService;
@@ -32,15 +34,18 @@ public class RecommendationDeckController {
 	private final RecommendationDeckService service;
 	private final RecommendationEventService eventService;
 	private final ResponseLanguageResolver languageResolver;
+	private final EditorialService editorialService;
 
 	public RecommendationDeckController(
 		RecommendationDeckService service,
 		RecommendationEventService eventService,
-		ResponseLanguageResolver languageResolver
+		ResponseLanguageResolver languageResolver,
+		EditorialService editorialService
 	) {
 		this.service = service;
 		this.eventService = eventService;
 		this.languageResolver = languageResolver;
+		this.editorialService = editorialService;
 	}
 
 	@PostMapping
@@ -51,15 +56,19 @@ public class RecommendationDeckController {
 		Authentication authentication,
 		HttpServletRequest request
 	) {
+		var language = languageResolver.resolve(authentication.getName(), acceptLanguage);
 		var page = service.createDeck(
 			authentication.getName(),
 			body.scope(),
 			body.originLocationId(),
 			body.size(),
-			languageResolver.resolve(authentication.getName(), acceptLanguage));
+			language);
+		var editorialContents = editorialService.findReadyCardContents(
+			page.cards().stream().map(RecommendationDeckService.RecommendationCard::placeId).toList(),
+			EditorialLanguage.valueOf(language.name()));
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiEnvelope.success(
 			"RECOMMENDATION_DECK_CREATED",
-			RecommendationDeckDtos.from(page),
+			RecommendationDeckDtos.from(page, editorialContents, language),
 			TraceIdFilter.current(request)));
 	}
 
@@ -87,13 +96,19 @@ public class RecommendationDeckController {
 	public ApiEnvelope<RecommendationDeckDtos.RecommendationDeckResponse> getPage(
 		@PathVariable @NotBlank @Size(max = 100) String deckId,
 		@RequestParam(required = false) @Size(max = 512) String cursor,
+		@RequestHeader(name = HttpHeaders.ACCEPT_LANGUAGE, required = false)
+		String acceptLanguage,
 		Authentication authentication,
 		HttpServletRequest request
 	) {
+		var language = languageResolver.resolve(authentication.getName(), acceptLanguage);
+		var page = service.getPage(authentication.getName(), deckId, cursor);
+		var editorialContents = editorialService.findReadyCardContents(
+			page.cards().stream().map(RecommendationDeckService.RecommendationCard::placeId).toList(),
+			EditorialLanguage.valueOf(language.name()));
 		return ApiEnvelope.success(
 			"RECOMMENDATION_DECK_OK",
-			RecommendationDeckDtos.from(service.getPage(
-				authentication.getName(), deckId, cursor)),
+			RecommendationDeckDtos.from(page, editorialContents, language),
 			TraceIdFilter.current(request));
 	}
 }

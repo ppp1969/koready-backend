@@ -53,13 +53,15 @@ final class PlaceDtos {
 			detail.usageFee(),
 			detail.parkingInfo(),
 			detail.images().stream().map(PlaceDtos::from).toList(),
+			detail.travelStyle(),
 			content == null ? List.of() : content.tags().stream()
 				.map(tag -> tag(tag, language)).toList(),
 			detail.isSaved(),
 			from(content),
 			editorial.status(),
 			detail.relatedPlaces().stream()
-				.map(place -> from(place, relatedEditorialContents.get(place.placeId())))
+				.map(place -> from(
+					place, relatedEditorialContents.get(place.placeId()), language))
 				.toList(),
 			availableTabs(detail, content));
 	}
@@ -93,10 +95,10 @@ final class PlaceDtos {
 			card.imageUrl(),
 			from(card.festivalOccurrence()),
 			card.travelStyle(),
-			editorial == null ? card.tags() : editorial.tags().stream()
+			editorial == null ? List.of() : editorial.tags().stream()
 				.map(tag -> language == PlaceLanguage.EN ? tag.labelEn() : tag.labelKo())
 				.toList(),
-			editorial == null ? card.shortDescription() : editorial.shortDescription(),
+			editorial == null ? null : editorial.shortDescription(),
 			card.saved());
 	}
 
@@ -138,11 +140,15 @@ final class PlaceDtos {
 
 	private static RelatedPlaceResponse from(
 		PlaceQueryService.RelatedPlace place,
-		EditorialService.CardEditorialContent editorial
+		EditorialService.CardEditorialContent editorial,
+		PlaceLanguage language
 	) {
 		return new RelatedPlaceResponse(
-			place.placeId(), place.title(), place.imageUrl(),
-			editorial == null ? place.shortDescription() : editorial.shortDescription());
+			place.placeId(), place.title(), place.imageUrl(), place.travelStyle(),
+			editorial == null ? List.of() : editorial.tags().stream()
+				.map(tag -> language == PlaceLanguage.EN ? tag.labelEn() : tag.labelKo())
+				.toList(),
+			editorial == null ? null : editorial.shortDescription());
 	}
 
 	record PlaceListResponse(
@@ -192,6 +198,7 @@ final class PlaceDtos {
 		String usageFee,
 		String parkingInfo,
 		List<PlaceImageResponse> images,
+		TravelStyle travelStyle,
 		List<PlaceTagResponse> tags,
 		boolean isSaved,
 		PlaceDescriptionResponse description,
@@ -220,6 +227,8 @@ final class PlaceDtos {
 		long placeId,
 		String title,
 		String imageUrl,
+		TravelStyle travelStyle,
+		List<String> tags,
 		String shortDescription
 	) {
 	}

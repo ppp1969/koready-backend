@@ -268,7 +268,7 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		        ),
 		        related.first_image_url
 		    ) AS image_url,
-		    requested.overview AS short_description
+		    NULL AS short_description
 		FROM (
 		    SELECT
 		        related_place_id,
@@ -339,7 +339,7 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		         LIMIT 1),
 		        NULLIF(TRIM(related.first_image_url), '')
 		    ) AS image_url,
-		    requested.overview AS short_description
+		    NULL AS short_description
 		FROM places related
 		LEFT JOIN place_localizations requested
 		  ON requested.place_id = related.id AND requested.language = :language
@@ -548,6 +548,39 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 		}
 		return findRelatedPlaceFallbacks(
 			placeId, language, excludedPlaceIds, limit, false);
+	}
+
+	@Override
+	public Optional<TravelStyle> findPrimaryTravelStyle(long placeId) {
+		return findPrimaryTravelStyles(List.of(placeId)).values().stream().findFirst();
+	}
+
+	@Override
+	public Map<Long, TravelStyle> findPrimaryTravelStyles(List<Long> placeIds) {
+		if (placeIds == null || placeIds.isEmpty()) {
+			return Map.of();
+		}
+		Map<Long, TravelStyle> result = new LinkedHashMap<>();
+		jdbcTemplate.query(
+			"""
+			SELECT candidate.id AS place_id,
+			       (SELECT style.travel_style
+			        FROM place_style_mappings style
+			        WHERE style.place_id = candidate.id
+			        ORDER BY style.is_primary DESC, style.confidence DESC,
+			                 style.travel_style ASC
+			        LIMIT 1) AS travel_style
+			FROM places candidate
+			WHERE candidate.id IN (:placeIds)
+			""",
+			new MapSqlParameterSource("placeIds", placeIds),
+			resultSet -> {
+				String style = resultSet.getString("travel_style");
+				if (style != null) {
+					result.put(resultSet.getLong("place_id"), TravelStyle.valueOf(style));
+				}
+			});
+		return Map.copyOf(result);
 	}
 
 	@Override

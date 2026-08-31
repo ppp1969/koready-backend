@@ -2,7 +2,10 @@ package koready_backend.recommendation.controller;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
+import koready_backend.editorial.application.EditorialService;
+import koready_backend.place.domain.PlaceLanguage;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -20,7 +23,9 @@ final class RecommendationDeckDtos {
 	}
 
 	static RecommendationDeckResponse from(
-		RecommendationDeckService.RecommendationDeckPage page
+		RecommendationDeckService.RecommendationDeckPage page,
+		Map<Long, EditorialService.CardEditorialContent> editorialContents,
+		PlaceLanguage language
 	) {
 		return new RecommendationDeckResponse(
 			page.deckId(),
@@ -29,7 +34,9 @@ final class RecommendationDeckDtos {
 				page.originLocation().locationId(),
 				page.originLocation().displayName(),
 				page.originLocation().serviceRegionCode()),
-			page.cards().stream().map(RecommendationDeckDtos::from).toList(),
+			page.cards().stream()
+				.map(card -> from(card, editorialContents.get(card.placeId()), language))
+				.toList(),
 			page.nextCursor(),
 			page.hasMore(),
 			page.remainingThreshold(),
@@ -50,7 +57,9 @@ final class RecommendationDeckDtos {
 	}
 
 	private static RecommendationCardResponse from(
-		RecommendationDeckService.RecommendationCard card
+		RecommendationDeckService.RecommendationCard card,
+		EditorialService.CardEditorialContent editorial,
+		PlaceLanguage language
 	) {
 		return new RecommendationCardResponse(
 			card.placeId(),
@@ -58,8 +67,10 @@ final class RecommendationDeckDtos {
 			card.locationText(),
 			card.imageUrl(),
 			card.saved(),
-			card.tags(),
-			card.shortDescription(),
+			editorial == null ? List.of() : editorial.tags().stream()
+				.map(tag -> language == PlaceLanguage.EN ? tag.labelEn() : tag.labelKo())
+				.toList(),
+			editorial == null ? null : editorial.shortDescription(),
 			card.serviceRegionCode(),
 			card.travelStyle(),
 			card.matchRank(),

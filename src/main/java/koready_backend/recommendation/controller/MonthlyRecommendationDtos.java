@@ -2,7 +2,10 @@ package koready_backend.recommendation.controller;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
+import koready_backend.editorial.application.EditorialService;
+import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
 import koready_backend.recommendation.application.MonthlyRecommendationService;
@@ -16,13 +19,17 @@ final class MonthlyRecommendationDtos {
 	}
 
 	static MonthlyRecommendationListResponse from(
-		MonthlyRecommendationService.MonthlyRecommendationPage page
+		MonthlyRecommendationService.MonthlyRecommendationPage page,
+		Map<Long, EditorialService.CardEditorialContent> editorialContents,
+		PlaceLanguage language
 	) {
 		return new MonthlyRecommendationListResponse(
 			page.year(),
 			page.month(),
 			from(page.appliedFilters()),
-			page.items().stream().map(MonthlyRecommendationDtos::from).toList(),
+			page.items().stream()
+				.map(card -> from(card, editorialContents.get(card.placeId()), language))
+				.toList(),
 			page.nextCursor(),
 			page.hasMore(),
 			page.totalCount());
@@ -42,7 +49,11 @@ final class MonthlyRecommendationDtos {
 			filters.sort());
 	}
 
-	private static PlaceCardResponse from(MonthlyRecommendationService.PlaceCard card) {
+	private static PlaceCardResponse from(
+		MonthlyRecommendationService.PlaceCard card,
+		EditorialService.CardEditorialContent editorial,
+		PlaceLanguage language
+	) {
 		return new PlaceCardResponse(
 			card.placeId(),
 			card.title(),
@@ -53,8 +64,10 @@ final class MonthlyRecommendationDtos {
 			from(card.festivalOccurrence()),
 			card.operatingHours(),
 			card.travelStyle(),
-			card.tags(),
-			card.shortDescription(),
+			editorial == null ? List.of() : editorial.tags().stream()
+				.map(tag -> language == PlaceLanguage.EN ? tag.labelEn() : tag.labelKo())
+				.toList(),
+			editorial == null ? null : editorial.shortDescription(),
 			card.saved());
 	}
 

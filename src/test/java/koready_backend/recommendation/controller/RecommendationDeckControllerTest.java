@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.common.controller.TraceIdFilter;
+import koready_backend.editorial.application.EditorialService;
+import koready_backend.editorial.domain.TourismPurposeTag;
 import koready_backend.place.application.port.ResponseLanguageResolver;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
@@ -49,6 +52,9 @@ class RecommendationDeckControllerTest {
 	@MockitoBean
 	ResponseLanguageResolver languageResolver;
 
+	@MockitoBean
+	EditorialService editorialService;
+
 	@BeforeEach
 	void serviceDefaults() {
 		when(languageResolver.resolve(USER_PUBLIC_ID, "en-US"))
@@ -64,6 +70,10 @@ class RecommendationDeckControllerTest {
 			.thenReturn(page());
 		when(service.getPage(USER_PUBLIC_ID, "rec_test", "next-cursor"))
 			.thenReturn(page());
+		when(editorialService.findReadyCardContents(any(), any())).thenReturn(Map.of(
+			1L, new EditorialService.CardEditorialContent(
+				"Explore nature close to the city.",
+				List.of(TourismPurposeTag.SCENERY, TourismPurposeTag.WALK))));
 	}
 
 	@Test
@@ -95,6 +105,9 @@ class RecommendationDeckControllerTest {
 			.andExpect(jsonPath("$.data.originLocation.locationId").value(10))
 			.andExpect(jsonPath("$.data.cards", hasSize(1)))
 			.andExpect(jsonPath("$.data.cards[0].matchRank").value(2))
+			.andExpect(jsonPath("$.data.cards[0].tags[0]").value("#Scenery"))
+			.andExpect(jsonPath("$.data.cards[0].shortDescription")
+				.value("Explore nature close to the city."))
 			.andExpect(jsonPath("$.data.cards[0].saved").value(false))
 			.andExpect(jsonPath("$.data.nextCursor").value("next-cursor"))
 			.andExpect(jsonPath("$.data.deduplication.guaranteedWithinDeck").value(true))

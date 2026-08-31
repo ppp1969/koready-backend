@@ -41,7 +41,6 @@ public class RecommendationDeckService {
 	private static final int MAX_CANDIDATES = 500;
 	private static final int MAX_DECK_ITEMS = 200;
 	private static final int REMAINING_THRESHOLD = 5;
-	private static final int SHORT_DESCRIPTION_LENGTH = 160;
 	private static final Duration DECK_TTL = Duration.ofHours(24);
 
 	private final RecommendationDeckRepository repository;
@@ -170,10 +169,10 @@ public class RecommendationDeckService {
 			candidate.title(),
 			candidate.locationText(),
 			candidate.imageUrl(),
-			shortDescription(candidate.overview()),
+			null,
 			candidate.serviceRegionCode(),
 			primary,
-			candidate.travelStyles().stream().map(Enum::name).toList(),
+			List.of(),
 			matched == null ? 3 : 2,
 			matched != null,
 			false,
@@ -246,16 +245,6 @@ public class RecommendationDeckService {
 				snapshot.matchedTagCodes()));
 	}
 
-	private static String shortDescription(String overview) {
-		if (overview == null || overview.isBlank()) {
-			return null;
-		}
-		String normalized = overview.strip().replaceAll("\\s+", " ");
-		if (normalized.length() <= SHORT_DESCRIPTION_LENGTH) {
-			return normalized;
-		}
-		return normalized.substring(0, SHORT_DESCRIPTION_LENGTH - 3).stripTrailing() + "...";
-	}
 
 	private static String tieBreak(String seed, long placeId) {
 		return sha256(seed + ":" + placeId);

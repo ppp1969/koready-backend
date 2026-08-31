@@ -2,6 +2,7 @@ package koready_backend.place.controller;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -25,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import koready_backend.common.controller.TraceIdFilter;
 import koready_backend.editorial.application.EditorialService;
 import koready_backend.editorial.domain.EditorialJobStatus;
+import koready_backend.editorial.domain.TourismPurposeTag;
 import koready_backend.place.application.port.PlaceQueryRepository;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceDetailRow;
 import koready_backend.place.application.port.PlaceQueryRepository.PlaceRow;
@@ -106,6 +108,8 @@ class PlaceControllerTest {
 				null,
 				null,
 				"KTO_KO")));
+		when(repository.findPrimaryTravelStyle(3L))
+			.thenReturn(Optional.of(TravelStyle.NATURE));
 
 		mockMvc.perform(get("/api/v1/places/3"))
 			.andExpect(status().isOk())
@@ -113,11 +117,38 @@ class PlaceControllerTest {
 			.andExpect(jsonPath("$.data.address").value((Object) null))
 			.andExpect(jsonPath("$.data.operatingHours").value((Object) null))
 			.andExpect(jsonPath("$.data.images", hasSize(0)))
+			.andExpect(jsonPath("$.data.travelStyle").value("NATURE"))
 			.andExpect(jsonPath("$.data.availableTabs", hasSize(1)))
 			.andExpect(jsonPath("$.data.availableTabs[0]").value("MATES"))
 			.andExpect(jsonPath("$.data.editorialStatus").value("QUEUED"))
 			.andExpect(jsonPath("$.data.description").value((Object) null))
 			.andExpect(jsonPath("$.data.isSaved").value(false));
+	}
+
+	@Test
+	void returnsEditorialMetadataForRelatedPlaces() throws Exception {
+		when(repository.findDetail(10L, PlaceLanguage.KO)).thenReturn(Optional.of(
+			new PlaceDetailRow(
+				10L, "기준 장소", ServiceRegionCode.SEOUL, "서울", "주소",
+				null, null, null, "긴 KTO 원문", "KTO_KO")));
+		when(repository.findRelatedPlacesWithSameStyle(
+			10L, PlaceLanguage.KO, List.of(10L), 3))
+			.thenReturn(List.of(new PlaceQueryRepository.RelatedPlaceRow(
+				20L, "연관 장소", "https://example.invalid/related.jpg", "긴 원문")));
+		when(repository.findPrimaryTravelStyles(List.of(20L)))
+			.thenReturn(Map.of(20L, TravelStyle.TRADITIONAL_MARKET));
+		when(editorialService.findReadyCardContents(eq(List.of(20L)), any()))
+			.thenReturn(Map.of(20L, new EditorialService.CardEditorialContent(
+				"시장 문화를 가까이에서 경험할 수 있어요.",
+				List.of(TourismPurposeTag.LOCAL, TourismPurposeTag.EXPLORATION))));
+
+		mockMvc.perform(get("/api/v1/places/10"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.relatedPlaces[0].travelStyle")
+				.value("TRADITIONAL_MARKET"))
+			.andExpect(jsonPath("$.data.relatedPlaces[0].tags[0]").value("#로컬"))
+			.andExpect(jsonPath("$.data.relatedPlaces[0].shortDescription")
+				.value("시장 문화를 가까이에서 경험할 수 있어요."));
 	}
 
 	@Test

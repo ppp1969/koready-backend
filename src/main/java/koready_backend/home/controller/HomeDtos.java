@@ -2,7 +2,9 @@ package koready_backend.home.controller;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
+import koready_backend.editorial.application.EditorialService;
 import koready_backend.home.application.HomeService;
 import koready_backend.home.application.port.HomeRepository.HomeLocation;
 import koready_backend.place.domain.PlaceLanguage;
@@ -16,7 +18,10 @@ final class HomeDtos {
 	private HomeDtos() {
 	}
 
-	static HomeResponse from(HomeService.Home home) {
+	static HomeResponse from(
+		HomeService.Home home,
+		Map<Long, EditorialService.CardEditorialContent> editorialContents
+	) {
 		return new HomeResponse(
 			from(home.currentLocation()),
 			home.preferredLanguage(),
@@ -26,7 +31,8 @@ final class HomeDtos {
 				home.monthlyRecommendation().title(),
 				home.monthlyRecommendation().totalCount(),
 				home.monthlyRecommendation().items().stream()
-					.map(HomeDtos::from)
+					.map(card -> from(
+						card, editorialContents.get(card.placeId()), home.preferredLanguage()))
 					.toList()));
 	}
 
@@ -39,7 +45,11 @@ final class HomeDtos {
 				location.serviceRegionCode());
 	}
 
-	private static PlaceCardResponse from(MonthlyRecommendationService.PlaceCard card) {
+	private static PlaceCardResponse from(
+		MonthlyRecommendationService.PlaceCard card,
+		EditorialService.CardEditorialContent editorial,
+		PlaceLanguage language
+	) {
 		return new PlaceCardResponse(
 			card.placeId(),
 			card.title(),
@@ -49,8 +59,10 @@ final class HomeDtos {
 			card.imageUrl(),
 			from(card.festivalOccurrence()),
 			card.travelStyle(),
-			card.tags(),
-			card.shortDescription(),
+			editorial == null ? List.of() : editorial.tags().stream()
+				.map(tag -> language == PlaceLanguage.EN ? tag.labelEn() : tag.labelKo())
+				.toList(),
+			editorial == null ? null : editorial.shortDescription(),
 			card.saved());
 	}
 

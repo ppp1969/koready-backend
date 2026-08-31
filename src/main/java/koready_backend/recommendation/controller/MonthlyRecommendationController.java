@@ -20,6 +20,8 @@ import jakarta.validation.constraints.Min;
 import koready_backend.common.controller.ApiEnvelope;
 import koready_backend.common.controller.AuthenticatedSubject;
 import koready_backend.common.controller.TraceIdFilter;
+import koready_backend.editorial.application.EditorialService;
+import koready_backend.editorial.domain.EditorialLanguage;
 import koready_backend.place.application.port.ResponseLanguageResolver;
 import koready_backend.place.domain.ServiceRegionCode;
 import koready_backend.place.domain.TravelStyle;
@@ -34,13 +36,16 @@ public class MonthlyRecommendationController {
 
 	private final MonthlyRecommendationService service;
 	private final ResponseLanguageResolver languageResolver;
+	private final EditorialService editorialService;
 
 	public MonthlyRecommendationController(
 		MonthlyRecommendationService service,
-		ResponseLanguageResolver languageResolver
+		ResponseLanguageResolver languageResolver,
+		EditorialService editorialService
 	) {
 		this.service = service;
 		this.languageResolver = languageResolver;
+		this.editorialService = editorialService;
 	}
 
 	@GetMapping
@@ -64,6 +69,7 @@ public class MonthlyRecommendationController {
 			HttpServletRequest request
 		) {
 		String userPublicId = AuthenticatedSubject.optional(authentication);
+		var language = languageResolver.resolve(userPublicId, acceptLanguage);
 		MonthlyRecommendationService.MonthlyRecommendationPage page =
 			service.getMonthlyRecommendations(
 				year,
@@ -76,11 +82,14 @@ public class MonthlyRecommendationController {
 				sort,
 				cursor,
 				size,
-				languageResolver.resolve(userPublicId, acceptLanguage),
+				language,
 				userPublicId);
+		var editorialContents = editorialService.findReadyCardContents(
+			page.items().stream().map(MonthlyRecommendationService.PlaceCard::placeId).toList(),
+			EditorialLanguage.valueOf(language.name()));
 		return ApiEnvelope.success(
 			"MONTHLY_RECOMMENDATIONS_OK",
-			MonthlyRecommendationDtos.from(page),
+			MonthlyRecommendationDtos.from(page, editorialContents, language),
 			TraceIdFilter.current(request));
 	}
 }

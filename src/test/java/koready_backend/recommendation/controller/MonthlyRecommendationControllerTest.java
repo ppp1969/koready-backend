@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import koready_backend.common.controller.TraceIdFilter;
+import koready_backend.editorial.application.EditorialService;
+import koready_backend.editorial.domain.TourismPurposeTag;
 import koready_backend.place.application.port.ResponseLanguageResolver;
 import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
@@ -43,11 +46,18 @@ class MonthlyRecommendationControllerTest {
 	@MockitoBean
 	private ResponseLanguageResolver languageResolver;
 
+	@MockitoBean
+	private EditorialService editorialService;
+
 	@BeforeEach
 	void repositoryDefaults() {
 		when(languageResolver.resolve(null, null)).thenReturn(PlaceLanguage.KO);
 		when(languageResolver.resolve(null, "en-US")).thenReturn(PlaceLanguage.EN);
 		when(repository.count(any())).thenReturn(1L);
+		when(editorialService.findReadyCardContents(any(), any())).thenReturn(Map.of(
+			17L, new EditorialService.CardEditorialContent(
+				"Join a local festival experience.",
+				List.of(TourismPurposeTag.LOCAL, TourismPurposeTag.EXPERIENCE))));
 		when(repository.findPage(any())).thenReturn(List.of(new MonthlyRecommendationRow(
 			71L,
 			17L,
@@ -90,6 +100,9 @@ class MonthlyRecommendationControllerTest {
 				.value("ENDED"))
 			.andExpect(jsonPath("$.data.items[0].operatingHours")
 				.value("10:00-18:00"))
+			.andExpect(jsonPath("$.data.items[0].tags[0]").value("#Local"))
+			.andExpect(jsonPath("$.data.items[0].shortDescription")
+				.value("Join a local festival experience."))
 			.andExpect(jsonPath("$.data.items[0].saved").value(false))
 			.andExpect(jsonPath("$.data.totalCount").value(1));
 	}

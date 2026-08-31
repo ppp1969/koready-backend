@@ -3,6 +3,7 @@ package koready_backend.place.application.port;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import koready_backend.place.domain.PlaceLanguage;
@@ -24,6 +25,14 @@ public interface PlaceQueryRepository {
 
 	default PlaceDetailFacts findDetailFacts(long placeId) {
 		return PlaceDetailFacts.empty();
+	}
+
+	default Optional<TravelStyle> findPrimaryTravelStyle(long placeId) {
+		return Optional.empty();
+	}
+
+	default Map<Long, TravelStyle> findPrimaryTravelStyles(List<Long> placeIds) {
+		return Map.of();
 	}
 
 	default List<RelatedPlaceRow> findRelatedPlaces(

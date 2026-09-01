@@ -282,7 +282,7 @@ origin 목록으로 이 값을 축소한다.
 - `POST /api/v1/reports`: 프로필·수신 메시지의 멱등 신고 접수와 운영 증빙 보존
 - `GET /api/v1/users/me/onboarding`: 저장된 온보딩 진행 단계와 선택값 복구
 - `PUT /api/v1/users/me/onboarding`: 위치 소유권·후보 버전·선택값 검증 후 멱등 완료
-- `GET /api/v1/locations/search`: Kakao 주소·장소 정규화 검색과 10분 유효 서명 token 발급
+- `GET /api/v1/locations/search`: `language=KO`는 Kakao 한글 검색, `language=EN`은 Google Places 공식 영문 검색 결과와 10분 유효 서명 token 발급
 - `GET /api/v1/users/me/locations`: 기본 위치 우선으로 저장 위치 목록 조회
 - `POST /api/v1/users/me/locations`: 서명된 검색 결과를 주소·좌표 위변조 없이 저장
 - `PUT /api/v1/users/me/locations/{locationId}/default`: 내 활성 위치를 기본 위치로 변경

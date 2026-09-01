@@ -44,4 +44,22 @@ class LocationServiceRegionMapperTest {
 		assertTrue(LocationServiceRegionMapper.fromSido("  ").isEmpty());
 		assertTrue(LocationServiceRegionMapper.fromSido("Tokyo").isEmpty());
 	}
+
+	@Test
+	void mapsEnglishAdministrativeAreasToServiceRegions() {
+		Map<String, ServiceRegionCode> expectations = Map.ofEntries(
+			Map.entry("Seoul", ServiceRegionCode.SEOUL),
+			Map.entry("Incheon", ServiceRegionCode.GYEONGGI),
+			Map.entry("Gyeonggi-do", ServiceRegionCode.GYEONGGI),
+			Map.entry("Gangwon State", ServiceRegionCode.GANGWON),
+			Map.entry("Daejeon", ServiceRegionCode.CHUNGCHEONG),
+			Map.entry("Jeollabuk-do", ServiceRegionCode.JEOLLA),
+			Map.entry("Busan", ServiceRegionCode.GYEONGSANG),
+			Map.entry("Jeju-do", ServiceRegionCode.JEJU));
+
+		expectations.forEach((sido, expected) -> assertEquals(
+			expected,
+			LocationServiceRegionMapper.fromSido(sido).orElseThrow(),
+			sido));
+	}
 }

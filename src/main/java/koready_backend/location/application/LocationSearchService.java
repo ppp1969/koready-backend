@@ -11,11 +11,13 @@ import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 import koready_backend.location.application.port.LocationSearchProvider;
+import koready_backend.location.application.port.EnglishLocationSearchProvider;
 import koready_backend.location.application.port.LocationSearchTokenCodec;
 import koready_backend.location.domain.LocationSearchCandidate;
 import koready_backend.location.domain.LocationSearchResultType;
 import koready_backend.location.domain.LocationServiceRegionMapper;
 import koready_backend.place.domain.ServiceRegionCode;
+import koready_backend.place.domain.PlaceLanguage;
 
 @Service
 public class LocationSearchService {
@@ -25,24 +27,30 @@ public class LocationSearchService {
 	private static final int MAX_LIMIT = 20;
 
 	private final LocationSearchProvider provider;
+	private final EnglishLocationSearchProvider englishProvider;
 	private final LocationSearchTokenCodec tokenCodec;
 
 	public LocationSearchService(
 		LocationSearchProvider provider,
+		EnglishLocationSearchProvider englishProvider,
 		LocationSearchTokenCodec tokenCodec
 	) {
 		this.provider = provider;
+		this.englishProvider = englishProvider;
 		this.tokenCodec = tokenCodec;
 	}
 
-	public SearchResponse search(String query, int limit) {
+	public SearchResponse search(String query, int limit, PlaceLanguage language) {
 		String normalizedQuery = normalizeQuery(query);
+		Objects.requireNonNull(language, "Location search language is required");
 		if (limit < 1 || limit > MAX_LIMIT) {
 			throw new IllegalArgumentException("Location search limit is invalid");
 		}
 
-		List<LocationSearchCandidate> candidates = new ArrayList<>(
-			Objects.requireNonNull(provider.search(normalizedQuery, limit)));
+		List<LocationSearchCandidate> candidates = new ArrayList<>(Objects.requireNonNull(
+			language == PlaceLanguage.EN
+				? englishProvider.search(normalizedQuery, limit)
+				: provider.search(normalizedQuery, limit)));
 		candidates.sort(Comparator.comparing(candidate ->
 			candidate.resultType() == LocationSearchResultType.PLACE ? 0 : 1));
 
@@ -79,6 +87,8 @@ public class LocationSearchService {
 		LocationSearchCandidate candidate = mapped.candidate();
 		return new SearchItem(
 			tokenCodec.issue(candidate, mapped.region()),
+			candidate.provider(),
+			candidate.language(),
 			candidate.resultType(),
 			candidate.providerPlaceId(),
 			candidate.name(),
@@ -152,6 +162,8 @@ public class LocationSearchService {
 
 	public record SearchItem(
 		String searchResultToken,
+		String provider,
+		PlaceLanguage language,
 		LocationSearchResultType resultType,
 		String providerPlaceId,
 		String name,

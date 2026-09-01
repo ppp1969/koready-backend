@@ -14,6 +14,7 @@ import jakarta.validation.constraints.Size;
 import koready_backend.common.controller.ApiEnvelope;
 import koready_backend.common.controller.TraceIdFilter;
 import koready_backend.location.application.LocationSearchService;
+import koready_backend.place.domain.PlaceLanguage;
 
 @Validated
 @RestController
@@ -30,11 +31,12 @@ public class LocationSearchController {
 	public ApiEnvelope<LocationSearchDtos.LocationSearchResponse> search(
 		@RequestParam @NotBlank @Size(max = 100) String query,
 		@RequestParam(defaultValue = "10") @Min(1) @Max(20) int limit,
+		@RequestParam(defaultValue = "KO") PlaceLanguage language,
 		HttpServletRequest request
 	) {
 		return ApiEnvelope.success(
 			"LOCATION_SEARCH_OK",
-			LocationSearchDtos.from(service.search(query, limit)),
+			LocationSearchDtos.from(service.search(query, limit, language)),
 			TraceIdFilter.current(request));
 	}
 }

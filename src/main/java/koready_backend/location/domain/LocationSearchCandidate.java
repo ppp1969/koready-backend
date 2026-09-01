@@ -2,7 +2,11 @@ package koready_backend.location.domain;
 
 import java.util.Objects;
 
+import koready_backend.place.domain.PlaceLanguage;
+
 public record LocationSearchCandidate(
+	String provider,
+	PlaceLanguage language,
 	LocationSearchResultType resultType,
 	String providerPlaceId,
 	String name,
@@ -29,6 +33,8 @@ public record LocationSearchCandidate(
 		String dong
 	) {
 		this(
+			"KAKAO",
+			PlaceLanguage.KO,
 			resultType,
 			providerPlaceId,
 			name,
@@ -42,7 +48,38 @@ public record LocationSearchCandidate(
 			null);
 	}
 
+	public LocationSearchCandidate(
+		LocationSearchResultType resultType,
+		String providerPlaceId,
+		String name,
+		String roadAddress,
+		String address,
+		double latitude,
+		double longitude,
+		String sido,
+		String sigungu,
+		String dong,
+		String postalCode
+	) {
+		this(
+			"KAKAO",
+			PlaceLanguage.KO,
+			resultType,
+			providerPlaceId,
+			name,
+			roadAddress,
+			address,
+			latitude,
+			longitude,
+			sido,
+			sigungu,
+			dong,
+			postalCode);
+	}
+
 	public LocationSearchCandidate {
+		provider = required(provider, 50, "Location provider");
+		Objects.requireNonNull(language, "Location language is required");
 		Objects.requireNonNull(resultType, "Location result type is required");
 		name = required(name, 200, "Location name");
 		sido = required(sido, 100, "Location sido");

@@ -22,6 +22,7 @@ import koready_backend.location.domain.LocationSearchCandidate;
 import koready_backend.location.domain.LocationSearchResultType;
 import koready_backend.location.infrastructure.config.LocationSearchProperties;
 import koready_backend.place.domain.ServiceRegionCode;
+import koready_backend.place.domain.PlaceLanguage;
 
 @Component
 public final class HmacLocationSearchTokenCodec implements LocationSearchTokenCodec {
@@ -136,6 +137,8 @@ public final class HmacLocationSearchTokenCodec implements LocationSearchTokenCo
 
 	private record SignedPayload(
 		int version,
+		String provider,
+		PlaceLanguage language,
 		LocationSearchResultType resultType,
 		String providerPlaceId,
 		String name,
@@ -157,7 +160,9 @@ public final class HmacLocationSearchTokenCodec implements LocationSearchTokenCo
 			Instant expiresAt
 		) {
 			return new SignedPayload(
-				1,
+				2,
+				candidate.provider(),
+				candidate.language(),
 				candidate.resultType(),
 				candidate.providerPlaceId(),
 				candidate.name(),
@@ -174,11 +179,13 @@ public final class HmacLocationSearchTokenCodec implements LocationSearchTokenCo
 		}
 
 		private TokenPayload toTokenPayload() {
-			if (version != 1) {
+			if (version != 1 && version != 2) {
 				throw new InvalidLocationSearchTokenException();
 			}
 			return new TokenPayload(
 				new LocationSearchCandidate(
+					version == 1 || provider == null ? "KAKAO" : provider,
+					version == 1 || language == null ? PlaceLanguage.KO : language,
 					resultType,
 					providerPlaceId,
 					name,

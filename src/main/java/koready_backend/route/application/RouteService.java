@@ -77,7 +77,8 @@ public class RouteService {
 		try {
 			candidates = provider.findRoutes(new TransitRouteProvider.RouteProviderRequest(
 				context.originLatitude(), context.originLongitude(),
-				context.destinationLatitude(), context.destinationLongitude(), departure));
+				context.destinationLatitude(), context.destinationLongitude(), departure,
+				PlaceLanguage.valueOf(context.language())));
 		} catch (TransitProviderException exception) {
 			throw new RouteException(RouteException.Reason.ROUTE_PROVIDER_UNAVAILABLE);
 		}

@@ -18,6 +18,7 @@ import koready_backend.location.application.port.LocationSearchTokenCodec;
 import koready_backend.location.domain.LocationSearchCandidate;
 import koready_backend.location.domain.LocationSearchResultType;
 import koready_backend.location.infrastructure.config.LocationSearchProperties;
+import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
 
 class HmacLocationSearchTokenCodecTest {
@@ -33,6 +34,8 @@ class HmacLocationSearchTokenCodecTest {
 
 		assertTrue(token.startsWith("locsrch_"));
 		assertEquals(candidate(), verified.candidate());
+		assertEquals("KAKAO", verified.candidate().provider());
+		assertEquals(PlaceLanguage.KO, verified.candidate().language());
 		assertEquals(ServiceRegionCode.SEOUL, verified.serviceRegionCode());
 		assertEquals(NOW.plus(Duration.ofMinutes(10)), verified.expiresAt());
 	}

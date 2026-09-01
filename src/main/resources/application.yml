@@ -90,6 +90,12 @@ koready:
       max-response-bytes: ${KAKAO_LOCAL_MAX_RESPONSE_BYTES:524288}
       connect-timeout: ${KAKAO_LOCAL_CONNECT_TIMEOUT:3s}
       read-timeout: ${KAKAO_LOCAL_READ_TIMEOUT:5s}
+    google-places:
+      base-url: ${GOOGLE_PLACES_BASE_URL:https://places.googleapis.com}
+      api-key: ${GOOGLE_PLACES_API_KEY:}
+      max-response-bytes: ${GOOGLE_PLACES_MAX_RESPONSE_BYTES:524288}
+      connect-timeout: ${GOOGLE_PLACES_CONNECT_TIMEOUT:3s}
+      read-timeout: ${GOOGLE_PLACES_READ_TIMEOUT:5s}
   route:
     tmap:
       base-url: ${TMAP_BASE_URL:https://apis.openapi.sk.com}

@@ -329,13 +329,15 @@ paths:
     get:
       tags: [Location]
       operationId: searchLocations
-      summary: Kakao 기반 주소·학교·동네 검색
+      summary: 한글·영문 주소·학교·동네 검색
       description: |
         **호출 시점:** 위치 검색어 입력을 300~500ms debounce한 뒤 호출합니다.
-        백엔드가 Kakao 주소 검색과 키워드 검색을 합치고 중복 제거, 주소 정규화, 7개 권역 매핑을 수행합니다.
+        `language=KO`는 Kakao 주소·키워드 검색 결과를 한글로, `language=EN`은 Google Places 공식 영문 결과를 반환합니다.
+        영문 결과의 `name`, `roadAddress`, `address`는 백엔드가 임의 번역하거나 로마자로 바꾼 값이 아니라 Google Places가 제공한 영문 표기입니다.
+        백엔드는 중복 제거, 주소 정규화, 7개 권역 매핑을 수행합니다.
         결과 없음은 200 `items=[]`입니다. 선택한 항목의 `searchResultToken`만 위치 저장 요청에 사용합니다.
         local 프로필은 외부 키 없이 성신여자대학교·홍익대학교·전주한옥마을 개발 데이터를 검색합니다.
-        staging/prod에서 Kakao 연동이 비활성 상태이거나 provider가 응답하지 않으면 503이며, 검색어와 원본 응답은 저장하지 않습니다.
+        staging/prod에서 연동이 비활성 상태이거나 해당 provider가 응답하지 않으면 503이며, 검색어와 원본 응답은 저장하지 않습니다.
       x-implementation-status: IMPLEMENTED
       parameters:
         - name: query
@@ -352,6 +354,13 @@ paths:
             minimum: 1
             maximum: 20
             default: 10
+        - name: language
+          in: query
+          description: 검색 결과 표시 언어. 생략하면 한글입니다.
+          schema:
+            type: string
+            enum: [KO, EN]
+            default: KO
       responses:
         '400':
           $ref: '#/components/responses/BadRequest'
@@ -4032,7 +4041,7 @@ components:
             $ref: '#/components/schemas/LocationSearchItem'
     LocationSearchItem:
       type: object
-      required: [searchResultToken, provider, resultType, name, latitude, longitude, sido, sigungu, serviceRegionCode]
+      required: [searchResultToken, provider, language, resultType, name, latitude, longitude, sido, sigungu, serviceRegionCode]
       properties:
         searchResultToken:
           type: string
@@ -4040,7 +4049,12 @@ components:
           example: locsrch_opaque_signed_token
         provider:
           type: string
-          enum: [KAKAO]
+          enum: [KAKAO, GOOGLE_PLACES]
+          description: 실제 검색 결과 제공자. KO는 KAKAO, EN은 GOOGLE_PLACES입니다.
+        language:
+          type: string
+          enum: [KO, EN]
+          description: name, roadAddress, address에 적용된 표시 언어
         resultType:
           $ref: '#/components/schemas/LocationSearchResultType'
         providerPlaceId:
@@ -4053,10 +4067,12 @@ components:
         roadAddress:
           type: string
           nullable: true
+          description: 요청 언어에 맞는 도로명 또는 공식 형식 주소
           example: 서울특별시 성북구 보문로34다길 2
         address:
           type: string
           nullable: true
+          description: 요청 언어에 맞는 지번 주소 또는 간략 형식 주소. 영문 provider가 별도 지번 주소를 제공하지 않으면 영문 간략 주소입니다.
           example: 서울특별시 성북구 돈암동 173-1
         postalCode:
           type: string

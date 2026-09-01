@@ -13,7 +13,7 @@ public final class LocationServiceRegionMapper {
 		if (sido == null || sido.isBlank()) {
 			return Optional.empty();
 		}
-		String value = sido.strip().replace(" ", "");
+		String value = sido.strip().replace(" ", "").toLowerCase(java.util.Locale.ROOT);
 		if (value.startsWith("서울")) {
 			return Optional.of(ServiceRegionCode.SEOUL);
 		}
@@ -38,6 +38,29 @@ public final class LocationServiceRegionMapper {
 			return Optional.of(ServiceRegionCode.GYEONGSANG);
 		}
 		if (value.startsWith("제주")) {
+			return Optional.of(ServiceRegionCode.JEJU);
+		}
+		if (value.startsWith("seoul")) {
+			return Optional.of(ServiceRegionCode.SEOUL);
+		}
+		if (value.startsWith("gyeonggi") || value.startsWith("incheon")) {
+			return Optional.of(ServiceRegionCode.GYEONGGI);
+		}
+		if (value.startsWith("gangwon")) {
+			return Optional.of(ServiceRegionCode.GANGWON);
+		}
+		if (value.startsWith("chungcheong") || value.startsWith("daejeon")
+			|| value.startsWith("sejong")) {
+			return Optional.of(ServiceRegionCode.CHUNGCHEONG);
+		}
+		if (value.startsWith("jeolla") || value.startsWith("gwangju")) {
+			return Optional.of(ServiceRegionCode.JEOLLA);
+		}
+		if (value.startsWith("gyeongsang") || value.startsWith("busan")
+			|| value.startsWith("daegu") || value.startsWith("ulsan")) {
+			return Optional.of(ServiceRegionCode.GYEONGSANG);
+		}
+		if (value.startsWith("jeju")) {
 			return Optional.of(ServiceRegionCode.JEJU);
 		}
 		return Optional.empty();

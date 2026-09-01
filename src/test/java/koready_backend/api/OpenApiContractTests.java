@@ -195,6 +195,42 @@ class OpenApiContractTests {
 	}
 
 	@Test
+	void locationSearchContractDocumentsOfficialKoreanAndEnglishResults()
+		throws IOException {
+		Map<String, Object> contract = loadContract();
+		Map<String, Object> operation = asMap(asMap(
+			asMap(contract.get("paths"), "paths").get("/locations/search"),
+			"location search path").get("get"), "location search operation");
+		String description = String.valueOf(operation.get("description"));
+		assertTrue(description.contains("language=KO"));
+		assertTrue(description.contains("language=EN"));
+		assertTrue(description.contains("임의 번역"));
+
+		Map<String, Object> language = null;
+		for (Object value : asList(operation.get("parameters"), "location parameters")) {
+			Map<String, Object> parameter = asMap(value, "location parameter");
+			if ("language".equals(parameter.get("name"))) {
+				language = parameter;
+				break;
+			}
+		}
+		assertNotNull(language);
+		assertEquals(List.of("KO", "EN"), asList(
+			asMap(language.get("schema"), "language schema").get("enum"),
+			"language enum"));
+
+		Map<String, Object> item = asMap(
+			componentSchemas(contract).get("LocationSearchItem"), "LocationSearchItem");
+		assertTrue(asList(item.get("required"), "LocationSearchItem.required")
+			.contains("language"));
+		Map<String, Object> properties = asMap(
+			item.get("properties"), "LocationSearchItem.properties");
+		assertEquals(List.of("KAKAO", "GOOGLE_PLACES"), asList(
+			asMap(properties.get("provider"), "provider").get("enum"),
+			"provider enum"));
+	}
+
+	@Test
 	void editorialAdminOperationsRequireAdminRole() throws IOException {
 		Map<String, Object> paths = asMap(loadContract().get("paths"), "paths");
 		Map<String, String> operations = Map.of(

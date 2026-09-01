@@ -20,7 +20,8 @@ final class LocationSearchDtos {
 	private static LocationSearchItem from(LocationSearchService.SearchItem item) {
 		return new LocationSearchItem(
 			item.searchResultToken(),
-			"KAKAO",
+			item.provider(),
+			item.language(),
 			item.resultType(),
 			item.providerPlaceId(),
 			item.name(),
@@ -41,6 +42,7 @@ final class LocationSearchDtos {
 	record LocationSearchItem(
 		String searchResultToken,
 		String provider,
+		koready_backend.place.domain.PlaceLanguage language,
 		LocationSearchResultType resultType,
 		String providerPlaceId,
 		String name,

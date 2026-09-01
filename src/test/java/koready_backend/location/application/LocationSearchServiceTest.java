@@ -14,9 +14,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import koready_backend.location.application.port.LocationSearchProvider;
+import koready_backend.location.application.port.EnglishLocationSearchProvider;
 import koready_backend.location.application.port.LocationSearchTokenCodec;
 import koready_backend.location.domain.LocationSearchCandidate;
 import koready_backend.location.domain.LocationSearchResultType;
+import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.place.domain.ServiceRegionCode;
 
 @ExtendWith(MockitoExtension.class)
@@ -24,6 +26,9 @@ class LocationSearchServiceTest {
 
 	@Mock
 	private LocationSearchProvider provider;
+
+	@Mock
+	private EnglishLocationSearchProvider englishProvider;
 
 	@Mock
 	private LocationSearchTokenCodec tokenCodec;
@@ -42,8 +47,8 @@ class LocationSearchServiceTest {
 			.thenAnswer(invocation -> "token-"
 				+ invocation.getArgument(0, LocationSearchCandidate.class).name());
 
-		var service = new LocationSearchService(provider, tokenCodec);
-		var result = service.search("  성신   여자대학교  ", 10);
+		var service = new LocationSearchService(provider, englishProvider, tokenCodec);
+		var result = service.search("  성신   여자대학교  ", 10, PlaceLanguage.KO);
 
 		assertEquals(1, result.items().size());
 		var item = result.items().getFirst();
@@ -61,7 +66,8 @@ class LocationSearchServiceTest {
 			candidate(LocationSearchResultType.PLACE, "2", "두 번째 학교", "강원특별자치도")));
 		when(tokenCodec.issue(any(), any())).thenReturn("token");
 
-		var result = new LocationSearchService(provider, tokenCodec).search("학교", 1);
+		var result = new LocationSearchService(provider, englishProvider, tokenCodec)
+			.search("학교", 1, PlaceLanguage.KO);
 
 		assertEquals(1, result.items().size());
 		assertEquals("첫 번째 학교", result.items().getFirst().name());
@@ -80,12 +86,42 @@ class LocationSearchServiceTest {
 		when(provider.search("같은 건물", 10)).thenReturn(List.of(address, first, second));
 		when(tokenCodec.issue(any(), any())).thenReturn("token");
 
-		var result = new LocationSearchService(provider, tokenCodec)
-			.search("같은 건물", 10);
+		var result = new LocationSearchService(provider, englishProvider, tokenCodec)
+			.search("같은 건물", 10, PlaceLanguage.KO);
 
 		assertEquals(List.of("place-1", "place-2"), result.items().stream()
 			.map(LocationSearchService.SearchItem::providerPlaceId)
 			.toList());
+	}
+
+	@Test
+	void usesEnglishProviderAndPreservesEnglishDisplayFields() {
+		LocationSearchCandidate english = new LocationSearchCandidate(
+			"GOOGLE_PLACES",
+			PlaceLanguage.EN,
+			LocationSearchResultType.PLACE,
+			"google-1",
+			"Gyeongbokgung Palace",
+			"161 Sajik-ro, Jongno-gu, Seoul",
+			"161 Sajik-ro, Jongno-gu, Seoul",
+			37.5796,
+			126.9770,
+			"Seoul",
+			"Jongno-gu",
+			null,
+			"03045");
+		when(englishProvider.search("Gyeongbokgung Palace", 10))
+			.thenReturn(List.of(english));
+		when(tokenCodec.issue(any(), eq(ServiceRegionCode.SEOUL)))
+			.thenReturn("token");
+
+		var result = new LocationSearchService(provider, englishProvider, tokenCodec)
+			.search("Gyeongbokgung Palace", 10, PlaceLanguage.EN);
+
+		assertEquals("GOOGLE_PLACES", result.items().getFirst().provider());
+		assertEquals(PlaceLanguage.EN, result.items().getFirst().language());
+		assertEquals("Gyeongbokgung Palace", result.items().getFirst().name());
+		verify(englishProvider).search("Gyeongbokgung Palace", 10);
 	}
 
 	private static LocationSearchCandidate candidate(

@@ -90,7 +90,7 @@ public class UserLocationService {
 			new NewLocation(
 				candidate.name(),
 				command.customLabel(),
-				"KAKAO",
+				candidate.provider(),
 				candidate.providerPlaceId(),
 				candidate.roadAddress(),
 				candidate.address(),

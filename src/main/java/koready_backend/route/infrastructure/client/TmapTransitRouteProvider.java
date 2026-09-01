@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.route.application.exception.TransitProviderException;
 import koready_backend.route.application.port.TransitRouteProvider;
 import koready_backend.route.domain.RouteCandidate;
@@ -58,7 +59,8 @@ public class TmapTransitRouteProvider implements TransitRouteProvider {
 				.body(new TmapRequest(
 					request.originLongitude(), request.originLatitude(),
 					request.destinationLongitude(), request.destinationLatitude(),
-					0, "json", 3, SEARCH_TIME.format(request.departureAt())))
+					request.language() == PlaceLanguage.EN ? 1 : 0,
+					"json", 3, SEARCH_TIME.format(request.departureAt())))
 				.exchange((httpRequest, response) -> {
 					if (!response.getStatusCode().is2xxSuccessful()) {
 						throw new TransitProviderException();

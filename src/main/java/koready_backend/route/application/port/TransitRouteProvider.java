@@ -3,6 +3,7 @@ package koready_backend.route.application.port;
 import java.time.ZonedDateTime;
 import java.util.List;
 
+import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.route.domain.RouteCandidate;
 
 public interface TransitRouteProvider {
@@ -14,7 +15,8 @@ public interface TransitRouteProvider {
 		double originLongitude,
 		double destinationLatitude,
 		double destinationLongitude,
-		ZonedDateTime departureAt
+		ZonedDateTime departureAt,
+		PlaceLanguage language
 	) {
 	}
 

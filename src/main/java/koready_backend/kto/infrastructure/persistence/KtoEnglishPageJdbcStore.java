@@ -26,6 +26,7 @@ import koready_backend.kto.domain.KtoEnglishMatchMethod;
 import koready_backend.kto.domain.KtoEnglishMatchStatus;
 import koready_backend.kto.domain.KtoEnglishSourceQualityClassifier;
 import koready_backend.kto.infrastructure.config.KtoBatchProperties;
+import koready_backend.place.domain.EnglishPlaceTitleNormalizer;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -341,7 +342,7 @@ public class KtoEnglishPageJdbcStore implements KtoEnglishPageStore {
 			batchProperties.flushSize(),
 			(statement, decision) -> {
 				statement.setLong(1, decision.confirmedPlaceId());
-				statement.setString(2, decision.source().title());
+				statement.setString(2, EnglishPlaceTitleNormalizer.normalize(decision.source().title()));
 				statement.setString(3, joinAddress(
 					decision.source().address1(), decision.source().address2()));
 				statement.setString(4, decision.source().contentId());

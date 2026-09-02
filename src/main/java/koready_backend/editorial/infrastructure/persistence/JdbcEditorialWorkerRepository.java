@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import koready_backend.editorial.application.port.EditorialWorkerRepository;
 import koready_backend.editorial.domain.EditorialGeneration;
 import koready_backend.editorial.domain.EditorialLanguage;
+import koready_backend.place.domain.EnglishPlaceTitleNormalizer;
 
 @Repository
 public class JdbcEditorialWorkerRepository implements EditorialWorkerRepository {
@@ -299,7 +300,8 @@ public class JdbcEditorialWorkerRepository implements EditorialWorkerRepository 
 			        translation_source, 'AI_TRANSLATED'),
 			    updated_at = IF(translation_source IN ('KTO_EN', 'MANUAL_EDITED'),
 			        updated_at, VALUES(updated_at))
-			""", placeId, titleEn, addressEn, overviewEn, titleEn, addressEn, overviewEn,
+		""", placeId, EnglishPlaceTitleNormalizer.normalize(titleEn), addressEn, overviewEn,
+		EnglishPlaceTitleNormalizer.normalize(titleEn), addressEn, overviewEn,
 			Timestamp.from(generatedAt), Timestamp.from(generatedAt));
 	}
 

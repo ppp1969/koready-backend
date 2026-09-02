@@ -38,7 +38,8 @@ public class SpringAiEditorialGenerator implements EditorialGenerator {
 
 		Also return titleEn and addressEn. Translate the Korean place title and address into
 		natural English without adding facts. If englishTitle is supplied, preserve that official
-		title exactly. Keep Korean administrative meaning in addressEn and do not invent missing
+		title except for removing a trailing Korean alias in parentheses. Never append the Korean
+		place name in parentheses to titleEn. Keep Korean administrative meaning in addressEn and do not invent missing
 		address components.
 
 		Return exactly two distinct tags selected only from these enum codes:

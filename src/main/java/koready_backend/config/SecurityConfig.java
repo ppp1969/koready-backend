@@ -14,6 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
 import koready_backend.auth.infrastructure.security.AccessTokenAuthenticationFilter;
+import koready_backend.account.infrastructure.security.AccountWithdrawalRestrictionFilter;
 
 @Configuration
 @EnableMethodSecurity
@@ -26,7 +27,8 @@ public class SecurityConfig {
 		ApiSecurityErrorHandler securityErrorHandler,
 		ObjectProvider<LocalDevAuthenticationFilter> localDevAuthenticationFilter,
 		ObjectProvider<StagingOperatorAuthenticationFilter> stagingOperatorAuthenticationFilter,
-		AccessTokenAuthenticationFilter accessTokenAuthenticationFilter
+		AccessTokenAuthenticationFilter accessTokenAuthenticationFilter,
+		AccountWithdrawalRestrictionFilter accountWithdrawalRestrictionFilter
 	) throws Exception {
 		http
 			.csrf(csrf -> csrf.disable())
@@ -62,6 +64,9 @@ public class SecurityConfig {
 		http.addFilterBefore(
 			accessTokenAuthenticationFilter,
 			AnonymousAuthenticationFilter.class);
+		http.addFilterAfter(
+			accountWithdrawalRestrictionFilter,
+			AccessTokenAuthenticationFilter.class);
 		localDevAuthenticationFilter.ifAvailable(filter ->
 			http.addFilterBefore(filter, AnonymousAuthenticationFilter.class));
 		stagingOperatorAuthenticationFilter.ifAvailable(filter ->

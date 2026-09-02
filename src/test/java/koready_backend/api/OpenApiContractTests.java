@@ -29,6 +29,9 @@ class OpenApiContractTests {
 		"GET /terms/required",
 		"PUT /users/me/term-agreements",
 		"GET /users/me",
+		"GET /users/me/withdrawal",
+		"POST /users/me/withdrawal",
+		"DELETE /users/me/withdrawal",
 		"GET /home",
 		"GET /locations/search",
 		"GET /users/me/locations",
@@ -174,7 +177,7 @@ class OpenApiContractTests {
 			}
 		}
 
-		assertEquals(97, operationCount, "Unexpected API operation count");
+		assertEquals(100, operationCount, "Unexpected API operation count");
 		collectReferences(contract, references);
 		for (String reference : references) {
 			assertLocalReferenceResolves(contract, reference);

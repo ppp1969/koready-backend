@@ -194,6 +194,107 @@ paths:
           $ref: '#/components/responses/TermAgreementSuccess'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+  /admin/terms:
+    get:
+      tags: [Admin Terms]
+      operationId: listAdminTerms
+      summary: 약관 종류와 전체 버전 조회
+      description: 관리자 화면에서 노출 순서, 활성화 여부, 초안·게시·철회 상태를 한 번에 확인합니다.
+      x-implementation-status: IMPLEMENTED
+      responses:
+        '200': {$ref: '#/components/responses/AdminTermsSuccess'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      tags: [Admin Terms]
+      operationId: createAdminTerm
+      summary: 약관 종류 생성
+      description: TERMS_OF_SERVICE, PRIVACY_POLICY, AGE_OVER_14 같은 관리 단위를 생성합니다.
+      x-implementation-status: IMPLEMENTED
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/AdminTermDefinitionRequest'}}}
+      responses:
+        '200': {$ref: '#/components/responses/AdminTermDefinitionSuccess'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /admin/terms/{termId}:
+    patch:
+      tags: [Admin Terms]
+      operationId: updateAdminTerm
+      summary: 약관 순서와 활성화 상태 변경
+      x-implementation-status: IMPLEMENTED
+      parameters: [{$ref: '#/components/parameters/TermId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/AdminTermDefinitionUpdateRequest'}}}
+      responses:
+        '200': {$ref: '#/components/responses/AdminTermDefinitionSuccess'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /admin/terms/{termId}/versions:
+    post:
+      tags: [Admin Terms]
+      operationId: createAdminTermVersion
+      summary: 약관 버전 초안 생성
+      description: 본문 URL 없이도 초안을 저장할 수 있으며 게시 전까지 수정할 수 있습니다.
+      x-implementation-status: IMPLEMENTED
+      parameters: [{$ref: '#/components/parameters/TermId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/AdminTermVersionRequest'}}}
+      responses:
+        '200': {$ref: '#/components/responses/AdminTermVersionSuccess'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /admin/terms/{termId}/versions/{versionId}:
+    put:
+      tags: [Admin Terms]
+      operationId: updateAdminTermVersion
+      summary: 약관 버전 초안 수정
+      description: 게시된 내용은 직접 변경할 수 없으며 새 버전으로 교체해야 합니다.
+      x-implementation-status: IMPLEMENTED
+      parameters: [{$ref: '#/components/parameters/TermId'}, {$ref: '#/components/parameters/TermVersionId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/AdminTermVersionRequest'}}}
+      responses:
+        '200': {$ref: '#/components/responses/AdminTermVersionSuccess'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /admin/terms/{termId}/versions/{versionId}/publish:
+    post:
+      tags: [Admin Terms]
+      operationId: publishAdminTermVersion
+      summary: 약관 버전 게시
+      description: 본문 URL이 준비된 초안만 게시하며 시행일부터 가입 동의 대상으로 사용됩니다.
+      x-implementation-status: IMPLEMENTED
+      parameters: [{$ref: '#/components/parameters/TermId'}, {$ref: '#/components/parameters/TermVersionId'}]
+      responses:
+        '200': {$ref: '#/components/responses/AdminTermVersionSuccess'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /admin/terms/{termId}/versions/{versionId}/withdraw:
+    post:
+      tags: [Admin Terms]
+      operationId: withdrawAdminTermVersion
+      summary: 게시 약관 철회
+      x-implementation-status: IMPLEMENTED
+      parameters: [{$ref: '#/components/parameters/TermId'}, {$ref: '#/components/parameters/TermVersionId'}]
+      responses:
+        '200': {$ref: '#/components/responses/AdminTermVersionSuccess'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
   /users/me:
     get:
       tags: [User]
@@ -3413,6 +3514,16 @@ components:
       required: true
       schema:
         type: string
+    TermId:
+      name: termId
+      in: path
+      required: true
+      schema: {type: integer, format: int64, minimum: 1}
+    TermVersionId:
+      name: versionId
+      in: path
+      required: true
+      schema: {type: integer, format: int64, minimum: 1}
   responses:
     TokenSuccess:
       description: 인증 token과 다음 가입 단계
@@ -3444,6 +3555,15 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/AccountWithdrawalEnvelope'
+    AdminTermsSuccess:
+      description: 약관 종류와 버전 목록
+      content: {application/json: {schema: {$ref: '#/components/schemas/AdminTermsEnvelope'}}}
+    AdminTermDefinitionSuccess:
+      description: 생성 또는 변경된 약관 종류
+      content: {application/json: {schema: {$ref: '#/components/schemas/AdminTermDefinitionEnvelope'}}}
+    AdminTermVersionSuccess:
+      description: 생성 또는 상태가 변경된 약관 버전
+      content: {application/json: {schema: {$ref: '#/components/schemas/AdminTermVersionEnvelope'}}}
     LanguageSuccess:
       description: 변경된 표시 언어와 다음 가입 단계
       content:
@@ -5271,6 +5391,67 @@ components:
         scheduledFor: {type: string, format: date-time, nullable: true}
         confirmedAt: {type: string, format: date-time, nullable: true}
         messagePurgeAt: {type: string, format: date-time, nullable: true}
+    AdminTermDefinitionRequest:
+      type: object
+      required: [code, displayOrder, enabled]
+      properties:
+        code: {type: string, pattern: '^[A-Za-z][A-Za-z0-9_]{1,49}$', example: AGE_OVER_14}
+        displayOrder: {type: integer, minimum: 1, maximum: 1000}
+        enabled: {type: boolean}
+    AdminTermDefinitionUpdateRequest:
+      type: object
+      required: [displayOrder, enabled]
+      properties:
+        displayOrder: {type: integer, minimum: 1, maximum: 1000}
+        enabled: {type: boolean}
+    AdminTermVersionRequest:
+      type: object
+      required: [version, title, required, effectiveAt]
+      properties:
+        version: {type: string, maxLength: 40, example: '1.0'}
+        title: {type: string, maxLength: 200, example: 만 14세 이상 확인}
+        contentUrl: {type: string, format: uri, nullable: true}
+        required: {type: boolean}
+        effectiveAt: {type: string, format: date-time}
+    AdminTermsEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: {type: array, items: {$ref: '#/components/schemas/AdminTermDefinition'}}
+    AdminTermDefinitionEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties: {data: {$ref: '#/components/schemas/AdminTermDefinition'}}
+    AdminTermVersionEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties: {data: {$ref: '#/components/schemas/AdminTermVersion'}}
+    AdminTermDefinition:
+      type: object
+      required: [id, code, displayOrder, enabled, versions]
+      properties:
+        id: {type: integer, format: int64}
+        code: {type: string}
+        displayOrder: {type: integer}
+        enabled: {type: boolean}
+        versions: {type: array, items: {$ref: '#/components/schemas/AdminTermVersion'}}
+    AdminTermVersion:
+      type: object
+      required: [id, termId, version, title, required, effectiveAt, state]
+      properties:
+        id: {type: integer, format: int64}
+        termId: {type: integer, format: int64}
+        version: {type: string}
+        title: {type: string}
+        contentUrl: {type: string, format: uri, nullable: true}
+        required: {type: boolean}
+        effectiveAt: {type: string, format: date-time}
+        publishedAt: {type: string, format: date-time, nullable: true}
+        withdrawnAt: {type: string, format: date-time, nullable: true}
+        state: {type: string, enum: [DRAFT, PUBLISHED, WITHDRAWN]}
     LanguageEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'

@@ -14,6 +14,7 @@ import koready_backend.kto.application.port.KtoCuratedPlaceStore;
 import koready_backend.kto.domain.KtoPlaceDetail;
 import koready_backend.kto.domain.KtoPlaceItem;
 import koready_backend.onboarding.domain.InitialCandidatePlace;
+import koready_backend.common.domain.EnglishPlaceTitleNormalizer;
 
 @Repository
 public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
@@ -151,7 +152,7 @@ public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
 			    source_hash = NULL
 			""",
 			placeId,
-			specification.titleEn(),
+			EnglishPlaceTitleNormalizer.normalize(specification.titleEn()),
 			address,
 			contentId);
 	}

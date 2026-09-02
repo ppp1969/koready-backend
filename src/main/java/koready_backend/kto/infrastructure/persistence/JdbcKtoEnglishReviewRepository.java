@@ -26,6 +26,7 @@ import koready_backend.kto.domain.KtoEnglishReviewDecision;
 import koready_backend.kto.domain.KtoEnglishReviewStatus;
 import koready_backend.kto.domain.KtoEnglishSourceQuality;
 import koready_backend.kto.domain.KtoEnglishSourceQualityWarning;
+import koready_backend.common.domain.EnglishPlaceTitleNormalizer;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
@@ -373,7 +374,7 @@ public class JdbcKtoEnglishReviewRepository implements KtoEnglishReviewRepositor
 			        translation_source, 'KTO_EN')
 			""",
 			placeId,
-			source.title(),
+			EnglishPlaceTitleNormalizer.normalize(source.title()),
 			joinAddress(source.address1(), source.address2()),
 			source.contentId(),
 			source.sourceHash());

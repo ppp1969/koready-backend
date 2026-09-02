@@ -208,7 +208,7 @@ public class JdbcBuddyProfileRepository implements BuddyProfileRepository {
 			INSERT INTO buddy_profile_languages (profile_id, language_code, display_order)
 			VALUES (?, ?, ?)
 			""",
-			indexed(languages.stream().map(Enum::name).toList(), profileId));
+			indexed(languages.stream().map(ProfileLanguage::name).toList(), profileId));
 	}
 
 	private void replaceTravelStyles(

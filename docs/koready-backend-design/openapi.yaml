@@ -4305,8 +4305,9 @@ components:
       enum: [KO, EN]
     ProfileLanguageCode:
       type: string
-      description: 프로필에서 사용자가 대화할 수 있다고 선택하는 언어 코드. 콘텐츠 표시 언어와 별개
-      enum: [KO, EN, ZH, JA, VI, TH, MN, RU, ID, ES, FR, DE, AR]
+      description: 프로필에서 사용자가 대화할 수 있다고 선택하는 ISO 639-1 언어 코드. 전체 선택지는 GET /profile-options가 제공하며 콘텐츠 표시 언어 KO/EN과 별개
+      pattern: '^[A-Z]{2}$'
+      example: SW
     SavedPlaceSource:
       type: string
       description: 사용자가 저장 버튼을 누른 화면. 추천 품질과 화면 사용성 분석에 사용

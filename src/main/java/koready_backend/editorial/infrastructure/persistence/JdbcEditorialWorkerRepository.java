@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import koready_backend.editorial.application.port.EditorialWorkerRepository;
 import koready_backend.editorial.domain.EditorialGeneration;
 import koready_backend.editorial.domain.EditorialLanguage;
-import koready_backend.place.domain.EnglishPlaceTitleNormalizer;
+import koready_backend.common.domain.EnglishPlaceTitleNormalizer;
 
 @Repository
 public class JdbcEditorialWorkerRepository implements EditorialWorkerRepository {

@@ -1,4 +1,4 @@
-package koready_backend.place.domain;
+package koready_backend.common.domain;
 
 import java.util.regex.Pattern;
 

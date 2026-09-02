@@ -26,7 +26,7 @@ import koready_backend.kto.domain.KtoEnglishMatchMethod;
 import koready_backend.kto.domain.KtoEnglishMatchStatus;
 import koready_backend.kto.domain.KtoEnglishSourceQualityClassifier;
 import koready_backend.kto.infrastructure.config.KtoBatchProperties;
-import koready_backend.place.domain.EnglishPlaceTitleNormalizer;
+import koready_backend.common.domain.EnglishPlaceTitleNormalizer;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 

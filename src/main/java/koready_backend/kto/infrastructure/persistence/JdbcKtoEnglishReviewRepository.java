@@ -26,7 +26,7 @@ import koready_backend.kto.domain.KtoEnglishReviewDecision;
 import koready_backend.kto.domain.KtoEnglishReviewStatus;
 import koready_backend.kto.domain.KtoEnglishSourceQuality;
 import koready_backend.kto.domain.KtoEnglishSourceQualityWarning;
-import koready_backend.place.domain.EnglishPlaceTitleNormalizer;
+import koready_backend.common.domain.EnglishPlaceTitleNormalizer;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;

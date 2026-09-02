@@ -47,12 +47,13 @@ public final class ApiSecurityErrorHandler
 		AccessDeniedException exception
 	) throws IOException {
 		boolean adminPath = request.getRequestURI().startsWith("/api/v1/admin/");
+		boolean withdrawalPending = "ACCOUNT_WITHDRAWAL_PENDING".equals(exception.getMessage());
 		write(
 			request,
 			response,
 			HttpStatus.FORBIDDEN,
-			adminPath ? "ADMIN_FORBIDDEN" : "FORBIDDEN",
-			"The authenticated account does not have permission.");
+			withdrawalPending ? "ACCOUNT_WITHDRAWAL_PENDING" : adminPath ? "ADMIN_FORBIDDEN" : "FORBIDDEN",
+			withdrawalPending ? "Account withdrawal is pending." : "The authenticated account does not have permission.");
 	}
 
 	private void write(

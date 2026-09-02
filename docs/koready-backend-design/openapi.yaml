@@ -208,6 +208,36 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '200':
           $ref: '#/components/responses/MyUserSuccess'
+  /users/me/withdrawal:
+    get:
+      tags: [User]
+      operationId: getMyWithdrawal
+      summary: 회원 탈퇴 상태 조회
+      description: 탈퇴 신청 여부, 7일 유예 종료 시각, 확정 및 쪽지 삭제 예정 시각을 조회합니다.
+      x-implementation-status: IMPLEMENTED
+      responses:
+        '200': {$ref: '#/components/responses/AccountWithdrawalSuccess'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+    post:
+      tags: [User]
+      operationId: requestMyWithdrawal
+      summary: 회원 탈퇴 신청
+      description: 즉시 Mates 프로필을 숨기고 서비스 이용을 제한하며 모든 refresh token을 폐기합니다. 7일 뒤 개인정보 삭제가 확정됩니다.
+      x-implementation-status: IMPLEMENTED
+      responses:
+        '200': {$ref: '#/components/responses/AccountWithdrawalSuccess'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {description: 현재 계정 상태에서 신청 불가}
+    delete:
+      tags: [User]
+      operationId: cancelMyWithdrawal
+      summary: 회원 탈퇴 철회
+      description: 탈퇴 확정 전 7일 유예기간 안에 철회하고 기존 공개 설정을 복원합니다.
+      x-implementation-status: IMPLEMENTED
+      responses:
+        '200': {$ref: '#/components/responses/AccountWithdrawalSuccess'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {description: 유예기간 만료 또는 철회 불가 상태}
   /users/me/language:
     patch:
       tags: [User]
@@ -3408,6 +3438,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/MyUserEnvelope'
+    AccountWithdrawalSuccess:
+      description: 회원 탈퇴 상태와 처리 예정 시각
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AccountWithdrawalEnvelope'
     LanguageSuccess:
       description: 변경된 표시 언어와 다음 가입 단계
       content:
@@ -5217,6 +5253,24 @@ components:
           example: 2
         termsNeedReAgreement:
           type: boolean
+    AccountWithdrawalEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AccountWithdrawalResponse'
+    AccountWithdrawalResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, WITHDRAWAL_PENDING, WITHDRAWN]
+        requestedAt: {type: string, format: date-time, nullable: true}
+        scheduledFor: {type: string, format: date-time, nullable: true}
+        confirmedAt: {type: string, format: date-time, nullable: true}
+        messagePurgeAt: {type: string, format: date-time, nullable: true}
     LanguageEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'

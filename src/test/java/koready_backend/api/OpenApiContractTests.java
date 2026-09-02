@@ -32,6 +32,13 @@ class OpenApiContractTests {
 		"GET /users/me/withdrawal",
 		"POST /users/me/withdrawal",
 		"DELETE /users/me/withdrawal",
+		"GET /admin/terms",
+		"POST /admin/terms",
+		"PATCH /admin/terms/{termId}",
+		"POST /admin/terms/{termId}/versions",
+		"PUT /admin/terms/{termId}/versions/{versionId}",
+		"POST /admin/terms/{termId}/versions/{versionId}/publish",
+		"POST /admin/terms/{termId}/versions/{versionId}/withdraw",
 		"GET /home",
 		"GET /locations/search",
 		"GET /users/me/locations",
@@ -177,7 +184,7 @@ class OpenApiContractTests {
 			}
 		}
 
-		assertEquals(100, operationCount, "Unexpected API operation count");
+		assertEquals(107, operationCount, "Unexpected API operation count");
 		collectReferences(contract, references);
 		for (String reference : references) {
 			assertLocalReferenceResolves(contract, reference);

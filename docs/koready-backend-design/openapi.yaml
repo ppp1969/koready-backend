@@ -202,7 +202,7 @@ paths:
       description: |
         **호출 시점:** 앱 재실행 후 사용자 session을 복구하거나 마이 화면을 열 때 호출합니다.
         응답의 signupStatus, preferredLanguage, defaultLocationId를 앱 전역 사용자 상태의 기준으로 사용합니다.
-      x-implementation-status: PLANNED
+      x-implementation-status: IMPLEMENTED
       responses:
         '401':
           $ref: '#/components/responses/Unauthorized'

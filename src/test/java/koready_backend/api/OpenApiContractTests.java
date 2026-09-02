@@ -28,6 +28,7 @@ class OpenApiContractTests {
 		"POST /auth/logout",
 		"GET /terms/required",
 		"PUT /users/me/term-agreements",
+		"GET /users/me",
 		"GET /home",
 		"GET /locations/search",
 		"GET /users/me/locations",

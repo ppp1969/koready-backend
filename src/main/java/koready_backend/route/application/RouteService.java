@@ -70,7 +70,7 @@ public class RouteService {
 			.orElseThrow(() -> new RouteException(RouteException.Reason.CONTEXT_NOT_FOUND));
 		Instant now = clock.instant();
 		ZonedDateTime departure = command.departureAt() == null
-			? now.atZone(SEOUL)
+			? now.atZone(SEOUL).toLocalDate().atTime(10, 0).atZone(SEOUL)
 			: command.departureAt().withZoneSameInstant(SEOUL);
 
 		List<RouteCandidate> candidates;
@@ -86,8 +86,7 @@ public class RouteService {
 			throw new RouteException(RouteException.Reason.ROUTE_NOT_FOUND);
 		}
 		var selected = RouteCandidateSelector.select(candidates)
-			.orElseThrow(() -> new RouteException(
-				RouteException.Reason.ROUTE_NOT_AVAILABLE_AT_DEPARTURE_TIME));
+			.orElseThrow(() -> new RouteException(RouteException.Reason.ROUTE_NOT_FOUND));
 		RoutePlan route = normalize(command.destinationPlaceId(), context, selected, now);
 		repository.save(context.userId(), route);
 		return enrich(route);

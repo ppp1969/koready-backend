@@ -13,8 +13,8 @@ public final class RouteCandidateSelector {
 		List<RouteCandidate> candidates
 	) {
 		return candidates.stream()
-			.filter(RouteCandidate::serviceAvailable)
-			.min(Comparator.comparingInt(RouteCandidate::totalTimeSeconds)
+			.min(Comparator.comparing(RouteCandidate::serviceAvailable).reversed()
+				.thenComparingInt(RouteCandidate::totalTimeSeconds)
 				.thenComparingInt(RouteCandidate::transferCount)
 				.thenComparingInt(RouteCandidate::totalWalkDistanceMeters));
 	}

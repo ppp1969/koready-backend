@@ -42,7 +42,18 @@ final class RouteDtos {
 					item.fare(), item.instruction(), item.serviceAvailable(),
 					tips(segment.horiTips()));
 			}).toList(),
-			List.of(), true);
+			warnings(route), true);
+	}
+
+	private static List<RouteWarning> warnings(RoutePlan route) {
+		String message = "EN".equals(route.language())
+			? "This is a reference route. This segment is unavailable at the reference departure time. Check the operator's timetable before travelling."
+			: "참고용 이동 경로입니다. 이 구간은 조회 기준 시각에 운행하지 않습니다. 실제 이동 전 운행 시간표를 확인해 주세요.";
+		return route.segments().stream()
+			.filter(segment -> segment.mode() != RouteMode.WALK && !segment.serviceAvailable())
+			.map(segment -> new RouteWarning(
+				"REFERENCE_ROUTE_SERVICE_UNAVAILABLE", message, segment.order()))
+			.toList();
 	}
 
 	private static List<HoriTip> tips(List<RouteService.HoriTipView> tips) {

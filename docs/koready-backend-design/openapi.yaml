@@ -1013,9 +1013,11 @@ paths:
         **호출 시점:** 장소 상세 이동 탭에서 출발 위치를 선택하고 경로 확인을 누를 때 호출합니다.
         저장 위치 ID와 목적지 placeId를 받아 TMAP 결과를 Koready 요약으로 정규화합니다.
         서버는 한 번의 상세 요청에서 후보 3개를 받아 departureAt에 운행 가능한 경로를 우선 선택합니다.
+        departureAt 생략 시 조회 당일 한국 날짜의 오전 10:00을 사용합니다. 명시한 출발 시각은 그대로 존중합니다.
+        모든 후보에 운행 불가 구간이 있어도 참고용 이동 경로를 반환합니다. 해당 구간은 serviceAvailable=false이며 warnings의 REFERENCE_ROUTE_SERVICE_UNAVAILABLE 안내를 표시해야 합니다. 현재 탑승 가능 여부를 보장하지 않습니다.
         정규화 경로를 준비한 뒤 현재 ACTIVE인 운영진 Hori Tip을 목적지와 trigger로 매칭해 summary 또는 segment에 조합합니다.
         Hori Tip 본문은 TMAP이나 AI가 생성하지 않으며 Route 캐시에 포함하지 않습니다.
-        422 ROUTE_NOT_FOUND 또는 ROUTE_NOT_AVAILABLE_AT_DEPARTURE_TIME이면 조건 안내를 표시하고, 503이면 현재 화면을 유지한 채 재시도 버튼을 제공합니다.
+        후보 자체가 없는 422 ROUTE_NOT_FOUND이면 조건 안내를 표시하고, 503이면 현재 화면을 유지한 채 재시도 버튼을 제공합니다.
       x-implementation-status: IMPLEMENTED
       requestBody:
         required: true
@@ -1046,13 +1048,6 @@ paths:
                     code: ROUTE_NOT_FOUND
                     message: 선택한 출발지에서 이 장소로 가는 대중교통 경로를 찾지 못했습니다.
                     traceId: trace-route-422-01
-                routeNotAvailableAtDepartureTime:
-                  summary: 요청 출발 시각에 운행 가능한 후보 없음
-                  value:
-                    success: false
-                    code: ROUTE_NOT_AVAILABLE_AT_DEPARTURE_TIME
-                    message: 선택한 출발 시각에는 운행 가능한 대중교통 경로가 없습니다. 출발 시각을 변경해 주세요.
-                    traceId: trace-route-422-02
         '503':
           description: TMAP 장애, 시간 초과 또는 호출 제한
           content:
@@ -4877,7 +4872,7 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: 생략하면 현재 시각. 서버가 Asia/Seoul의 TMAP searchDttm으로 변환
+          description: 생략하면 조회 당일 한국 날짜의 오전 10:00:00(Asia/Seoul). 오후에 요청해도 당일 10시를 사용하며 실시간 길찾기가 아닌 참고용이다. 지정하면 해당 시각을 Asia/Seoul의 TMAP searchDttm으로 변환한다.
     RouteEnvelope:
       type: object
       required: [success, code, message, data, traceId]
@@ -6232,7 +6227,7 @@ components:
           description: 현재 언어로 정규화한 구간 안내
         serviceAvailable:
           type: boolean
-          description: WALK는 true, 대중교통은 TMAP service=1일 때 true
+          description: WALK는 true, 대중교통은 조회 기준시각에 TMAP service=1일 때 true. false인 구간도 참고 경로에 포함될 수 있으며 warnings를 함께 표시한다. 현재 시각의 탑승 가능 여부가 아니다.
         horiTips:
           type: array
           items:
@@ -6260,7 +6255,7 @@ components:
       properties:
         code:
           type: string
-          enum: [PARTIAL_FARE, CURATED_SEGMENT, PROVIDER_DATA_LIMITED]
+          enum: [PARTIAL_FARE, CURATED_SEGMENT, PROVIDER_DATA_LIMITED, REFERENCE_ROUTE_SERVICE_UNAVAILABLE]
         message:
           type: string
         segmentOrder:

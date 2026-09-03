@@ -831,11 +831,11 @@ source = HOME_MONTHLY | RECOMMENDATION_CARD | PLACE_DETAIL | MAP
 
 - 출발지는 인증 사용자의 활성 저장 위치만 허용한다.
 - GPS 좌표 입력은 허용하지 않는다.
-- `departureAt`이 없으면 요청 시각을 사용한다.
+- `departureAt`이 없으면 조회 당일 한국 날짜의 오전 10:00:00을 사용한다. 오후에도 당일 10시이며, 명시한 출발 시각은 유지한다.
 - `departureAt`은 Asia/Seoul 기준 TMAP `searchDttm=yyyyMMddHHmm`으로 변환한다.
 - 상세 `/transit/routes` 한 번에 `count=3` 후보를 받고 필수 대중교통 leg가 모두 `service=1`인 경로를 우선한다.
 - 운행 가능한 후보가 여러 개면 `totalTime`, `transferCount`, `totalWalkDistance` 순으로 UI 대표 경로를 선택한다.
-- 모든 후보에 `service=0` 필수 leg가 있으면 422 `ROUTE_NOT_AVAILABLE_AT_DEPARTURE_TIME`을 반환한다.
+- 모든 후보에 `service=0` 필수 leg가 있으면 참고 경로를 반환한다. `serviceAvailable=false`를 유지하며 `warnings`에 `REFERENCE_ROUTE_SERVICE_UNAVAILABLE`과 해당 `segmentOrder`를 제공한다. 실시간 탑승 가능 여부는 보장하지 않는다.
 
 ```json
 {
@@ -972,7 +972,7 @@ API 응답의 `RouteMode`는 `BUS/TRAIN`처럼 단순화한다. 난이도와 표
 
 - 성공은 HTTP 2xx만으로 판정하지 않는다. `metaData.plan.itineraries`가 비어 있지 않고 최상위 provider `result/error`가 없어야 한다.
 - 실제 표본에서 공식 표의 `lane`과 달리 `Lane` 대문자 필드가 확인됐다.
-- 실제 정상 itinerary 안에도 `service=0` leg가 존재했다. 운행 종료 leg가 포함된 경로를 그대로 성공 응답으로 반환하지 않는다.
+- 실제 정상 itinerary 안에도 `service=0` leg가 존재했다. 이런 구간이 포함된 참고 경로에는 운행 불가 상태와 경고를 함께 반환한다.
 - `totalTime`과 `sectionTime`의 표시 분은 `ceil(seconds / 60)`로 계산한다.
 - `steps`, `passShape`, `passStopList`, 좌표와 linestring은 필요한 계산 뒤 폐기하고 공개 DTO에 포함하지 않는다.
 
@@ -1242,7 +1242,7 @@ cursor는 요청자와 placeId에 묶인다. 다른 사용자·다른 장소에�
 | `RECOMMENDATION_EXHAUSTED` | 추천 후보 소진 |
 | `PLACE_NOT_FOUND` | 장소 없음 |
 | `ROUTE_NOT_FOUND` | 대중교통 경로 없음 |
-| `ROUTE_NOT_AVAILABLE_AT_DEPARTURE_TIME` | 요청 출발 시각에 운행 가능한 후보 없음 |
+| `REFERENCE_ROUTE_SERVICE_UNAVAILABLE` | 오류가 아닌 warnings 코드. 참고 경로의 운행 불가 구간 안내 |
 | `ROUTE_EXPIRED` | 임시 경로 만료 |
 | `ROUTE_PROVIDER_UNAVAILABLE` | TMAP 장애/제한 |
 | `HORI_TIP_CODE_DUPLICATED` | 이미 사용 중인 운영 팁 code |
@@ -1273,7 +1273,7 @@ cursor는 요청자와 placeId에 묶인다. 다른 사용자·다른 장소에�
 - 종료 회차는 해당 개최 연도·월 상세 목록에 `ENDED`로 남고 홈에서는 진행 중·예정 회차보다 낮게 정렬된다.
 - TMAP 구간은 Koready `RouteSegment`로 정규화된다.
 - TMAP HTTP 200 code 11~14는 성공으로 처리하지 않고 `ROUTE_NOT_FOUND`로 변환된다.
-- 필수 대중교통 leg의 `service=0`만 있는 후보는 성공 경로로 반환되지 않는다.
+- 운행 가능한 후보를 우선하되, 모두 불가하면 참고 경로와 구간별 운행 불가 경고를 반환한다.
 - 실제 `Lane`과 문서상의 `lane` casing을 모두 역직렬화할 수 있다.
 - 만료된 TMAP 상세 경로는 재사용되지 않는다.
 - 같은 추천 덱에 장소가 중복되지 않는다.

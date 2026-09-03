@@ -155,10 +155,10 @@ TMAP client DTO는 `@JsonProperty("Lane")`와 `@JsonAlias("lane")`를 함께 사
 1. 운영 호출은 한 번의 요청에서 `count=3` 후보를 받는다.
 2. WALK를 제외한 모든 필수 leg가 `service=1`인 후보를 우선한다.
 3. 후보가 여러 개면 `totalTime`, `transferCount`, `totalWalkDistance` 순으로 선택한다.
-4. 모든 후보에 `service=0` 필수 leg가 있으면 경로를 성공으로 반환하지 않는다.
-5. 이 경우 Koready는 422 `ROUTE_NOT_AVAILABLE_AT_DEPARTURE_TIME`을 반환한다.
+4. 모든 후보에 `service=0` 필수 leg가 있으면 같은 정렬로 참고용 경로를 선택한다. 현재 탑승 가능하다는 뜻은 아니다.
+5. 운행 불가 구간의 `serviceAvailable=false`를 유지하고 `warnings`에 `REFERENCE_ROUTE_SERVICE_UNAVAILABLE`과 해당 `segmentOrder`를 제공한다. 후보 자체가 없으면 422 `ROUTE_NOT_FOUND`를 유지한다.
 
-`departureAt`은 Asia/Seoul 기준 `yyyyMMddHHmm`의 TMAP `searchDttm`으로 변환한다. 값이 없으면 요청 시각을 사용한다.
+`departureAt`은 Asia/Seoul 기준 `yyyyMMddHHmm`의 TMAP `searchDttm`으로 변환한다. 값이 없으면 조회 당일 한국 날짜의 오전 10:00:00을 사용한다. 오후에 조회해도 당일 10시이며, 명시한 출발 시각은 유지한다. KoReady는 실시간 길찾기가 아니라 대략적인 이동 안내를 제공한다.
 
 ---
 

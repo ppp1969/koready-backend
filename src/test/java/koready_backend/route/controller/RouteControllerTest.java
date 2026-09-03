@@ -13,6 +13,8 @@ import java.time.Instant;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -90,11 +92,35 @@ class RouteControllerTest {
 	}
 
 	private static RouteService.RouteView view() {
+		return view("KO", true);
+	}
+
+	@ParameterizedTest
+	@CsvSource({"KO,참고용 이동 경로입니다", "EN,This is a reference route"})
+	void exposesUnavailableSegmentWarningsInCreateAndGet(String language, String message) throws Exception {
+		when(service.create(eq("usr_route"), any())).thenReturn(view(language, false));
+		when(service.get("usr_route", ROUTE_ID)).thenReturn(view(language, false));
+		mockMvc.perform(post("/api/v1/routes")
+				.with(user("usr_route").roles("USER"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"originLocationId\":1,\"destinationPlaceId\":2}"))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.data.segments[0].serviceAvailable").value(false))
+			.andExpect(jsonPath("$.data.warnings[0].code").value("REFERENCE_ROUTE_SERVICE_UNAVAILABLE"))
+			.andExpect(jsonPath("$.data.warnings[0].segmentOrder").value(1))
+			.andExpect(jsonPath("$.data.warnings[0].message", org.hamcrest.Matchers.containsString(message)));
+		mockMvc.perform(get("/api/v1/routes/" + ROUTE_ID).with(user("usr_route").roles("USER")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.segments[0].serviceAvailable").value(false))
+			.andExpect(jsonPath("$.data.warnings[0].code").value("REFERENCE_ROUTE_SERVICE_UNAVAILABLE"));
+	}
+
+	private static RouteService.RouteView view(String language, boolean available) {
 		var segment = new RoutePlan.RouteSegment(
 			1, "출발", "도착", RouteMode.BUS, "100", 30, 10_000,
-			1_500, true, "100을(를) 이용하세요.");
+			1_500, available, "100을(를) 이용하세요.");
 		var route = new RoutePlan(
-			ROUTE_ID, 2L, "KO",
+			ROUTE_ID, 2L, language,
 			new RoutePlan.RoutePoint("학교", "서울"),
 			new RoutePlan.RoutePoint("축제", "강원"),
 			Instant.parse("2026-08-31T00:00:00Z"),

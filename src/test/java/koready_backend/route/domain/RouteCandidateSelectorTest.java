@@ -31,6 +31,18 @@ class RouteCandidateSelectorTest {
 		assertThat(selected).contains(lessWalking);
 	}
 
+	@Test
+	void fallsBackToBestReferenceRouteWhenAllCandidatesAreUnavailable() {
+		var slower = candidate(1800, 0, 100, false);
+		var faster = candidate(1200, 1, 300, false);
+		assertThat(RouteCandidateSelector.select(List.of(slower, faster))).contains(faster);
+	}
+
+	@Test
+	void returnsEmptyWhenProviderHasNoCandidates() {
+		assertThat(RouteCandidateSelector.select(List.of())).isEmpty();
+	}
+
 	private static RouteCandidate candidate(
 		int totalSeconds,
 		int transferCount,

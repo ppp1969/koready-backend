@@ -112,7 +112,7 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 
 		assertEquals(List.of(ended), rows.stream().map(MonthlyRecommendationRow::occurrenceId).toList());
 		assertEquals(2026, rows.getFirst().eventYear());
-		assertEquals(1, rows.getFirst().statusRank());
+		assertEquals(0, rows.getFirst().statusRank());
 		assertEquals("English ended-2026", rows.getFirst().title());
 		assertEquals(1L, repository.count(july));
 
@@ -125,7 +125,7 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 	}
 
 	@Test
-	void appliesStatusFirstRecommendationOrderStyleFilterAndCursor() {
+	void appliesRecommendationOrderWithoutDemotingEndedFestivalAndContinuesCursor() {
 		long ongoingPlace = festivalPlace("ongoing", "SEOUL", "50.00", true, true);
 		long ongoing = occurrence(ongoingPlace, "ongoing", 2026,
 			TODAY.minusDays(1), TODAY.plusDays(1), TODAY.minusMonths(6));
@@ -142,8 +142,8 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 			RecommendationSort.RECOMMENDED, PlaceLanguage.EN);
 		List<MonthlyRecommendationRow> first = repository.findPage(
 			new MonthlyRecommendationPageQuery(filter, null, 1));
-		assertEquals(List.of(upcoming), first.stream().map(MonthlyRecommendationRow::occurrenceId).toList());
-		assertEquals("English upcoming", first.getFirst().title());
+		assertEquals(List.of(ended), first.stream().map(MonthlyRecommendationRow::occurrenceId).toList());
+		assertEquals("English ended", first.getFirst().title());
 		assertEquals(3L, repository.count(filter));
 
 		MonthlyRecommendationCursor cursor = new MonthlyRecommendationCursor(
@@ -154,7 +154,7 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 			first.getFirst().occurrenceId());
 		List<MonthlyRecommendationRow> rest = repository.findPage(
 			new MonthlyRecommendationPageQuery(filter, cursor, 10));
-		assertEquals(List.of(ongoing, ended),
+		assertEquals(List.of(upcoming, ongoing),
 			rest.stream().map(MonthlyRecommendationRow::occurrenceId).toList());
 	}
 

@@ -18,12 +18,9 @@ import koready_backend.recommendation.domain.RecommendationSort;
 @Repository
 public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendationRepository {
 
-	private static final String STATUS_RANK = """
-		CASE
-		    WHEN event.end_date < :today THEN 1
-		    ELSE 0
-		END
-		""";
+	// Monthly queries always carry an explicit year/month window. Within that
+	// window, the requested sort must win even when an occurrence has ended.
+	private static final String STATUS_RANK = "0";
 
 	private static final String PRIMARY_STYLE = """
 		(SELECT style.travel_style

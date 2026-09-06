@@ -13,6 +13,7 @@ import org.springframework.stereotype.Repository;
 
 import koready_backend.terms.application.port.TermsRepository;
 import koready_backend.user.domain.SignupStatus;
+import koready_backend.terms.domain.TermContentFormat;
 
 @Repository
 public class JdbcTermsRepository implements TermsRepository {
@@ -24,6 +25,8 @@ public class JdbcTermsRepository implements TermsRepository {
 		           version.version_label,
 		           version.title,
 		           version.content_url,
+		           version.content_body,
+		           version.content_format,
 		           version.required,
 		           ROW_NUMBER() OVER (
 		               PARTITION BY version.term_id
@@ -44,6 +47,8 @@ public class JdbcTermsRepository implements TermsRepository {
 		       version.required,
 		       version.version_label,
 		       version.content_url,
+		       version.content_body,
+		       version.content_format,
 		       definition.display_order,
 		       COALESCE(agreement.agreed, FALSE) AS agreed,
 		       agreement.agreed_at
@@ -161,9 +166,19 @@ public class JdbcTermsRepository implements TermsRepository {
 			resultSet.getString("title"),
 			resultSet.getBoolean("required"),
 			resultSet.getString("version_label"),
-			URI.create(resultSet.getString("content_url")),
+			uri(resultSet.getString("content_url")),
+			resultSet.getString("content_body"),
+			format(resultSet.getString("content_format")),
 			resultSet.getInt("display_order"),
 			resultSet.getBoolean("agreed"),
 			agreedAt == null ? null : agreedAt.toInstant());
+	}
+
+	private static URI uri(String value) {
+		return value == null ? null : URI.create(value);
+	}
+
+	private static TermContentFormat format(String value) {
+		return value == null ? null : TermContentFormat.valueOf(value);
 	}
 }

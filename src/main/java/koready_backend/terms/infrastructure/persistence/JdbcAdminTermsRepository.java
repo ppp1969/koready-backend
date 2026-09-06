@@ -16,6 +16,7 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
 import koready_backend.terms.application.port.AdminTermsRepository;
+import koready_backend.terms.domain.TermContentFormat;
 
 @Repository
 public class JdbcAdminTermsRepository implements AdminTermsRepository {
@@ -27,7 +28,8 @@ public class JdbcAdminTermsRepository implements AdminTermsRepository {
 		var definitions = new LinkedHashMap<Long, DefinitionBuilder>();
 		jdbc.query("""
 			SELECT d.id term_id, d.code, d.display_order, d.enabled,
-			 v.id version_id, v.version_label, v.title, v.content_url, v.required,
+			 v.id version_id, v.version_label, v.title, v.content_url, v.content_body,
+			 v.content_format, v.required,
 			 v.effective_at, v.published_at, v.withdrawn_at
 			FROM term_definitions d LEFT JOIN term_versions v ON v.term_id=d.id
 			ORDER BY d.display_order, d.id, v.created_at DESC, v.id DESC
@@ -59,36 +61,42 @@ public class JdbcAdminTermsRepository implements AdminTermsRepository {
 
 	@Override
 	public Optional<TermVersion> findVersion(long termId, long versionId) {
-		return jdbc.query("SELECT id AS version_id, term_id, version_label, title, content_url, required, effective_at, published_at, withdrawn_at FROM term_versions WHERE term_id=? AND id=?",
+		return jdbc.query("SELECT id AS version_id, term_id, version_label, title, content_url, content_body, content_format, required, effective_at, published_at, withdrawn_at FROM term_versions WHERE term_id=? AND id=?",
 			(rs, row) -> version(rs), termId, versionId).stream().findFirst();
 	}
 
 	@Override
-	public Optional<TermVersion> createVersion(long termId, String version, String title, URI contentUrl, boolean required, Instant effectiveAt, Instant now) {
+	public Optional<TermVersion> createVersion(long termId, String version, String title, URI contentUrl,
+		String content, TermContentFormat contentFormat, boolean required, Instant effectiveAt, Instant now) {
 		if (jdbc.queryForObject("SELECT COUNT(*) FROM term_definitions WHERE id=?", Integer.class, termId) == 0) return Optional.empty();
 		var key = new GeneratedKeyHolder();
 		jdbc.update(connection -> {
-			var statement = connection.prepareStatement("INSERT INTO term_versions(term_id, version_label, title, content_url, required, effective_at, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?)", Statement.RETURN_GENERATED_KEYS);
+			var statement = connection.prepareStatement("INSERT INTO term_versions(term_id, version_label, title, content_url, content_body, content_format, required, effective_at, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)", Statement.RETURN_GENERATED_KEYS);
 			statement.setLong(1, termId); statement.setString(2, version); statement.setString(3, title);
-			statement.setString(4, contentUrl == null ? null : contentUrl.toString()); statement.setBoolean(5, required);
-			statement.setTimestamp(6, Timestamp.from(effectiveAt)); statement.setTimestamp(7, Timestamp.from(now)); statement.setTimestamp(8, Timestamp.from(now)); return statement;
+			statement.setString(4, contentUrl == null ? null : contentUrl.toString()); statement.setString(5, content);
+			statement.setString(6, contentFormat == null ? null : contentFormat.name()); statement.setBoolean(7, required);
+			statement.setTimestamp(8, Timestamp.from(effectiveAt)); statement.setTimestamp(9, Timestamp.from(now)); statement.setTimestamp(10, Timestamp.from(now)); return statement;
 		}, key);
 		return findVersion(termId, key.getKey().longValue());
 	}
 
 	@Override
-	public Optional<TermVersion> updateDraft(long termId, long versionId, String version, String title, URI contentUrl, boolean required, Instant effectiveAt, Instant now) {
+	public Optional<TermVersion> updateDraft(long termId, long versionId, String version, String title,
+		URI contentUrl, String content, TermContentFormat contentFormat, boolean required,
+		Instant effectiveAt, Instant now) {
 		int changed = jdbc.update("""
-			UPDATE term_versions SET version_label=?, title=?, content_url=?, required=?, effective_at=?, updated_at=?
+			UPDATE term_versions SET version_label=?, title=?, content_url=?, content_body=?, content_format=?,
+			 required=?, effective_at=?, updated_at=?
 			WHERE term_id=? AND id=? AND published_at IS NULL
-			""", version, title, contentUrl == null ? null : contentUrl.toString(), required,
+			""", version, title, contentUrl == null ? null : contentUrl.toString(), content,
+			contentFormat == null ? null : contentFormat.name(), required,
 			Timestamp.from(effectiveAt), Timestamp.from(now), termId, versionId);
 		return changed == 0 ? Optional.empty() : findVersion(termId, versionId);
 	}
 
 	@Override
 	public Optional<TermVersion> publish(long termId, long versionId, Instant now) {
-		int changed = jdbc.update("UPDATE term_versions SET published_at=?, updated_at=? WHERE term_id=? AND id=? AND published_at IS NULL AND content_url IS NOT NULL",
+		int changed = jdbc.update("UPDATE term_versions SET published_at=?, updated_at=? WHERE term_id=? AND id=? AND published_at IS NULL AND (content_url IS NOT NULL OR (content_body IS NOT NULL AND content_format IS NOT NULL))",
 			Timestamp.from(now), Timestamp.from(now), termId, versionId);
 		return changed == 0 ? Optional.empty() : findVersion(termId, versionId);
 	}
@@ -102,8 +110,10 @@ public class JdbcAdminTermsRepository implements AdminTermsRepository {
 
 	private static TermVersion version(ResultSet rs) throws SQLException {
 		String url = rs.getString("content_url");
+		String format = rs.getString("content_format");
 		return new TermVersion(rs.getLong("version_id"), rs.getLong("term_id"), rs.getString("version_label"),
-			rs.getString("title"), url == null ? null : URI.create(url), rs.getBoolean("required"),
+			rs.getString("title"), url == null ? null : URI.create(url), rs.getString("content_body"),
+			format == null ? null : TermContentFormat.valueOf(format), rs.getBoolean("required"),
 			rs.getTimestamp("effective_at").toInstant(), instant(rs.getTimestamp("published_at")), instant(rs.getTimestamp("withdrawn_at")));
 	}
 

@@ -241,7 +241,10 @@ paths:
       tags: [Admin Terms]
       operationId: createAdminTermVersion
       summary: 약관 버전 초안 생성
-      description: 본문 URL 없이도 초안을 저장할 수 있으며 게시 전까지 수정할 수 있습니다.
+      description: |
+        DB에서 원문을 관리하려면 content와 contentFormat(PLAIN_TEXT 또는 MARKDOWN)을 보냅니다.
+        Notion 등 외부 문서로 관리하려면 기존처럼 contentUrl에 HTTPS 절대 URL을 보냅니다.
+        두 방식은 동시에 사용할 수 없습니다. 둘 다 없이 초안 저장은 가능하지만 게시할 수 없습니다.
       x-implementation-status: IMPLEMENTED
       parameters: [{$ref: '#/components/parameters/TermId'}]
       requestBody:
@@ -258,7 +261,7 @@ paths:
       tags: [Admin Terms]
       operationId: updateAdminTermVersion
       summary: 약관 버전 초안 수정
-      description: 게시된 내용은 직접 변경할 수 없으며 새 버전으로 교체해야 합니다.
+      description: 게시 전 초안만 수정합니다. content 원문과 contentUrl 외부 문서 중 하나를 선택하며 게시본 변경은 새 버전으로 교체해야 합니다.
       x-implementation-status: IMPLEMENTED
       parameters: [{$ref: '#/components/parameters/TermId'}, {$ref: '#/components/parameters/TermVersionId'}]
       requestBody:
@@ -275,7 +278,7 @@ paths:
       tags: [Admin Terms]
       operationId: publishAdminTermVersion
       summary: 약관 버전 게시
-      description: 본문 URL이 준비된 초안만 게시하며 시행일부터 가입 동의 대상으로 사용됩니다.
+      description: 완전한 DB 원문 또는 HTTPS 외부 문서 URL이 준비된 초안만 게시하며 시행일부터 가입 동의 대상으로 사용됩니다.
       x-implementation-status: IMPLEMENTED
       parameters: [{$ref: '#/components/parameters/TermId'}, {$ref: '#/components/parameters/TermVersionId'}]
       responses:
@@ -5259,7 +5262,7 @@ components:
           example: false
     RequiredTermItem:
       type: object
-      required: [termId, termVersionId, code, title, required, version, contentUrl, agreed, needsAgreement, displayOrder]
+      required: [termId, termVersionId, code, title, required, version, sourceType, agreed, needsAgreement, displayOrder]
       properties:
         termId:
           type: integer
@@ -5285,7 +5288,23 @@ components:
         contentUrl:
           type: string
           format: uri
+          nullable: true
           example: https://koready.kr/terms/service/1.0
+          description: sourceType이 EXTERNAL_URL일 때만 제공
+        sourceType:
+          type: string
+          enum: [INLINE, EXTERNAL_URL]
+          description: 앱은 INLINE이면 content를 안전하게 렌더링하고 EXTERNAL_URL이면 contentUrl을 엽니다.
+        content:
+          type: string
+          maxLength: 100000
+          nullable: true
+          description: sourceType이 INLINE일 때 제공되는 약관 원문
+        contentFormat:
+          type: string
+          enum: [PLAIN_TEXT, MARKDOWN]
+          nullable: true
+          description: HTML 원문은 지원하지 않으며 Markdown은 프론트에서 안전하게 렌더링해야 합니다.
         agreed:
           type: boolean
           description: 사용자가 이 정확한 버전에 동의했는지 여부
@@ -5403,10 +5422,13 @@ components:
     AdminTermVersionRequest:
       type: object
       required: [version, title, required, effectiveAt]
+      description: content와 contentUrl 중 최대 하나만 입력합니다. 게시 시점에는 둘 중 정확히 하나가 필요합니다.
       properties:
         version: {type: string, maxLength: 40, example: '1.0'}
         title: {type: string, maxLength: 200, example: 만 14세 이상 확인}
-        contentUrl: {type: string, format: uri, nullable: true}
+        contentUrl: {type: string, format: uri, nullable: true, maxLength: 2048, description: Notion 등을 포함한 HTTPS 외부 문서 절대 URL. 백엔드는 이 URL을 호출하거나 복사하지 않음}
+        content: {type: string, nullable: true, maxLength: 100000, description: KoReady DB에서 직접 관리할 약관 원문}
+        contentFormat: {type: string, enum: [PLAIN_TEXT, MARKDOWN], nullable: true, description: content가 있고 생략하면 MARKDOWN}
         required: {type: boolean}
         effectiveAt: {type: string, format: date-time}
     AdminTermsEnvelope:
@@ -5442,7 +5464,10 @@ components:
         termId: {type: integer, format: int64}
         version: {type: string}
         title: {type: string}
+        sourceType: {type: string, enum: [INLINE, EXTERNAL_URL], nullable: true, description: 내용이 없는 초안이면 null}
         contentUrl: {type: string, format: uri, nullable: true}
+        content: {type: string, nullable: true, maxLength: 100000}
+        contentFormat: {type: string, enum: [PLAIN_TEXT, MARKDOWN], nullable: true}
         required: {type: boolean}
         effectiveAt: {type: string, format: date-time}
         publishedAt: {type: string, format: date-time, nullable: true}

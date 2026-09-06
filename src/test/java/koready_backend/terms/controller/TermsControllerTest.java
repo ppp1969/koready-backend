@@ -24,6 +24,8 @@ import koready_backend.terms.application.TermsService.RequiredTermsResult;
 import koready_backend.terms.application.exception.InvalidTermAgreementException;
 import koready_backend.terms.application.exception.RequiredTermsNotAgreedException;
 import koready_backend.user.domain.NextStep;
+import koready_backend.terms.application.port.TermsRepository.CurrentTerm;
+import koready_backend.terms.domain.TermContentFormat;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -60,6 +62,20 @@ class TermsControllerTest {
 			.andExpect(jsonPath("$.code").value("REQUIRED_TERMS_RETRIEVED"))
 			.andExpect(jsonPath("$.data.terms").isEmpty())
 			.andExpect(jsonPath("$.data.allRequiredAgreed").value(true));
+	}
+
+	@Test
+	void returnsInlineTermsWithoutRequiringAContentUrl() throws Exception {
+		when(service.getRequiredTerms("usr_terms")).thenReturn(new RequiredTermsResult(List.of(
+			new CurrentTerm(1, 2, "SERVICE_TERMS", "서비스 이용약관", true, "1.0",
+				null, "# 약관\n본문", TermContentFormat.MARKDOWN, 1, false, null)), false));
+
+		mockMvc.perform(get("/api/v1/terms/required").with(user("usr_terms").roles("USER")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.terms[0].sourceType").value("INLINE"))
+			.andExpect(jsonPath("$.data.terms[0].content").value("# 약관\n본문"))
+			.andExpect(jsonPath("$.data.terms[0].contentFormat").value("MARKDOWN"))
+			.andExpect(jsonPath("$.data.terms[0].contentUrl").doesNotExist());
 	}
 
 	@Test

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import koready_backend.user.domain.SignupStatus;
+import koready_backend.terms.domain.TermContentFormat;
 
 public interface TermsRepository {
 
@@ -36,6 +37,8 @@ public interface TermsRepository {
 		boolean required,
 		String version,
 		URI contentUrl,
+		String content,
+		TermContentFormat contentFormat,
 		int displayOrder,
 		boolean agreed,
 		Instant agreedAt
@@ -50,6 +53,8 @@ public interface TermsRepository {
 				required,
 				version,
 				contentUrl,
+				content,
+				contentFormat,
 				displayOrder,
 				nextAgreed,
 				nextAgreedAt);

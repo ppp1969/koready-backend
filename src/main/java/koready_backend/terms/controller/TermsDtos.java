@@ -37,7 +37,10 @@ final class TermsDtos {
 			term.title(),
 			term.required(),
 			term.version(),
-			term.contentUrl().toString(),
+			term.contentUrl() == null ? null : term.contentUrl().toString(),
+			term.contentUrl() == null ? "INLINE" : "EXTERNAL_URL",
+			term.content(),
+			term.contentFormat() == null ? null : term.contentFormat().name(),
 			term.agreed(),
 			!term.agreed(),
 			term.displayOrder());
@@ -84,6 +87,9 @@ final class TermsDtos {
 		boolean required,
 		String version,
 		String contentUrl,
+		String sourceType,
+		String content,
+		String contentFormat,
 		boolean agreed,
 		boolean needsAgreement,
 		int displayOrder

@@ -13,6 +13,7 @@ import jakarta.validation.constraints.Size;
 import koready_backend.terms.application.AdminTermsService.VersionCommand;
 import koready_backend.terms.application.port.AdminTermsRepository.TermDefinition;
 import koready_backend.terms.application.port.AdminTermsRepository.TermVersion;
+import koready_backend.terms.domain.TermContentFormat;
 
 final class AdminTermsDtos {
 	private AdminTermsDtos() {}
@@ -21,17 +22,25 @@ final class AdminTermsDtos {
 	static VersionResponse from(TermVersion version) {
 		String state = version.withdrawnAt() != null ? "WITHDRAWN" : version.publishedAt() == null ? "DRAFT" : "PUBLISHED";
 		return new VersionResponse(version.id(), version.termId(), version.version(), version.title(),
-			version.contentUrl() == null ? null : version.contentUrl().toString(), version.required(), version.effectiveAt(), version.publishedAt(), version.withdrawnAt(), state);
+			sourceType(version), version.contentUrl() == null ? null : version.contentUrl().toString(),
+			version.content(), version.contentFormat(), version.required(), version.effectiveAt(),
+			version.publishedAt(), version.withdrawnAt(), state);
 	}
 	record CreateDefinitionRequest(@NotBlank @Pattern(regexp="[A-Za-z][A-Za-z0-9_]{1,49}") String code,
 		@Min(1) @Max(1000) int displayOrder, boolean enabled) {}
 	record UpdateDefinitionRequest(@Min(1) @Max(1000) int displayOrder, boolean enabled) {}
 	record VersionRequest(@NotBlank @Size(max=40) String version, @NotBlank @Size(max=200) String title,
-		@Size(max=2048) String contentUrl, boolean required, @NotNull Instant effectiveAt) {
+		@Size(max=2048) String contentUrl, @Size(max=100000) String content,
+		TermContentFormat contentFormat, boolean required, @NotNull Instant effectiveAt) {
 		VersionCommand command() { return new VersionCommand(version.trim(), title.trim(),
-			contentUrl == null || contentUrl.isBlank() ? null : URI.create(contentUrl), required, effectiveAt); }
+			contentUrl == null || contentUrl.isBlank() ? null : URI.create(contentUrl),
+			content, contentFormat, required, effectiveAt); }
 	}
 	record DefinitionResponse(long id, String code, int displayOrder, boolean enabled, List<VersionResponse> versions) {}
-	record VersionResponse(long id, long termId, String version, String title, String contentUrl, boolean required,
+	record VersionResponse(long id, long termId, String version, String title, String sourceType,
+		String contentUrl, String content, TermContentFormat contentFormat, boolean required,
 		Instant effectiveAt, Instant publishedAt, Instant withdrawnAt, String state) {}
+	private static String sourceType(TermVersion version) {
+		return version.contentUrl() != null ? "EXTERNAL_URL" : version.content() != null ? "INLINE" : null;
+	}
 }

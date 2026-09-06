@@ -111,6 +111,8 @@ class TermsServiceTest {
 			false,
 			"1.0",
 			URI.create("https://koready.cloud/terms/marketing/1.0"),
+			null,
+			null,
 			2,
 			false,
 			null);
@@ -160,6 +162,8 @@ class TermsServiceTest {
 			required,
 			"1.0",
 			URI.create("https://koready.cloud/terms/service/1.0"),
+			null,
+			null,
 			1,
 			agreed,
 			agreedAt);

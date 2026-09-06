@@ -44,20 +44,20 @@ public class AdminTermsController {
 	}
 
 	@PostMapping("/{termId}/versions")
-	@Operation(summary="약관 버전 초안 생성", description="본문 URL 없이도 저장할 수 있습니다. 필수 여부와 시행일은 버전마다 관리합니다.")
+	@Operation(summary="약관 버전 초안 생성", description="content 원문 또는 contentUrl 외부 문서 중 하나를 선택합니다. 원문 형식은 PLAIN_TEXT/MARKDOWN이며, URL은 HTTPS만 허용합니다. 둘 다 없이 초안 저장은 가능하지만 게시할 수 없습니다.")
 	public ApiEnvelope<?> createVersion(@PathVariable @Positive long termId, @Valid @RequestBody AdminTermsDtos.VersionRequest body, HttpServletRequest request) {
 		return ok("ADMIN_TERM_VERSION_CREATED", AdminTermsDtos.from(service.createVersion(termId, body.command())), request);
 	}
 
 	@PutMapping("/{termId}/versions/{versionId}")
-	@Operation(summary="약관 버전 초안 수정", description="게시 전 초안만 수정할 수 있습니다. 게시본 변경은 새 버전을 생성해야 합니다.")
+	@Operation(summary="약관 버전 초안 수정", description="게시 전 초안만 수정할 수 있습니다. content와 contentUrl을 동시에 보낼 수 없고, 게시본 변경은 새 버전을 생성해야 합니다.")
 	public ApiEnvelope<?> updateVersion(@PathVariable @Positive long termId, @PathVariable @Positive long versionId,
 		@Valid @RequestBody AdminTermsDtos.VersionRequest body, HttpServletRequest request) {
 		return ok("ADMIN_TERM_VERSION_UPDATED", AdminTermsDtos.from(service.updateDraft(termId, versionId, body.command())), request);
 	}
 
 	@PostMapping("/{termId}/versions/{versionId}/publish")
-	@Operation(summary="약관 버전 게시", description="본문 URL이 있는 초안만 게시합니다. 시행일이 되면 사용자 약관 조회에 자동 반영됩니다.")
+	@Operation(summary="약관 버전 게시", description="완전한 DB 원문 또는 HTTPS 외부 문서 URL이 있는 초안만 게시합니다. 시행일이 되면 사용자 약관 조회에 자동 반영됩니다.")
 	public ApiEnvelope<?> publish(@PathVariable @Positive long termId, @PathVariable @Positive long versionId, HttpServletRequest request) {
 		return ok("ADMIN_TERM_VERSION_PUBLISHED", AdminTermsDtos.from(service.publish(termId, versionId)), request);
 	}

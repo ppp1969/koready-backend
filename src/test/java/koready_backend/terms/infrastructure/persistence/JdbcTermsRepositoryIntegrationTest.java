@@ -132,18 +132,20 @@ class JdbcTermsRepositoryIntegrationTest {
 		long userId = user("usr_inline_terms");
 		long termId = term("SERVICE_TERMS", 1);
 		Instant now = Instant.now();
+		String content = "# 약관\n본문";
 		jdbcTemplate.update("""
 			INSERT INTO term_versions
 			    (term_id, version_label, title, content_body, content_format, required,
 			     effective_at, published_at)
-			VALUES (?, '1.0', '서비스 이용약관', '# 약관\\n본문', 'MARKDOWN', TRUE, ?, ?)
-			""", termId, Timestamp.from(now.minusSeconds(60)), Timestamp.from(now.minusSeconds(60)));
+			VALUES (?, '1.0', '서비스 이용약관', ?, 'MARKDOWN', TRUE, ?, ?)
+			""", termId, content, Timestamp.from(now.minusSeconds(60)),
+			Timestamp.from(now.minusSeconds(60)));
 
 		var terms = service.getRequiredTerms("usr_inline_terms").terms();
 
 		assertEquals(1, terms.size());
 		assertEquals(userId > 0, true);
-		assertEquals("# 약관\\n본문", terms.getFirst().content());
+		assertEquals(content, terms.getFirst().content());
 		assertEquals(TermContentFormat.MARKDOWN, terms.getFirst().contentFormat());
 	}
 

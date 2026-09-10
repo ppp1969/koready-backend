@@ -12,4 +12,11 @@ public interface LocationSearchProvider {
 	default Optional<String> resolvePostalCode(double latitude, double longitude) {
 		return Optional.empty();
 	}
+
+	default Optional<LocationSearchCandidate> resolveByCoordinates(
+		double latitude,
+		double longitude
+	) {
+		return Optional.empty();
+	}
 }

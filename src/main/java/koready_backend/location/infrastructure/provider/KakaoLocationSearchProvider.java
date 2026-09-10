@@ -74,6 +74,15 @@ public final class KakaoLocationSearchProvider implements LocationSearchProvider
 
 	@Override
 	public Optional<String> resolvePostalCode(double latitude, double longitude) {
+		return resolveByCoordinates(latitude, longitude)
+			.map(LocationSearchCandidate::postalCode);
+	}
+
+	@Override
+	public Optional<LocationSearchCandidate> resolveByCoordinates(
+		double latitude,
+		double longitude
+	) {
 		if (properties.restApiKey().isBlank()) {
 			throw new LocationProviderUnavailableException();
 		}
@@ -108,17 +117,38 @@ public final class KakaoLocationSearchProvider implements LocationSearchProvider
 				throw new LocationProviderUnavailableException();
 			}
 			return response.documents().stream()
-				.map(KakaoDocument::road_address)
+				.map(document -> coordinateCandidate(document, latitude, longitude))
 				.filter(java.util.Objects::nonNull)
-				.map(KakaoAddress::zone_no)
-				.filter(value -> value != null && !value.isBlank())
-				.map(String::strip)
 				.findFirst();
 		} catch (LocationProviderUnavailableException exception) {
 			throw exception;
 		} catch (Exception exception) {
 			throw new LocationProviderUnavailableException();
 		}
+	}
+
+	private LocationSearchCandidate coordinateCandidate(
+		KakaoDocument document,
+		double latitude,
+		double longitude
+	) {
+		KakaoAddress region = document.address() != null
+			? document.address() : document.road_address();
+		if (region == null) {
+			return null;
+		}
+		String roadAddress = document.road_address() == null
+			? null : document.road_address().address_name();
+		String address = document.address() == null
+			? null : document.address().address_name();
+		String name = firstNonBlank(
+			document.road_address() == null ? null : document.road_address().building_name(),
+			roadAddress, address);
+		return new LocationSearchCandidate(
+			LocationSearchResultType.ADDRESS, null, name, roadAddress, address,
+			latitude, longitude, region.region_1depth_name(),
+			region.region_2depth_name(), region.region_3depth_name(),
+			document.road_address() == null ? null : document.road_address().zone_no());
 	}
 
 	private byte[] fetch(String path, String query, int size) {

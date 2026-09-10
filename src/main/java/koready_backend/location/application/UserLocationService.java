@@ -13,12 +13,15 @@ import koready_backend.location.application.exception.UserLocationNotFoundExcept
 import koready_backend.location.application.exception.UserLocationUserUnavailableException;
 import koready_backend.location.application.port.LocationSearchTokenCodec;
 import koready_backend.location.application.port.LocationSearchProvider;
+import koready_backend.location.application.port.EnglishLocationSearchProvider;
 import koready_backend.location.application.port.UserLocationRepository;
+import koready_backend.location.application.port.UserLocationRepository.LocalizedLocation;
 import koready_backend.location.application.port.UserLocationRepository.NewLocation;
 import koready_backend.location.application.port.UserLocationRepository.UserAccount;
 import koready_backend.location.application.port.UserLocationRepository.UserLocationRecord;
 import koready_backend.location.domain.LocationSearchCandidate;
 import koready_backend.place.domain.ServiceRegionCode;
+import koready_backend.place.domain.PlaceLanguage;
 
 @Service
 public class UserLocationService {
@@ -29,15 +32,17 @@ public class UserLocationService {
 	private final UserLocationRepository repository;
 	private final LocationSearchTokenCodec tokenCodec;
 	private final LocationSearchProvider searchProvider;
+	private final EnglishLocationSearchProvider englishSearchProvider;
 	private final Clock clock;
 
 	@Autowired
 	public UserLocationService(
 		UserLocationRepository repository,
 		LocationSearchTokenCodec tokenCodec,
-		LocationSearchProvider searchProvider
+		LocationSearchProvider searchProvider,
+		EnglishLocationSearchProvider englishSearchProvider
 	) {
-		this(repository, tokenCodec, searchProvider, Clock.systemUTC());
+		this(repository, tokenCodec, searchProvider, englishSearchProvider, Clock.systemUTC());
 	}
 
 	UserLocationService(
@@ -45,7 +50,8 @@ public class UserLocationService {
 		LocationSearchTokenCodec tokenCodec,
 		Clock clock
 	) {
-		this(repository, tokenCodec, (query, limit) -> List.of(), clock);
+		this(repository, tokenCodec, (query, limit) -> List.of(),
+			(query, limit) -> List.of(), clock);
 	}
 
 	UserLocationService(
@@ -54,9 +60,20 @@ public class UserLocationService {
 		LocationSearchProvider searchProvider,
 		Clock clock
 	) {
+		this(repository, tokenCodec, searchProvider, (query, limit) -> List.of(), clock);
+	}
+
+	UserLocationService(
+		UserLocationRepository repository,
+		LocationSearchTokenCodec tokenCodec,
+		LocationSearchProvider searchProvider,
+		EnglishLocationSearchProvider englishSearchProvider,
+		Clock clock
+	) {
 		this.repository = repository;
 		this.tokenCodec = tokenCodec;
 		this.searchProvider = searchProvider;
+		this.englishSearchProvider = englishSearchProvider;
 		this.clock = clock;
 	}
 
@@ -65,7 +82,7 @@ public class UserLocationService {
 		UserAccount user = repository.findActiveUser(userPublicId)
 			.orElseThrow(UserLocationUserUnavailableException::new);
 		List<Location> items = repository.findAllCompleteActive(
-			user.userId(), user.defaultLocationId()).stream()
+			user.userId(), user.defaultLocationId(), user.preferredLanguage()).stream()
 			.map(record -> toLocation(
 				record, Objects.equals(record.locationId(), user.defaultLocationId())))
 			.toList();
@@ -102,6 +119,10 @@ public class UserLocationService {
 				candidate.dong(),
 				payload.serviceRegionCode()),
 			now);
+		repository.saveLocalization(
+			created.locationId(), candidate.language(), localized(candidate), now);
+		findCounterpart(candidate).ifPresent(counterpart -> repository.saveLocalization(
+			created.locationId(), counterpart.language(), localized(counterpart), now));
 		boolean makeDefault = command.setDefault() || user.defaultLocationId() == null;
 		if (makeDefault) {
 			repository.updateDefaultLocation(user.userId(), created.locationId(), now);
@@ -115,7 +136,7 @@ public class UserLocationService {
 		UserAccount user = repository.findActiveUserForUpdate(userPublicId)
 			.orElseThrow(UserLocationUserUnavailableException::new);
 		UserLocationRecord location = repository
-			.findCompleteActive(user.userId(), locationId)
+			.findCompleteActive(user.userId(), locationId, user.preferredLanguage())
 			.orElseThrow(() -> new UserLocationNotFoundException(locationId));
 		repository.updateDefaultLocation(user.userId(), locationId, clock.instant());
 		return toLocation(location, true);
@@ -126,7 +147,7 @@ public class UserLocationService {
 		positive(locationId);
 		UserAccount user = repository.findActiveUserForUpdate(userPublicId)
 			.orElseThrow(UserLocationUserUnavailableException::new);
-		repository.findCompleteActive(user.userId(), locationId)
+		repository.findCompleteActive(user.userId(), locationId, user.preferredLanguage())
 			.orElseThrow(() -> new UserLocationNotFoundException(locationId));
 		Instant now = clock.instant();
 		if (Objects.equals(user.defaultLocationId(), locationId)) {
@@ -137,6 +158,84 @@ public class UserLocationService {
 			repository.updateDefaultLocation(user.userId(), replacementId, now);
 		}
 		repository.softDelete(user.userId(), locationId, now);
+	}
+
+	@Transactional
+	public void prepareLanguage(String userPublicId, PlaceLanguage language) {
+		try {
+			java.util.Optional<UserAccount> account = repository.findActiveUser(userPublicId);
+			if (account.isEmpty()) {
+				return;
+			}
+			UserAccount user = account.get();
+			List<UserLocationRecord> locations = repository.findAllCompleteActive(
+				user.userId(), user.defaultLocationId(), language);
+			for (UserLocationRecord location : locations) {
+				if (repository.hasLocalization(location.locationId(), language)) {
+					continue;
+				}
+				findLocalized(location, language).ifPresent(candidate ->
+					repository.saveLocalization(location.locationId(), language,
+						localized(candidate), clock.instant()));
+			}
+		} catch (RuntimeException ignored) {
+			// Language preference must remain usable when localization providers fail.
+		}
+	}
+
+	private java.util.Optional<LocationSearchCandidate> findCounterpart(
+		LocationSearchCandidate source
+	) {
+		try {
+			if (source.language() == PlaceLanguage.EN) {
+				return searchProvider.resolveByCoordinates(
+					source.latitude(), source.longitude());
+			}
+			return englishSearchProvider.search(source.name(), 10).stream()
+				.min(java.util.Comparator.comparingDouble(candidate ->
+					distanceSquared(source, candidate)))
+				.filter(candidate -> distanceSquared(source, candidate) < 0.01);
+		} catch (RuntimeException ignored) {
+			return java.util.Optional.empty();
+		}
+	}
+
+	private java.util.Optional<LocationSearchCandidate> findLocalized(
+		UserLocationRecord source,
+		PlaceLanguage target
+	) {
+		try {
+			if (target == PlaceLanguage.KO) {
+				return searchProvider.resolveByCoordinates(
+					source.latitude(), source.longitude());
+			}
+			LocationSearchCandidate anchor = new LocationSearchCandidate(
+				source.provider(), PlaceLanguage.KO,
+				koready_backend.location.domain.LocationSearchResultType.PLACE,
+				source.providerPlaceId(), source.displayName(), source.roadAddress(),
+				source.address(), source.latitude(), source.longitude(), source.sido(),
+				source.sigungu(), source.dong(), source.postalCode());
+			return englishSearchProvider.search(source.displayName(), 10).stream()
+				.min(java.util.Comparator.comparingDouble(candidate ->
+					distanceSquared(anchor, candidate)))
+				.filter(candidate -> distanceSquared(anchor, candidate) < 0.01);
+		} catch (RuntimeException ignored) {
+			return java.util.Optional.empty();
+		}
+	}
+
+	private static double distanceSquared(
+		LocationSearchCandidate left,
+		LocationSearchCandidate right
+	) {
+		double latitude = left.latitude() - right.latitude();
+		double longitude = left.longitude() - right.longitude();
+		return latitude * latitude + longitude * longitude;
+	}
+
+	private static LocalizedLocation localized(LocationSearchCandidate candidate) {
+		return new LocalizedLocation(
+			candidate.name(), candidate.roadAddress(), candidate.address());
 	}
 
 	private static Location toLocation(UserLocationRecord record, boolean isDefault) {

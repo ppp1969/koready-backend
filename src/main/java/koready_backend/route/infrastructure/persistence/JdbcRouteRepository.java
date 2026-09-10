@@ -34,8 +34,9 @@ public class JdbcRouteRepository implements RouteRepository {
 			SELECT
 			    user.id AS user_id,
 			    user.preferred_language,
-			    location.display_name AS origin_name,
-			    COALESCE(location.road_address, location.address) AS origin_address,
+			    COALESCE(origin_text.display_name, location.display_name) AS origin_name,
+			    COALESCE(origin_text.road_address, origin_text.address,
+			             location.road_address, location.address) AS origin_address,
 			    location.latitude AS origin_latitude,
 			    location.longitude AS origin_longitude,
 			    COALESCE(destination_text.title, korean.title) AS destination_name,
@@ -53,6 +54,9 @@ public class JdbcRouteRepository implements RouteRepository {
 			 AND place.active = TRUE
 			 AND place.latitude IS NOT NULL
 			 AND place.longitude IS NOT NULL
+			LEFT JOIN user_location_localizations origin_text
+			  ON origin_text.user_location_id = location.id
+			 AND origin_text.language = user.preferred_language
 			LEFT JOIN place_localizations destination_text
 			  ON destination_text.place_id = place.id
 			 AND destination_text.language = user.preferred_language

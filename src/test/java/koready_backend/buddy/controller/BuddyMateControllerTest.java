@@ -28,6 +28,7 @@ import koready_backend.buddy.domain.SocialLinkType;
 import koready_backend.place.application.exception.PlaceNotFoundException;
 import koready_backend.buddy.domain.ProfileLanguage;
 import koready_backend.place.domain.TravelStyle;
+import koready_backend.place.application.port.ResponseLanguageResolver;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -41,6 +42,9 @@ class BuddyMateControllerTest {
 
 	@MockitoBean
 	private BuddyMateService service;
+
+	@MockitoBean
+	private ResponseLanguageResolver languageResolver;
 
 	@Test
 	void requiresAuthentication() throws Exception {

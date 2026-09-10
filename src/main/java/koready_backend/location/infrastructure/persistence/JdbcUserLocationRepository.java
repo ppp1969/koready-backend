@@ -29,6 +29,14 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 		AND sido IS NOT NULL
 		AND sigungu IS NOT NULL
 		""";
+	private static final String QUALIFIED_COMPLETE_LOCATION = """
+		location.provider IS NOT NULL
+		AND (location.road_address IS NOT NULL OR location.address IS NOT NULL)
+		AND location.latitude IS NOT NULL
+		AND location.longitude IS NOT NULL
+		AND location.sido IS NOT NULL
+		AND location.sigungu IS NOT NULL
+		""";
 
 	private static final String LOCATION_COLUMNS = """
 		id, user_id, display_name, custom_label, provider, provider_place_id,
@@ -75,8 +83,10 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 		PlaceLanguage language
 	) {
 		String sql = localizedSelect(language) + " WHERE "
-			+ "user_id = ? AND deleted_at IS NULL AND " + COMPLETE_LOCATION
-			+ " ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, created_at DESC, id DESC";
+			+ "location.user_id = ? AND location.deleted_at IS NULL AND "
+			+ QUALIFIED_COMPLETE_LOCATION
+			+ " ORDER BY CASE WHEN location.id = ? THEN 0 ELSE 1 END, "
+			+ "location.created_at DESC, location.id DESC";
 		return jdbcTemplate.query(connection -> {
 			PreparedStatement statement = connection.prepareStatement(sql);
 			statement.setLong(1, userId);
@@ -94,7 +104,8 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 		long userId, long locationId, PlaceLanguage language
 	) {
 		String sql = localizedSelect(language) + " WHERE "
-			+ "user_id = ? AND id = ? AND deleted_at IS NULL AND " + COMPLETE_LOCATION;
+			+ "location.user_id = ? AND location.id = ? "
+			+ "AND location.deleted_at IS NULL AND " + QUALIFIED_COMPLETE_LOCATION;
 		return jdbcTemplate.query(sql, this::mapLocation, userId, locationId)
 			.stream().findFirst();
 	}

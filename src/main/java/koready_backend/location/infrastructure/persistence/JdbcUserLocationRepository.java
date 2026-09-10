@@ -16,6 +16,7 @@ import org.springframework.stereotype.Repository;
 
 import koready_backend.location.application.port.UserLocationRepository;
 import koready_backend.place.domain.ServiceRegionCode;
+import koready_backend.place.domain.PlaceLanguage;
 
 @Repository
 public class JdbcUserLocationRepository implements UserLocationRepository {
@@ -27,6 +28,14 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 		AND longitude IS NOT NULL
 		AND sido IS NOT NULL
 		AND sigungu IS NOT NULL
+		""";
+	private static final String QUALIFIED_COMPLETE_LOCATION = """
+		location.provider IS NOT NULL
+		AND (location.road_address IS NOT NULL OR location.address IS NOT NULL)
+		AND location.latitude IS NOT NULL
+		AND location.longitude IS NOT NULL
+		AND location.sido IS NOT NULL
+		AND location.sigungu IS NOT NULL
 		""";
 
 	private static final String LOCATION_COLUMNS = """
@@ -53,7 +62,7 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 
 	private Optional<UserAccount> findUser(String publicId, boolean forUpdate) {
 		String sql = """
-			SELECT id, default_location_id
+			SELECT id, default_location_id, preferred_language
 			FROM users
 			WHERE public_id = ? AND deleted_at IS NULL
 			""" + (forUpdate ? "FOR UPDATE" : "");
@@ -62,18 +71,22 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 			long defaultLocationId = resultSet.getLong("default_location_id");
 			return new UserAccount(
 				userId,
-				resultSet.wasNull() ? null : defaultLocationId);
+				resultSet.wasNull() ? null : defaultLocationId,
+				PlaceLanguage.valueOf(resultSet.getString("preferred_language")));
 		}, publicId).stream().findFirst();
 	}
 
 	@Override
 	public List<UserLocationRecord> findAllCompleteActive(
 		long userId,
-		Long defaultLocationId
+		Long defaultLocationId,
+		PlaceLanguage language
 	) {
-		String sql = "SELECT " + LOCATION_COLUMNS + " FROM user_locations WHERE "
-			+ "user_id = ? AND deleted_at IS NULL AND " + COMPLETE_LOCATION
-			+ " ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, created_at DESC, id DESC";
+		String sql = localizedSelect(language) + " WHERE "
+			+ "location.user_id = ? AND location.deleted_at IS NULL AND "
+			+ QUALIFIED_COMPLETE_LOCATION
+			+ " ORDER BY CASE WHEN location.id = ? THEN 0 ELSE 1 END, "
+			+ "location.created_at DESC, location.id DESC";
 		return jdbcTemplate.query(connection -> {
 			PreparedStatement statement = connection.prepareStatement(sql);
 			statement.setLong(1, userId);
@@ -88,11 +101,11 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 
 	@Override
 	public Optional<UserLocationRecord> findCompleteActive(
-		long userId,
-		long locationId
+		long userId, long locationId, PlaceLanguage language
 	) {
-		String sql = "SELECT " + LOCATION_COLUMNS + " FROM user_locations WHERE "
-			+ "user_id = ? AND id = ? AND deleted_at IS NULL AND " + COMPLETE_LOCATION;
+		String sql = localizedSelect(language) + " WHERE "
+			+ "location.user_id = ? AND location.id = ? "
+			+ "AND location.deleted_at IS NULL AND " + QUALIFIED_COMPLETE_LOCATION;
 		return jdbcTemplate.query(sql, this::mapLocation, userId, locationId)
 			.stream().findFirst();
 	}
@@ -150,9 +163,45 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 		if (key == null) {
 			throw new IllegalStateException("User location key was not generated");
 		}
-		return findCompleteActive(userId, key.longValue())
+		return findCompleteActive(userId, key.longValue(), PlaceLanguage.KO)
 			.orElseThrow(() -> new IllegalStateException(
 				"Created user location could not be loaded"));
+	}
+
+	@Override
+	public void saveLocalization(
+		long locationId,
+		PlaceLanguage language,
+		LocalizedLocation location,
+		Instant updatedAt
+	) {
+		jdbcTemplate.update(
+			"""
+			INSERT INTO user_location_localizations
+			    (user_location_id, language, display_name, road_address, address,
+			     created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+			ON DUPLICATE KEY UPDATE
+			    display_name = VALUES(display_name),
+			    road_address = VALUES(road_address),
+			    address = VALUES(address),
+			    updated_at = VALUES(updated_at)
+			""",
+			locationId, language.name(), location.displayName(), location.roadAddress(),
+			location.address(), Timestamp.from(updatedAt), Timestamp.from(updatedAt));
+	}
+
+	@Override
+	public boolean hasLocalization(long locationId, PlaceLanguage language) {
+		Integer count = jdbcTemplate.queryForObject(
+			"""
+			SELECT COUNT(*) FROM user_location_localizations
+			WHERE user_location_id = ? AND language = ?
+			""",
+			Integer.class,
+			locationId,
+			language.name());
+		return count != null && count > 0;
 	}
 
 	@Override
@@ -206,5 +255,22 @@ public class JdbcUserLocationRepository implements UserLocationRepository {
 			resultSet.getString("dong"),
 			ServiceRegionCode.valueOf(resultSet.getString("service_region_code")),
 			resultSet.getTimestamp("created_at").toInstant());
+	}
+
+	private static String localizedSelect(PlaceLanguage language) {
+		return """
+			SELECT location.id, location.user_id,
+			       COALESCE(localized.display_name, location.display_name) AS display_name,
+			       location.custom_label, location.provider, location.provider_place_id,
+			       COALESCE(localized.road_address, location.road_address) AS road_address,
+			       COALESCE(localized.address, location.address) AS address,
+			       location.postal_code, location.latitude, location.longitude,
+			       location.sido, location.sigungu, location.dong,
+			       location.service_region_code, location.created_at
+			FROM user_locations location
+			LEFT JOIN user_location_localizations localized
+			"""
+			+ " ON localized.user_location_id = location.id AND localized.language = '"
+			+ language.name() + "'";
 	}
 }

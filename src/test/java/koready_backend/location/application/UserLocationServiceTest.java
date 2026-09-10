@@ -36,6 +36,8 @@ import koready_backend.location.application.port.UserLocationRepository.UserLoca
 import koready_backend.location.domain.LocationSearchCandidate;
 import koready_backend.location.domain.LocationSearchResultType;
 import koready_backend.place.domain.ServiceRegionCode;
+import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.location.application.port.UserLocationRepository.LocalizedLocation;
 
 class UserLocationServiceTest {
 
@@ -74,6 +76,12 @@ class UserLocationServiceTest {
 		assertEquals(37.5666, location.getValue().latitude());
 		assertEquals(ServiceRegionCode.SEOUL, location.getValue().serviceRegionCode());
 		verify(repository).updateDefaultLocation(7L, 101L, NOW);
+		verify(repository).saveLocalization(
+			101L,
+			PlaceLanguage.KO,
+			new LocalizedLocation(
+				"서울시청", "서울특별시 중구 세종대로 110", "서울특별시 중구 태평로1가 31"),
+			NOW);
 		assertTrue(result.isDefault());
 	}
 
@@ -134,7 +142,7 @@ class UserLocationServiceTest {
 		UserLocationRecord defaultLocation = location(101L, "학교");
 		when(repository.findActiveUser("usr_emma"))
 			.thenReturn(Optional.of(new UserAccount(7L, 101L)));
-		when(repository.findAllCompleteActive(7L, 101L))
+		when(repository.findAllCompleteActive(7L, 101L, koready_backend.place.domain.PlaceLanguage.KO))
 			.thenReturn(List.of(defaultLocation, newest));
 
 		UserLocationService.LocationList result = service.getAll("usr_emma");
@@ -150,7 +158,7 @@ class UserLocationServiceTest {
 	void changesTheDefaultOnlyToAnOwnedActiveLocation() {
 		when(repository.findActiveUserForUpdate("usr_emma"))
 			.thenReturn(Optional.of(new UserAccount(7L, 100L)));
-		when(repository.findCompleteActive(7L, 101L))
+		when(repository.findCompleteActive(7L, 101L, koready_backend.place.domain.PlaceLanguage.KO))
 			.thenReturn(Optional.of(location(101L, "학교")));
 
 		UserLocationService.Location result = service.setDefault("usr_emma", 101L);
@@ -164,7 +172,7 @@ class UserLocationServiceTest {
 	void deletingTheDefaultPromotesTheNewestRemainingLocation() {
 		when(repository.findActiveUserForUpdate("usr_emma"))
 			.thenReturn(Optional.of(new UserAccount(7L, 101L)));
-		when(repository.findCompleteActive(7L, 101L))
+		when(repository.findCompleteActive(7L, 101L, koready_backend.place.domain.PlaceLanguage.KO))
 			.thenReturn(Optional.of(location(101L, "학교")));
 		when(repository.findNewestCompleteActiveExcluding(7L, 101L))
 			.thenReturn(Optional.of(location(99L, "집")));
@@ -179,7 +187,7 @@ class UserLocationServiceTest {
 	void deletingTheOnlyLocationClearsTheDefault() {
 		when(repository.findActiveUserForUpdate("usr_emma"))
 			.thenReturn(Optional.of(new UserAccount(7L, 101L)));
-		when(repository.findCompleteActive(7L, 101L))
+		when(repository.findCompleteActive(7L, 101L, koready_backend.place.domain.PlaceLanguage.KO))
 			.thenReturn(Optional.of(location(101L, "학교")));
 		when(repository.findNewestCompleteActiveExcluding(7L, 101L))
 			.thenReturn(Optional.empty());
@@ -198,7 +206,7 @@ class UserLocationServiceTest {
 
 		when(repository.findActiveUserForUpdate("usr_emma"))
 			.thenReturn(Optional.of(new UserAccount(7L, 100L)));
-		when(repository.findCompleteActive(7L, 999L)).thenReturn(Optional.empty());
+		when(repository.findCompleteActive(7L, 999L, koready_backend.place.domain.PlaceLanguage.KO)).thenReturn(Optional.empty());
 		assertThrows(UserLocationNotFoundException.class,
 			() -> service.setDefault("usr_emma", 999L));
 		assertThrows(UserLocationNotFoundException.class,

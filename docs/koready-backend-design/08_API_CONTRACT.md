@@ -483,6 +483,8 @@ GPS 기반 endpoint와 위도/경도 역지오코딩 endpoint는 제공하지 �
 | PUT | `/api/v1/users/me/locations/{locationId}/default` | 기본 위치 지정 |
 | DELETE | `/api/v1/users/me/locations/{locationId}` | soft delete |
 
+- 저장 위치의 `displayName`, `roadAddress`, `address`는 같은 `locationId`를 유지하면서 사용자의 `preferredLanguage`에 맞는 KO/EN 값으로 반환한다. 반대 언어 외부 조회가 실패하거나 기존 위치에 번역 레코드가 없으면 저장 당시 값을 안전하게 반환한다.
+
 `POST /api/v1/users/me/locations`
 
 ```json
@@ -1153,7 +1155,7 @@ cursor는 요청자와 placeId에 묶인다. 다른 사용자·다른 장소에�
 - 목록과 상세 `GET`은 읽음 상태를 바꾸지 않는다. 화면을 실제로 표시한 뒤 읽음 API를 호출한다.
 - 차단 뒤에도 기존 스레드는 과거 대화와 신고 증빙을 위해 조회할 수 있으나 `blocked=true`, `canReply=false`다. 비공개·수신 거부 전환도 기존 대화는 유지하고 답장만 막는다.
 - 상대 계정이 삭제되면 스레드 목록과 상세에서 숨기고 미읽음 전체 수에서도 제외한다.
-- 쪽지 목록·상세·첫 쪽지 응답의 `otherProfile.nationalityCode`는 상대가 저장한 ISO 3166-1 alpha-2 국적 코드다.
+- 쪽지 목록·상세·첫 쪽지 응답의 `otherProfile.nationalityCode`는 상대가 저장한 ISO 3166-1 alpha-2 국적 코드다. `nationalityName`은 현재 사용자의 언어 설정에 맞춘 화면 표시명이다.
 - 실시간 채팅이 아니며 push 알림 전송은 이번 구현 범위에 포함하지 않는다.
 
 ## 9.4 안전 기능

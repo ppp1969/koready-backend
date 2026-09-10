@@ -16,33 +16,39 @@ import koready_backend.buddy.domain.KoreanLevel;
 import koready_backend.buddy.domain.ProfileLanguage;
 import koready_backend.buddy.domain.SocialLinkType;
 import koready_backend.place.domain.TravelStyle;
+import koready_backend.place.domain.PlaceLanguage;
 
 final class BuddyProfileDtos {
 
 	private BuddyProfileDtos() {
 	}
 
-	static MyBuddyProfileResponse from(BuddyProfileService.MyProfileResult result) {
+	static MyBuddyProfileResponse from(
+		BuddyProfileService.MyProfileResult result,
+		PlaceLanguage language
+	) {
 		return new MyBuddyProfileResponse(
 			result.exists(),
-			result.profile() == null ? null : fromMy(result.profile()));
+			result.profile() == null ? null : fromMy(result.profile(), language));
 	}
 
-	static MyBuddyProfileData fromMy(BuddyProfileView profile) {
+	static MyBuddyProfileData fromMy(BuddyProfileView profile, PlaceLanguage language) {
 		return new MyBuddyProfileData(
 			profile.profileId(), profile.profileImageUrl(), profile.nickname(),
-			profile.nationality(), profile.availableLanguages(), profile.koreanLevel(),
+			profile.nationality(), CountryDisplayName.of(profile.nationality(), language),
+			profile.availableLanguages(), profile.koreanLevel(),
 			profile.travelStyles(), profile.bio(), socialLinks(profile),
 			profile.profilePublic(), profile.snsPublic(), profile.allowsMessages(),
 			profile.canMessage(), profile.blockedByMe(), profile.updatedAt());
 	}
 
-	static BuddyProfileResponse from(BuddyProfileView profile) {
+	static BuddyProfileResponse from(BuddyProfileView profile, PlaceLanguage language) {
 		return new BuddyProfileResponse(
 			profile.profileId(),
 			profile.profileImageUrl(),
 			profile.nickname(),
 			profile.nationality(),
+			CountryDisplayName.of(profile.nationality(), language),
 			profile.availableLanguages(),
 			profile.koreanLevel(),
 			profile.travelStyles(),
@@ -118,6 +124,7 @@ final class BuddyProfileDtos {
 		String profileImageUrl,
 		String nickname,
 		String nationalityCode,
+		String nationalityName,
 		List<ProfileLanguage> availableLanguages,
 		KoreanLevel koreanLevel,
 		List<TravelStyle> travelStyles,
@@ -137,6 +144,7 @@ final class BuddyProfileDtos {
 		String profileImageUrl,
 		String nickname,
 		String nationalityCode,
+		String nationalityName,
 		List<ProfileLanguage> availableLanguages,
 		KoreanLevel koreanLevel,
 		List<TravelStyle> travelStyles,

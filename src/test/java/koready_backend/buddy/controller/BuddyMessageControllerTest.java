@@ -19,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import koready_backend.place.application.port.ResponseLanguageResolver;
 
 import koready_backend.buddy.application.BuddyMessageService;
 import koready_backend.buddy.application.BuddyMessageQueryService;
@@ -44,6 +45,9 @@ class BuddyMessageControllerTest {
 
 	@MockitoBean
 	private BuddyMessageQueryService queryService;
+
+	@MockitoBean
+	private ResponseLanguageResolver languageResolver;
 
 	@Test
 	void requiresAuthenticationForEveryMessageOperation() throws Exception {
@@ -112,6 +116,7 @@ class BuddyMessageControllerTest {
 			.andExpect(jsonPath("$.code").value("MESSAGE_THREADS_OK"))
 			.andExpect(jsonPath("$.data.items[0].threadId").value("thread_001"))
 			.andExpect(jsonPath("$.data.items[0].otherProfile.nationalityCode").value("US"))
+			.andExpect(jsonPath("$.data.items[0].otherProfile.nationalityName").value("미국"))
 			.andExpect(jsonPath("$.data.items[0].blocked").value(true))
 			.andExpect(jsonPath("$.data.items[0].canReply").value(false))
 			.andExpect(jsonPath("$.data.nextCursor").value("next_threads"))
@@ -123,6 +128,7 @@ class BuddyMessageControllerTest {
 			.andExpect(jsonPath("$.code").value("MESSAGE_THREAD_OK"))
 			.andExpect(jsonPath("$.data.messages[0].messageId").value(9001))
 			.andExpect(jsonPath("$.data.otherProfile.nationalityCode").value("US"))
+			.andExpect(jsonPath("$.data.otherProfile.nationalityName").value("미국"))
 			.andExpect(jsonPath("$.data.canReply").value(false));
 
 		mockMvc.perform(put("/api/v1/message-threads/thread_001/read")

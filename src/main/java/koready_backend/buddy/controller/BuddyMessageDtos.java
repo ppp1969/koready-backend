@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import koready_backend.buddy.application.BuddyMessageQueryService;
 import koready_backend.buddy.application.BuddyMessageService;
+import koready_backend.place.domain.PlaceLanguage;
 
 final class BuddyMessageDtos {
 
@@ -33,9 +34,12 @@ final class BuddyMessageDtos {
 		boolean hasMore,
 		long unreadTotal
 	) {
-		static ThreadListResponse from(BuddyMessageQueryService.ThreadListResult result) {
+		static ThreadListResponse from(
+			BuddyMessageQueryService.ThreadListResult result,
+			PlaceLanguage language
+		) {
 			return new ThreadListResponse(
-				result.items().stream().map(ThreadSummary::from).toList(),
+				result.items().stream().map(item -> ThreadSummary.from(item, language)).toList(),
 				result.nextCursor(),
 				result.hasMore(),
 				result.unreadTotal());
@@ -52,11 +56,14 @@ final class BuddyMessageDtos {
 		boolean blocked,
 		boolean canReply
 	) {
-		static ThreadSummary from(BuddyMessageQueryService.ThreadSummary summary) {
+		static ThreadSummary from(
+			BuddyMessageQueryService.ThreadSummary summary,
+			PlaceLanguage language
+		) {
 			return new ThreadSummary(
 				summary.threadId(),
 				PlaceSummary.from(summary.place()),
-				ProfileSummary.from(summary.otherProfile()),
+				ProfileSummary.from(summary.otherProfile(), language),
 				summary.preview(),
 				summary.lastSentAt(),
 				summary.unreadCount(),
@@ -74,11 +81,14 @@ final class BuddyMessageDtos {
 		boolean hasMore,
 		boolean canReply
 	) {
-		static ThreadResponse from(BuddyMessageService.ThreadResult result) {
+		static ThreadResponse from(
+			BuddyMessageService.ThreadResult result,
+			PlaceLanguage language
+		) {
 			return new ThreadResponse(
 				result.threadId(),
 				PlaceSummary.from(result.place()),
-				ProfileSummary.from(result.otherProfile()),
+				ProfileSummary.from(result.otherProfile(), language),
 				result.messages().stream().map(MessageResponse::from).toList(),
 				result.nextCursor(),
 				result.hasMore(),
@@ -97,12 +107,17 @@ final class BuddyMessageDtos {
 		long profileId,
 		String nickname,
 		String profileImageUrl,
-		String nationalityCode
+		String nationalityCode,
+		String nationalityName
 	) {
-		static ProfileSummary from(BuddyMessageService.ProfileSummary summary) {
+		static ProfileSummary from(
+			BuddyMessageService.ProfileSummary summary,
+			PlaceLanguage language
+		) {
 			return new ProfileSummary(
 				summary.profileId(), summary.nickname(), summary.profileImageUrl(),
-				summary.nationalityCode());
+				summary.nationalityCode(),
+				CountryDisplayName.of(summary.nationalityCode(), language));
 		}
 	}
 

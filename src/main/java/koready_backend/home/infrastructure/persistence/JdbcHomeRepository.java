@@ -30,13 +30,16 @@ public class JdbcHomeRepository implements HomeRepository {
 			    user.public_id,
 			    user.preferred_language,
 			    location.id AS location_id,
-			    location.display_name,
+			    COALESCE(location_text.display_name, location.display_name) AS display_name,
 			    location.service_region_code
 			FROM users user
 			LEFT JOIN user_locations location
 			  ON location.id = user.default_location_id
 			 AND location.user_id = user.id
 			 AND location.deleted_at IS NULL
+			LEFT JOIN user_location_localizations location_text
+			  ON location_text.user_location_id = location.id
+			 AND location_text.language = user.preferred_language
 			WHERE user.public_id = ? AND user.deleted_at IS NULL
 			""",
 			this::homeUser,

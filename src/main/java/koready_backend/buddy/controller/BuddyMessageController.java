@@ -23,6 +23,7 @@ import koready_backend.buddy.application.BuddyMessageQueryService;
 import koready_backend.buddy.application.BuddyMessageService;
 import koready_backend.common.controller.ApiEnvelope;
 import koready_backend.common.controller.TraceIdFilter;
+import koready_backend.place.application.port.ResponseLanguageResolver;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -31,13 +32,16 @@ public class BuddyMessageController {
 
 	private final BuddyMessageService commandService;
 	private final BuddyMessageQueryService queryService;
+	private final ResponseLanguageResolver languageResolver;
 
 	public BuddyMessageController(
 		BuddyMessageService commandService,
-		BuddyMessageQueryService queryService
+		BuddyMessageQueryService queryService,
+		ResponseLanguageResolver languageResolver
 	) {
 		this.commandService = commandService;
 		this.queryService = queryService;
+		this.languageResolver = languageResolver;
 	}
 
 	@GetMapping("/message-threads")
@@ -45,12 +49,14 @@ public class BuddyMessageController {
 		@RequestParam(required = false) @Size(max = 512) String cursor,
 		@RequestParam(defaultValue = "20") @Min(1) @Max(50) int size,
 		Authentication authentication,
+		@RequestHeader(value = "Accept-Language", required = false) String acceptLanguage,
 		HttpServletRequest request
 	) {
 		return ApiEnvelope.success(
 			"MESSAGE_THREADS_OK",
 			BuddyMessageDtos.ThreadListResponse.from(queryService.getThreads(
-				authentication.getName(), cursor, size)),
+				authentication.getName(), cursor, size), languageResolver.resolve(
+					authentication.getName(), acceptLanguage)),
 			TraceIdFilter.current(request));
 	}
 
@@ -60,12 +66,14 @@ public class BuddyMessageController {
 		@RequestParam(required = false) @Size(max = 512) String cursor,
 		@RequestParam(defaultValue = "20") @Min(1) @Max(50) int size,
 		Authentication authentication,
+		@RequestHeader(value = "Accept-Language", required = false) String acceptLanguage,
 		HttpServletRequest request
 	) {
 		return ApiEnvelope.success(
 			"MESSAGE_THREAD_OK",
 			BuddyMessageDtos.ThreadResponse.from(queryService.getThread(
-				authentication.getName(), threadId, cursor, size)),
+				authentication.getName(), threadId, cursor, size), languageResolver.resolve(
+					authentication.getName(), acceptLanguage)),
 			TraceIdFilter.current(request));
 	}
 
@@ -88,12 +96,14 @@ public class BuddyMessageController {
 		@RequestHeader("Idempotency-Key") String idempotencyKey,
 		@RequestBody @Valid BuddyMessageDtos.CreateThreadRequest body,
 		Authentication authentication,
+		@RequestHeader(value = "Accept-Language", required = false) String acceptLanguage,
 		HttpServletRequest request
 	) {
 		return ApiEnvelope.success(
 			"MESSAGE_THREAD_CREATED",
 			BuddyMessageDtos.ThreadResponse.from(commandService.createThread(
-				authentication.getName(), idempotencyKey, body.toCommand())),
+				authentication.getName(), idempotencyKey, body.toCommand()),
+				languageResolver.resolve(authentication.getName(), acceptLanguage)),
 			TraceIdFilter.current(request));
 	}
 

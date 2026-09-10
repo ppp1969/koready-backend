@@ -25,6 +25,8 @@ import koready_backend.location.application.port.UserLocationRepository;
 import koready_backend.location.application.port.UserLocationRepository.NewLocation;
 import koready_backend.location.application.port.UserLocationRepository.UserLocationRecord;
 import koready_backend.place.domain.ServiceRegionCode;
+import koready_backend.place.domain.PlaceLanguage;
+import koready_backend.location.application.port.UserLocationRepository.LocalizedLocation;
 
 @Tag("integration")
 @SpringBootTest
@@ -48,6 +50,26 @@ class JdbcUserLocationRepositoryIntegrationTest {
 
 	@Autowired
 	private UserLocationRepository repository;
+
+	@Test
+	void returnsTheStoredLocalizationForTheRequestedLanguage() {
+		long userId = user("usr_location_i18n");
+		UserLocationRecord location = repository.create(
+			userId, newLocation("학교", "kakao-i18n"), SECOND_CREATED_AT);
+		repository.saveLocalization(
+			location.locationId(),
+			PlaceLanguage.EN,
+			new LocalizedLocation(
+				"University", "2 Bomun-ro, Seoul", "173-1 Donam-dong, Seoul"),
+			SECOND_CREATED_AT);
+
+		UserLocationRecord english = repository.findCompleteActive(
+			userId, location.locationId(), PlaceLanguage.EN).orElseThrow();
+
+		assertEquals("University", english.displayName());
+		assertEquals("2 Bomun-ro, Seoul", english.roadAddress());
+		assertTrue(repository.hasLocalization(location.locationId(), PlaceLanguage.EN));
+	}
 
 	@Test
 	void createsAndReadsACompleteLocationWithoutExposingLegacyRows() {

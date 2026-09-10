@@ -21,6 +21,7 @@ import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.user.application.UserLanguageService;
 import koready_backend.user.application.exception.UserUnavailableException;
 import koready_backend.user.domain.NextStep;
+import koready_backend.location.application.UserLocationService;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -34,6 +35,9 @@ class UserLanguageControllerTest {
 
 	@MockitoBean
 	private UserLanguageService service;
+
+	@MockitoBean
+	private UserLocationService locationService;
 
 	@Test
 	void requiresAuthentication() throws Exception {

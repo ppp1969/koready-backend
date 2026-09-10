@@ -20,6 +20,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import koready_backend.place.application.port.ResponseLanguageResolver;
 
 import koready_backend.buddy.application.BuddyProfileService;
 import koready_backend.buddy.application.model.BuddyProfileView;
@@ -43,6 +44,9 @@ class BuddyProfileControllerTest {
 
 	@MockitoBean
 	private BuddyProfileService service;
+
+	@MockitoBean
+	private ResponseLanguageResolver languageResolver;
 
 	@Test
 	void requiresAuthenticationForReadAndWrite() throws Exception {
@@ -84,6 +88,7 @@ class BuddyProfileControllerTest {
 			.andExpect(jsonPath("$.data.profileId").value(51))
 			.andExpect(jsonPath("$.data.nickname").value("Emma"))
 			.andExpect(jsonPath("$.data.nationalityCode").value("FR"))
+			.andExpect(jsonPath("$.data.nationalityName").value("프랑스"))
 			.andExpect(jsonPath("$.data.availableLanguages[0]").value("VI"))
 			.andExpect(jsonPath("$.data.koreanLevel").value("BEGINNER"))
 			.andExpect(jsonPath("$.data.travelStyles[0]").value("LOCAL_FOOD"))

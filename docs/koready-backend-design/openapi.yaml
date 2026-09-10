@@ -6400,7 +6400,7 @@ components:
               $ref: '#/components/schemas/BuddyProfile'
     MyBuddyProfile:
       type: object
-      required: [profileId, nickname, nationalityCode, availableLanguages, koreanLevel, travelStyles, socialLinks, profilePublic, snsPublic, allowsMessages, canMessage, blockedByMe, updatedAt]
+      required: [profileId, nickname, nationalityCode, nationalityName, availableLanguages, koreanLevel, travelStyles, socialLinks, profilePublic, snsPublic, allowsMessages, canMessage, blockedByMe, updatedAt]
       properties:
         profileId:
           type: integer
@@ -6418,6 +6418,10 @@ components:
           minLength: 2
           maxLength: 2
           example: FR
+        nationalityName:
+          type: string
+          example: 프랑스
+          description: 사용자의 preferredLanguage에 맞춰 변환한 국가명
         availableLanguages:
           type: array
           uniqueItems: true
@@ -6510,7 +6514,7 @@ components:
           description: 다음 페이지 존재 여부. exact total count는 제공하지 않음
     ProfileSummary:
       type: object
-      required: [profileId, nickname, nationalityCode]
+      required: [profileId, nickname, nationalityCode, nationalityName]
       properties:
         profileId:
           type: integer
@@ -6526,6 +6530,10 @@ components:
           pattern: '^[A-Z]{2}$'
           example: US
           description: 쪽지 상대가 프로필에 저장한 ISO 3166-1 alpha-2 국적 코드
+        nationalityName:
+          type: string
+          example: 미국
+          description: 현재 사용자의 preferredLanguage에 맞춘 쪽지 상대의 국가명
     PlaceSummary:
       type: object
       required: [placeId, title]

@@ -23,6 +23,7 @@ import koready_backend.terms.application.port.TermsRepository;
 import koready_backend.terms.application.port.TermsRepository.AgreementChange;
 import koready_backend.terms.application.port.TermsRepository.CurrentTerm;
 import koready_backend.terms.application.port.TermsRepository.UserState;
+import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.user.domain.NextStep;
 import koready_backend.user.domain.SignupStatus;
 
@@ -39,7 +40,7 @@ class TermsServiceTest {
 	void returnsAnEmptySatisfiedListWhenNoTermsArePublished() {
 		when(repository.findActiveUser(USER_PUBLIC_ID))
 			.thenReturn(Optional.of(user(SignupStatus.NEED_TERMS)));
-		when(repository.findCurrentTerms(7L, NOW)).thenReturn(List.of());
+		when(repository.findCurrentTerms(7L, NOW, PlaceLanguage.KO)).thenReturn(List.of());
 
 		var result = service.getRequiredTerms(USER_PUBLIC_ID);
 
@@ -48,10 +49,21 @@ class TermsServiceTest {
 	}
 
 	@Test
+	void loadsTermsUsingTheUsersPreferredLanguage() {
+		when(repository.findActiveUser(USER_PUBLIC_ID))
+			.thenReturn(Optional.of(new UserState(7L, SignupStatus.NEED_TERMS, PlaceLanguage.EN)));
+		when(repository.findCurrentTerms(7L, NOW, PlaceLanguage.EN)).thenReturn(List.of());
+
+		service.getRequiredTerms(USER_PUBLIC_ID);
+
+		verify(repository).findCurrentTerms(7L, NOW, PlaceLanguage.EN);
+	}
+
+	@Test
 	void advancesWithoutSeedDataWhenNoTermsArePublished() {
 		when(repository.findActiveUserForUpdate(USER_PUBLIC_ID))
 			.thenReturn(Optional.of(user(SignupStatus.NEED_TERMS)));
-		when(repository.findCurrentTerms(7L, NOW)).thenReturn(List.of());
+		when(repository.findCurrentTerms(7L, NOW, PlaceLanguage.KO)).thenReturn(List.of());
 
 		var result = service.updateAgreements(USER_PUBLIC_ID, List.of());
 
@@ -66,7 +78,7 @@ class TermsServiceTest {
 	void rejectsMissingRequiredTermsWithoutChangingSignupState() {
 		when(repository.findActiveUserForUpdate(USER_PUBLIC_ID))
 			.thenReturn(Optional.of(user(SignupStatus.NEED_TERMS)));
-		when(repository.findCurrentTerms(7L, NOW))
+		when(repository.findCurrentTerms(7L, NOW, PlaceLanguage.KO))
 			.thenReturn(List.of(term(10L, true, false, null)));
 
 		assertThrows(RequiredTermsNotAgreedException.class,
@@ -86,7 +98,7 @@ class TermsServiceTest {
 	void rejectsUnknownOrDuplicateVersionIds() {
 		when(repository.findActiveUserForUpdate(USER_PUBLIC_ID))
 			.thenReturn(Optional.of(user(SignupStatus.NEED_TERMS)));
-		when(repository.findCurrentTerms(7L, NOW))
+		when(repository.findCurrentTerms(7L, NOW, PlaceLanguage.KO))
 			.thenReturn(List.of(term(10L, true, false, null)));
 
 		assertThrows(InvalidTermAgreementException.class,
@@ -118,7 +130,7 @@ class TermsServiceTest {
 			null);
 		when(repository.findActiveUserForUpdate(USER_PUBLIC_ID))
 			.thenReturn(Optional.of(user(SignupStatus.NEED_TERMS)));
-		when(repository.findCurrentTerms(7L, NOW))
+		when(repository.findCurrentTerms(7L, NOW, PlaceLanguage.KO))
 			.thenReturn(
 				List.of(required, optional),
 				List.of(

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 import koready_backend.terms.domain.TermContentFormat;
+import koready_backend.place.domain.PlaceLanguage;
 
 public interface AdminTermsRepository {
 	List<TermDefinition> findAll();
@@ -20,9 +21,20 @@ public interface AdminTermsRepository {
 		boolean required, Instant effectiveAt, Instant now);
 	Optional<TermVersion> publish(long termId, long versionId, Instant now);
 	Optional<TermVersion> withdraw(long termId, long versionId, Instant now);
+	void replaceTranslations(long versionId, List<TermTranslation> translations, Instant now);
 
 	record TermDefinition(long id, String code, int displayOrder, boolean enabled, List<TermVersion> versions) {}
 	record TermVersion(long id, long termId, String version, String title, URI contentUrl,
 		String content, TermContentFormat contentFormat, boolean required,
-		Instant effectiveAt, Instant publishedAt, Instant withdrawnAt) {}
+		Instant effectiveAt, Instant publishedAt, Instant withdrawnAt,
+		List<TermTranslation> translations) {
+		public TermVersion(long id, long termId, String version, String title, URI contentUrl,
+			String content, TermContentFormat contentFormat, boolean required,
+			Instant effectiveAt, Instant publishedAt, Instant withdrawnAt) {
+			this(id, termId, version, title, contentUrl, content, contentFormat, required,
+				effectiveAt, publishedAt, withdrawnAt, List.of());
+		}
+	}
+	record TermTranslation(PlaceLanguage language, String title, URI contentUrl,
+		String content, TermContentFormat contentFormat) {}
 }

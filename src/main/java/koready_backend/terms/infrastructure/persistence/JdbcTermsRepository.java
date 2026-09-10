@@ -14,6 +14,7 @@ import org.springframework.stereotype.Repository;
 import koready_backend.terms.application.port.TermsRepository;
 import koready_backend.user.domain.SignupStatus;
 import koready_backend.terms.domain.TermContentFormat;
+import koready_backend.place.domain.PlaceLanguage;
 
 @Repository
 public class JdbcTermsRepository implements TermsRepository {
@@ -43,17 +44,25 @@ public class JdbcTermsRepository implements TermsRepository {
 		SELECT definition.id AS term_id,
 		       version.id AS term_version_id,
 		       definition.code,
-		       version.title,
+		       CASE WHEN localized.term_version_id IS NOT NULL THEN localized.title
+		            ELSE COALESCE(korean.title, version.title) END AS title,
 		       version.required,
 		       version.version_label,
-		       version.content_url,
-		       version.content_body,
-		       version.content_format,
+		       CASE WHEN localized.term_version_id IS NOT NULL THEN localized.content_url
+		            WHEN korean.term_version_id IS NOT NULL THEN korean.content_url ELSE version.content_url END AS content_url,
+		       CASE WHEN localized.term_version_id IS NOT NULL THEN localized.content_body
+		            WHEN korean.term_version_id IS NOT NULL THEN korean.content_body ELSE version.content_body END AS content_body,
+		       CASE WHEN localized.term_version_id IS NOT NULL THEN localized.content_format
+		            WHEN korean.term_version_id IS NOT NULL THEN korean.content_format ELSE version.content_format END AS content_format,
 		       definition.display_order,
 		       COALESCE(agreement.agreed, FALSE) AS agreed,
 		       agreement.agreed_at
 		FROM ranked_versions version
 		JOIN term_definitions definition ON definition.id = version.term_id
+		LEFT JOIN term_version_localizations localized
+		  ON localized.term_version_id = version.id AND localized.language = ?
+		LEFT JOIN term_version_localizations korean
+		  ON korean.term_version_id = version.id AND korean.language = 'KO'
 		LEFT JOIN user_term_agreements agreement
 		  ON agreement.term_version_id = version.id
 		 AND agreement.user_id = ?
@@ -78,7 +87,7 @@ public class JdbcTermsRepository implements TermsRepository {
 	}
 
 	@Override
-	public List<CurrentTerm> findCurrentTerms(long userId, Instant asOf) {
+	public List<CurrentTerm> findCurrentTerms(long userId, Instant asOf, PlaceLanguage language) {
 		Timestamp timestamp = Timestamp.from(asOf);
 		return jdbcTemplate.query(
 			CURRENT_TERMS_SQL,
@@ -86,6 +95,7 @@ public class JdbcTermsRepository implements TermsRepository {
 			timestamp,
 			timestamp,
 			timestamp,
+			language.name(),
 			userId);
 	}
 
@@ -144,7 +154,7 @@ public class JdbcTermsRepository implements TermsRepository {
 
 	private Optional<UserState> findUser(String publicId, boolean forUpdate) {
 		String sql = """
-			SELECT id, signup_status
+			SELECT id, signup_status, preferred_language
 			FROM users
 			WHERE public_id = ? AND deleted_at IS NULL
 			""" + (forUpdate ? " FOR UPDATE" : "");
@@ -152,7 +162,8 @@ public class JdbcTermsRepository implements TermsRepository {
 			sql,
 			(resultSet, rowNumber) -> new UserState(
 				resultSet.getLong("id"),
-				SignupStatus.valueOf(resultSet.getString("signup_status"))),
+				SignupStatus.valueOf(resultSet.getString("signup_status")),
+				PlaceLanguage.valueOf(resultSet.getString("preferred_language"))),
 			publicId).stream().findFirst();
 	}
 

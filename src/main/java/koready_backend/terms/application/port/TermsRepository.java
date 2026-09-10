@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import koready_backend.user.domain.SignupStatus;
 import koready_backend.terms.domain.TermContentFormat;
+import koready_backend.place.domain.PlaceLanguage;
 
 public interface TermsRepository {
 
@@ -14,7 +15,7 @@ public interface TermsRepository {
 
 	Optional<UserState> findActiveUserForUpdate(String publicId);
 
-	List<CurrentTerm> findCurrentTerms(long userId, Instant asOf);
+	List<CurrentTerm> findCurrentTerms(long userId, Instant asOf, PlaceLanguage language);
 
 	void saveAgreements(
 		long userId,
@@ -26,7 +27,10 @@ public interface TermsRepository {
 		SignupStatus signupStatus,
 		Instant updatedAt);
 
-	record UserState(long userId, SignupStatus signupStatus) {
+	record UserState(long userId, SignupStatus signupStatus, PlaceLanguage preferredLanguage) {
+		public UserState(long userId, SignupStatus signupStatus) {
+			this(userId, signupStatus, PlaceLanguage.KO);
+		}
 	}
 
 	record CurrentTerm(

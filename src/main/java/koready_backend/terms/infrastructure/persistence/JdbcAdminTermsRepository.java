@@ -16,7 +16,9 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
 import koready_backend.terms.application.port.AdminTermsRepository;
+import koready_backend.terms.application.port.AdminTermsRepository.TermTranslation;
 import koready_backend.terms.domain.TermContentFormat;
+import koready_backend.place.domain.PlaceLanguage;
 
 @Repository
 public class JdbcAdminTermsRepository implements AdminTermsRepository {
@@ -108,13 +110,44 @@ public class JdbcAdminTermsRepository implements AdminTermsRepository {
 		return changed == 0 ? Optional.empty() : findVersion(termId, versionId);
 	}
 
-	private static TermVersion version(ResultSet rs) throws SQLException {
+	@Override
+	public void replaceTranslations(long versionId, List<TermTranslation> translations, Instant now) {
+		jdbc.update("DELETE FROM term_version_localizations WHERE term_version_id=?", versionId);
+		for (TermTranslation value : translations) {
+			jdbc.update("""
+				INSERT INTO term_version_localizations
+				 (term_version_id, language, title, content_url, content_body, content_format, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+				""", versionId, value.language().name(), value.title(),
+				value.contentUrl() == null ? null : value.contentUrl().toString(), value.content(),
+				value.contentFormat() == null ? null : value.contentFormat().name(),
+				Timestamp.from(now), Timestamp.from(now));
+		}
+	}
+
+	private TermVersion version(ResultSet rs) throws SQLException {
 		String url = rs.getString("content_url");
 		String format = rs.getString("content_format");
+		long versionId = rs.getLong("version_id");
 		return new TermVersion(rs.getLong("version_id"), rs.getLong("term_id"), rs.getString("version_label"),
 			rs.getString("title"), url == null ? null : URI.create(url), rs.getString("content_body"),
 			format == null ? null : TermContentFormat.valueOf(format), rs.getBoolean("required"),
-			rs.getTimestamp("effective_at").toInstant(), instant(rs.getTimestamp("published_at")), instant(rs.getTimestamp("withdrawn_at")));
+			rs.getTimestamp("effective_at").toInstant(), instant(rs.getTimestamp("published_at")),
+			instant(rs.getTimestamp("withdrawn_at")), translations(versionId));
+	}
+
+	private List<TermTranslation> translations(long versionId) {
+		return jdbc.query("""
+			SELECT language, title, content_url, content_body, content_format
+			FROM term_version_localizations
+			WHERE term_version_id=? ORDER BY language
+			""", (rs, row) -> {
+			String url = rs.getString("content_url");
+			String format = rs.getString("content_format");
+			return new TermTranslation(PlaceLanguage.valueOf(rs.getString("language")), rs.getString("title"),
+				url == null ? null : URI.create(url), rs.getString("content_body"),
+				format == null ? null : TermContentFormat.valueOf(format));
+		}, versionId);
 	}
 
 	private static Instant instant(Timestamp timestamp) { return timestamp == null ? null : timestamp.toInstant(); }

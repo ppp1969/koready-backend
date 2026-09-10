@@ -94,15 +94,15 @@ EXPRESSBUS | AIRPLANE | FERRY
 | `mode` | WALK/BUS/SUBWAY/TRAIN | `RouteMode`로 정규화 |
 | `distance` | integer | `distanceMeters` |
 | `sectionTime` | integer, 초 | `durationMinutes`로 올림 |
-| `start/end` | name, lat, lon | 이름만 응답, 좌표는 장기 저장 금지 |
+| `start/end` | name, lat, lon | 이름을 구간 출발·도착 정보로 사용 |
 | `route` | 대중교통 구간에 존재 | `routeName` |
 | `routeId` | 대중교통 구간에 존재 | 서버 내부 진단용 |
 | `routeColor` | 대중교통 구간에 존재 | 현재 MVP 미사용 |
 | `type` | mode별 노선 코드 | 내부 세부 교통수단 판정 |
 | `routePayment` | TRAIN에서 선택적으로 존재 | segment fare 후보 |
 | `service` | 대중교통 구간에 0 또는 1 | 출발 시각 운행 가능 여부 |
-| `steps` | WALK에서 선택적 array | 현재 MVP에서는 원문 미노출 |
-| `passShape` | mode에 따라 선택적 | 현재 MVP에서는 원문 미노출 |
+| `steps` | WALK에서 선택적 array | passShape가 없을 때 linestring을 구간 path로 보완 |
+| `passShape` | mode에 따라 선택적 | linestring을 구간 path로 정규화 |
 | `passStopList` | 대중교통 구간에서 선택적 | Hori Tip 계산 후 원문 폐기 |
 
 ### 2.3 문서와 실제 응답의 차이
@@ -205,6 +205,8 @@ RouteResponse
     fare
     transportModes
     horiTips
+    path[]
+      latitude / longitude
   segments[]
     source
     startName / endName
@@ -219,7 +221,7 @@ RouteResponse
 ```
 
 - `fare`는 `AVAILABLE_SEGMENTS_ONLY` 범위를 명시한다.
-- TMAP `linestring`, stop 목록, provider route ID와 type은 공개 DTO에 포함하지 않는다.
+- TMAP `linestring`은 구간별 WGS84 `path`로만 정규화해 공개하고 원문 문자열은 노출하지 않는다. stop 목록, provider route ID와 type은 공개 DTO에 포함하지 않는다.
 - `RouteMode`는 안정적인 Koready enum이며 TMAP 신규 type은 내부 mapping table로 흡수한다.
 - 축제 셔틀처럼 TMAP에 없는 구간만 `source=KOREADY_CURATED`로 추가한다.
 - `horiTips` 본문은 TMAP 응답에서 만들지 않는다. TMAP 정규화 결과는 운영진이 저장한 `OPERATOR_CURATED` 팁의 trigger 평가에만 사용한다.

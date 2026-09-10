@@ -19,6 +19,7 @@ import koready_backend.route.application.exception.TransitProviderException;
 import koready_backend.route.application.port.TransitRouteProvider;
 import koready_backend.route.domain.RouteCandidate;
 import koready_backend.route.domain.RouteCandidate.RouteLeg;
+import koready_backend.route.domain.RouteCoordinate;
 import koready_backend.route.domain.RouteMode;
 import koready_backend.route.infrastructure.config.TmapRouteProperties;
 import tools.jackson.databind.JsonNode;
@@ -30,6 +31,7 @@ public class TmapTransitRouteProvider implements TransitRouteProvider {
 	private static final String PATH = "/transit/routes";
 	private static final DateTimeFormatter SEARCH_TIME =
 		DateTimeFormatter.ofPattern("yyyyMMddHHmm");
+	private static final int MAX_PATH_POINTS_PER_LEG = 2_000;
 
 	private final RestClient restClient;
 	private final TmapRouteProperties properties;
@@ -127,9 +129,77 @@ public class TmapTransitRouteProvider implements TransitRouteProvider {
 				node.path("sectionTime").asInt(),
 				node.path("distance").asInt(),
 				payment.isNumber() ? payment.asInt() : null,
-				mode == RouteMode.WALK || node.path("service").asInt(1) == 1));
+				mode == RouteMode.WALK || node.path("service").asInt(1) == 1,
+				parsePath(node)));
 		}
 		return List.copyOf(legs);
+	}
+
+	private static List<RouteCoordinate> parsePath(JsonNode leg) {
+		List<RouteCoordinate> path = parseLineString(
+			leg.path("passShape").path("linestring").asText(null));
+		if (!path.isEmpty()) {
+			return path;
+		}
+		List<RouteCoordinate> stepPath = new ArrayList<>();
+		JsonNode steps = leg.path("steps");
+		if (steps.isArray()) {
+			for (JsonNode step : steps) {
+				appendDistinct(stepPath, parseLineString(
+					step.path("linestring").asText(null)));
+			}
+		}
+		return bounded(stepPath);
+	}
+
+	private static List<RouteCoordinate> parseLineString(String value) {
+		if (value == null || value.isBlank()) {
+			return List.of();
+		}
+		List<RouteCoordinate> points = new ArrayList<>();
+		for (String token : value.strip().split("\\s+")) {
+			String[] pair = token.split(",", -1);
+			if (pair.length != 2) {
+				continue;
+			}
+			try {
+				double longitude = Double.parseDouble(pair[0]);
+				double latitude = Double.parseDouble(pair[1]);
+				if (Double.isFinite(latitude) && Double.isFinite(longitude)
+					&& latitude >= -90 && latitude <= 90
+					&& longitude >= -180 && longitude <= 180) {
+					appendDistinct(points, List.of(
+						new RouteCoordinate(latitude, longitude)));
+				}
+			} catch (NumberFormatException ignored) {
+				// Ignore only the malformed point; valid provider points remain usable.
+			}
+		}
+		return bounded(points);
+	}
+
+	private static void appendDistinct(
+		List<RouteCoordinate> target,
+		List<RouteCoordinate> additions
+	) {
+		for (RouteCoordinate point : additions) {
+			if (target.isEmpty() || !target.getLast().equals(point)) {
+				target.add(point);
+			}
+		}
+	}
+
+	private static List<RouteCoordinate> bounded(List<RouteCoordinate> points) {
+		if (points.size() <= MAX_PATH_POINTS_PER_LEG) {
+			return List.copyOf(points);
+		}
+		List<RouteCoordinate> sampled = new ArrayList<>(MAX_PATH_POINTS_PER_LEG);
+		for (int index = 0; index < MAX_PATH_POINTS_PER_LEG; index++) {
+			int sourceIndex = (int) Math.round(
+				(double) index * (points.size() - 1) / (MAX_PATH_POINTS_PER_LEG - 1));
+			sampled.add(points.get(sourceIndex));
+		}
+		return List.copyOf(sampled);
 	}
 
 	private static RouteMode mode(String value) {

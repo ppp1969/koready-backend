@@ -27,7 +27,11 @@ public record RouteCandidate(
 		int durationSeconds,
 		int distanceMeters,
 		Integer fare,
-		boolean serviceAvailable
+		boolean serviceAvailable,
+		List<RouteCoordinate> path
 	) {
+		public RouteLeg {
+			path = path == null ? List.of() : List.copyOf(path);
+		}
 	}
 }

@@ -115,7 +115,8 @@ public class RouteService {
 				order++, leg.startName(), leg.endName(), leg.mode(), leg.routeName(),
 				RoutePolicy.minutes(leg.durationSeconds()), leg.distanceMeters(), leg.fare(),
 				leg.mode() == RouteMode.WALK || leg.serviceAvailable(),
-				instruction(leg.mode(), leg.routeName(), context.language())));
+				instruction(leg.mode(), leg.routeName(), context.language()),
+				leg.path()));
 		}
 		List<RouteMode> modes = List.copyOf(new LinkedHashSet<>(candidate.legs().stream()
 			.map(RouteCandidate.RouteLeg::mode).toList()));

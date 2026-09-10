@@ -64,6 +64,8 @@ class RouteControllerTest {
 			.andExpect(jsonPath("$.data.routeId").value(ROUTE_ID))
 			.andExpect(jsonPath("$.data.provider").value("TMAP_TRANSIT"))
 			.andExpect(jsonPath("$.data.segments[0].mode").value("BUS"))
+			.andExpect(jsonPath("$.data.segments[0].path[0].latitude").value(37.5796))
+			.andExpect(jsonPath("$.data.segments[0].path[0].longitude").value(126.9770))
 			.andExpect(jsonPath("$.data.detailAvailable").value(true));
 	}
 
@@ -118,7 +120,8 @@ class RouteControllerTest {
 	private static RouteService.RouteView view(String language, boolean available) {
 		var segment = new RoutePlan.RouteSegment(
 			1, "출발", "도착", RouteMode.BUS, "100", 30, 10_000,
-			1_500, available, "100을(를) 이용하세요.");
+			1_500, available, "100을(를) 이용하세요.",
+			List.of(new koready_backend.route.domain.RouteCoordinate(37.5796, 126.9770)));
 		var route = new RoutePlan(
 			ROUTE_ID, 2L, language,
 			new RoutePlan.RoutePoint("학교", "서울"),

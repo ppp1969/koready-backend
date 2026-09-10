@@ -130,7 +130,8 @@ public class BuddyMessageQueryService {
 			new BuddyMessageService.ProfileSummary(
 				context.otherProfile().profileId(),
 				context.otherProfile().nickname(),
-				context.otherProfile().profileImageUrl()),
+				context.otherProfile().profileImageUrl(),
+				context.otherProfile().nationalityCode()),
 			messages,
 			nextCursor,
 			hasMore,
@@ -174,7 +175,8 @@ public class BuddyMessageQueryService {
 			new BuddyMessageService.ProfileSummary(
 				row.otherProfile().profileId(),
 				row.otherProfile().nickname(),
-				row.otherProfile().profileImageUrl()),
+				row.otherProfile().profileImageUrl(),
+				row.otherProfile().nationalityCode()),
 			preview(row.latestContent()),
 			row.lastSentAt(),
 			row.unreadCount(),

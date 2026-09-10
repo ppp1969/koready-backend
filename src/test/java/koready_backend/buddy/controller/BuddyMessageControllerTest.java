@@ -84,7 +84,7 @@ class BuddyMessageControllerTest {
 				new BuddyMessageService.PlaceSummary(
 					1001L, "Gimbap Festival", "https://example.com/place.jpg"),
 				new BuddyMessageService.ProfileSummary(
-					51L, "Receiver", "https://example.com/profile.jpg"),
+					51L, "Receiver", "https://example.com/profile.jpg", "US"),
 				"Hello",
 				SENT_AT,
 				2L,
@@ -111,6 +111,7 @@ class BuddyMessageControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.code").value("MESSAGE_THREADS_OK"))
 			.andExpect(jsonPath("$.data.items[0].threadId").value("thread_001"))
+			.andExpect(jsonPath("$.data.items[0].otherProfile.nationalityCode").value("US"))
 			.andExpect(jsonPath("$.data.items[0].blocked").value(true))
 			.andExpect(jsonPath("$.data.items[0].canReply").value(false))
 			.andExpect(jsonPath("$.data.nextCursor").value("next_threads"))
@@ -121,6 +122,7 @@ class BuddyMessageControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.code").value("MESSAGE_THREAD_OK"))
 			.andExpect(jsonPath("$.data.messages[0].messageId").value(9001))
+			.andExpect(jsonPath("$.data.otherProfile.nationalityCode").value("US"))
 			.andExpect(jsonPath("$.data.canReply").value(false));
 
 		mockMvc.perform(put("/api/v1/message-threads/thread_001/read")
@@ -181,7 +183,7 @@ class BuddyMessageControllerTest {
 				new BuddyMessageService.PlaceSummary(
 					1001L, "Gimbap Festival", "https://example.com/place.jpg"),
 				new BuddyMessageService.ProfileSummary(
-					51L, "Receiver", "https://example.com/profile.jpg"),
+					51L, "Receiver", "https://example.com/profile.jpg", "US"),
 				List.of(message),
 				null,
 				false,

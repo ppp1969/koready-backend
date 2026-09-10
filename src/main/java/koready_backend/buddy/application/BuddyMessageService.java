@@ -203,7 +203,8 @@ public class BuddyMessageService {
 			message.threadPublicId(),
 			new PlaceSummary(place.placeId(), place.title(), place.imageUrl()),
 			new ProfileSummary(
-				receiver.profileId(), receiver.nickname(), receiver.profileImageUrl()),
+				receiver.profileId(), receiver.nickname(), receiver.profileImageUrl(),
+				receiver.nationalityCode()),
 			List.of(MessageResult.from(message)),
 			null,
 			false,
@@ -280,7 +281,8 @@ public class BuddyMessageService {
 	public record ProfileSummary(
 		long profileId,
 		String nickname,
-		String profileImageUrl
+		String profileImageUrl,
+		String nationalityCode
 	) {
 	}
 

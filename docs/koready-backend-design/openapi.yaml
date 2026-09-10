@@ -6219,7 +6219,7 @@ components:
             $ref: '#/components/schemas/HoriTip'
     RouteSegment:
       type: object
-      required: [order, source, startName, endName, mode, durationMinutes, distanceMeters, fare, instruction, serviceAvailable, horiTips]
+      required: [order, source, startName, endName, mode, durationMinutes, distanceMeters, fare, instruction, serviceAvailable, horiTips, path]
       properties:
         order:
           type: integer
@@ -6257,6 +6257,31 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/HoriTip'
+        path:
+          type: array
+          maxItems: 2000
+          description: |
+            카카오맵 등 지도에 구간별 실제 이동선을 그릴 때 사용하는 WGS84 좌표입니다.
+            TMAP passShape를 우선 사용하고, 보행 구간은 steps의 linestring으로 보완합니다.
+            공급자가 형상 좌표를 주지 않은 구간은 빈 배열이며 서버가 임의 직선을 만들지 않습니다.
+          items:
+            $ref: '#/components/schemas/RouteCoordinate'
+    RouteCoordinate:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          example: 37.5796
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          example: 126.977
     HoriTip:
       type: object
       description: 운영진이 저장한 현재 ACTIVE Hori Tip을 Route 조회 시점에 매칭한 결과
@@ -6485,7 +6510,7 @@ components:
           description: 다음 페이지 존재 여부. exact total count는 제공하지 않음
     ProfileSummary:
       type: object
-      required: [profileId, nickname]
+      required: [profileId, nickname, nationalityCode]
       properties:
         profileId:
           type: integer
@@ -6496,6 +6521,11 @@ components:
           type: string
           format: uri
           nullable: true
+        nationalityCode:
+          type: string
+          pattern: '^[A-Z]{2}$'
+          example: US
+          description: 쪽지 상대가 프로필에 저장한 ISO 3166-1 alpha-2 국적 코드
     PlaceSummary:
       type: object
       required: [placeId, title]

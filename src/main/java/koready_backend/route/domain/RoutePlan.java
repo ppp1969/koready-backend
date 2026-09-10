@@ -56,7 +56,11 @@ public record RoutePlan(
 		int distanceMeters,
 		Integer fare,
 		boolean serviceAvailable,
-		String instruction
+		String instruction,
+		List<RouteCoordinate> path
 	) {
+		public RouteSegment {
+			path = path == null ? List.of() : List.copyOf(path);
+		}
 	}
 }

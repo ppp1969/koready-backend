@@ -68,11 +68,12 @@ public interface BuddyMessageRepository {
 	record ActiveUser(long userId, String preferredLanguage) {
 	}
 
-	record MessageProfile(
+		record MessageProfile(
 		long profileId,
 		long userId,
 		String nickname,
 		String profileImageUrl,
+		String nationalityCode,
 		boolean profilePublic,
 		boolean allowsMessages
 	) {

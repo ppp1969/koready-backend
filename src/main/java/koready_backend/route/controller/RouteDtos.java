@@ -40,7 +40,9 @@ final class RouteDtos {
 					item.order(), "TMAP", item.startName(), item.endName(), item.mode(),
 					item.routeName(), item.durationMinutes(), item.distanceMeters(),
 					item.fare(), item.instruction(), item.serviceAvailable(),
-					tips(segment.horiTips()));
+					tips(segment.horiTips()),
+					item.path().stream().map(point -> new RouteCoordinate(
+						point.latitude(), point.longitude())).toList());
 			}).toList(),
 			warnings(route), true);
 	}
@@ -127,8 +129,12 @@ final class RouteDtos {
 		Integer fare,
 		String instruction,
 		boolean serviceAvailable,
-		List<HoriTip> horiTips
+		List<HoriTip> horiTips,
+		List<RouteCoordinate> path
 	) {
+	}
+
+	record RouteCoordinate(double latitude, double longitude) {
 	}
 
 	record HoriTip(String code, String source, String title, String body, String placement) {

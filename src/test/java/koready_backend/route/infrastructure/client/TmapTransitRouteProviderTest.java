@@ -59,9 +59,13 @@ class TmapTransitRouteProviderTest {
 		assertEquals(1, route.transferCount());
 		assertEquals(1_500, route.totalFare());
 		assertEquals(RouteMode.WALK, route.legs().get(0).mode());
+		assertEquals(2, route.legs().get(0).path().size());
+		assertEquals(37.5796, route.legs().get(0).path().getFirst().latitude());
+		assertEquals(126.9770, route.legs().get(0).path().getFirst().longitude());
 		assertEquals(RouteMode.SUBWAY, route.legs().get(1).mode());
 		assertEquals("Gyeongbokgung", route.legs().get(1).startName());
 		assertEquals("Line 3", route.legs().get(1).routeName());
+		assertEquals(2, route.legs().get(1).path().size());
 		server.verify();
 	}
 
@@ -142,7 +146,10 @@ class TmapTransitRouteProviderTest {
 			            "start": {"name": "Gyeongbokgung Palace"},
 			            "end": {"name": "Gyeongbokgung"},
 			            "sectionTime": 300,
-			            "distance": 400
+			            "distance": 400,
+			            "steps": [
+			              {"linestring": "126.9770,37.5796 invalid 126.9780,37.5800"}
+			            ]
 			          },
 			          {
 			            "mode": "SUBWAY",
@@ -152,7 +159,10 @@ class TmapTransitRouteProviderTest {
 			            "sectionTime": 2100,
 			            "distance": 12000,
 			            "routePayment": 1500,
-			            "service": 1
+			            "service": 1,
+			            "passShape": {
+			              "linestring": "126.9780,37.5800 127.0276,37.4979"
+			            }
 			          }
 			        ]
 			      }]

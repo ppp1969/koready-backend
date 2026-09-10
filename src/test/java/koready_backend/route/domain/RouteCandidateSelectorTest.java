@@ -57,6 +57,6 @@ class RouteCandidateSelectorTest {
 			1000,
 			List.of(new RouteCandidate.RouteLeg(
 				RouteMode.BUS, "출발", "도착", "버스", 300, 1000,
-				null, serviceAvailable)));
+				null, serviceAvailable, List.of())));
 	}
 }

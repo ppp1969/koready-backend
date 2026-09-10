@@ -37,9 +37,9 @@ class BuddyMessageQueryServiceTest {
 
 	private static final Instant NOW = Instant.parse("2026-07-19T09:00:00Z");
 	private static final MessageProfile VIEWER = new MessageProfile(
-		50L, 5L, "Viewer", null, true, true);
+		50L, 5L, "Viewer", null, "KR", true, true);
 	private static final MessageProfile OTHER = new MessageProfile(
-		51L, 6L, "Other", "https://example.com/profile.jpg", true, true);
+		51L, 6L, "Other", "https://example.com/profile.jpg", "US", true, true);
 	private static final PlaceSnapshot PLACE = new PlaceSnapshot(
 		1001L, "Gimbap Festival", "https://example.com/place.jpg");
 

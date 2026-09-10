@@ -965,6 +965,8 @@ providerTotalTimeSeconds >= 10800 -> STAY_RECOMMENDED
 | `legs[].service` | `serviceAvailable` |
 | `legs[].type` | 내부 세부 교통수단 판정. 프론트 미노출 |
 | `legs[].routePayment` | 선택적 segment fare |
+| `legs[].passShape.linestring` | `segments[].path` 구간 좌표 |
+| `legs[].steps[].linestring` | passShape가 없는 보행 구간의 `segments[].path` 보완 |
 | `legs[].Lane` 또는 `lane` | 다중 노선 후보. client에서 두 casing 허용 |
 | 최상위 `result` + code 11~14 | 422 `ROUTE_NOT_FOUND` |
 
@@ -974,7 +976,9 @@ API 응답의 `RouteMode`는 `BUS/TRAIN`처럼 단순화한다. 난이도와 표
 - 실제 표본에서 공식 표의 `lane`과 달리 `Lane` 대문자 필드가 확인됐다.
 - 실제 정상 itinerary 안에도 `service=0` leg가 존재했다. 이런 구간이 포함된 참고 경로에는 운행 불가 상태와 경고를 함께 반환한다.
 - `totalTime`과 `sectionTime`의 표시 분은 `ceil(seconds / 60)`로 계산한다.
-- `steps`, `passShape`, `passStopList`, 좌표와 linestring은 필요한 계산 뒤 폐기하고 공개 DTO에 포함하지 않는다.
+- `passShape.linestring`은 구간별 WGS84 `path[{latitude, longitude}]`로 정규화한다. passShape가 없는 보행 구간은 `steps[].linestring`을 순서대로 이어 붙인다.
+- 형상이 없는 구간은 `path=[]`이며 서버가 임의 직선을 만들지 않는다. 인접 중복과 잘못된 좌표를 제거하고 응답 크기 보호를 위해 구간당 최대 2,000점을 유지한다.
+- `passStopList`, provider route ID 등 나머지 원문은 필요한 계산 뒤 폐기한다.
 
 - TMAP 원본 응답은 영구 저장하지 않는다.
 - 시간·요금·구간을 포함한 정규화 결과도 임시 캐시에만 저장한다.
@@ -1149,6 +1153,7 @@ cursor는 요청자와 placeId에 묶인다. 다른 사용자·다른 장소에�
 - 목록과 상세 `GET`은 읽음 상태를 바꾸지 않는다. 화면을 실제로 표시한 뒤 읽음 API를 호출한다.
 - 차단 뒤에도 기존 스레드는 과거 대화와 신고 증빙을 위해 조회할 수 있으나 `blocked=true`, `canReply=false`다. 비공개·수신 거부 전환도 기존 대화는 유지하고 답장만 막는다.
 - 상대 계정이 삭제되면 스레드 목록과 상세에서 숨기고 미읽음 전체 수에서도 제외한다.
+- 쪽지 목록·상세·첫 쪽지 응답의 `otherProfile.nationalityCode`는 상대가 저장한 ISO 3166-1 alpha-2 국적 코드다.
 - 실시간 채팅이 아니며 push 알림 전송은 이번 구현 범위에 포함하지 않는다.
 
 ## 9.4 안전 기능

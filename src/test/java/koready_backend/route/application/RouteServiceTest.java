@@ -29,6 +29,7 @@ import koready_backend.route.application.port.RouteRepository;
 import koready_backend.route.application.exception.RouteException;
 import koready_backend.route.application.port.TransitRouteProvider;
 import koready_backend.route.domain.RouteCandidate;
+import koready_backend.route.domain.RouteCoordinate;
 import koready_backend.route.domain.RouteMode;
 import koready_backend.route.domain.RoutePlan;
 
@@ -56,7 +57,8 @@ class RouteServiceTest {
 			2_400, 300, 400, 0, 1_500,
 			List.of(new RouteCandidate.RouteLeg(
 				RouteMode.SUBWAY, "Gyeongbokgung", "Gangnam", "Line 3",
-				2_400, 12_000, 1_500, true)))));
+				2_400, 12_000, 1_500, true,
+				List.of(new RouteCoordinate(37.5796, 126.9770)))))));
 		when(horiTipService.findActiveRouteTips(204L)).thenReturn(List.of());
 		RouteService service = new RouteService(
 			repository, provider, horiTipService, Clock.fixed(NOW, ZoneOffset.UTC));
@@ -72,6 +74,8 @@ class RouteServiceTest {
 			request.getValue().departureAt());
 		assertEquals("SUBWAY", view.route().summary().recommendedTransportText());
 		assertEquals("Take Line 3.", view.route().segments().getFirst().instruction());
+		assertEquals(List.of(new RouteCoordinate(37.5796, 126.9770)),
+			view.route().segments().getFirst().path());
 
 		ArgumentCaptor<RoutePlan> saved = ArgumentCaptor.forClass(RoutePlan.class);
 		verify(repository).save(eq(1L), saved.capture());
@@ -102,7 +106,8 @@ class RouteServiceTest {
 		stubContext();
 		when(provider.findRoutes(any())).thenReturn(List.of(new RouteCandidate(
 			2400, 0, 0, 0, 1500, List.of(new RouteCandidate.RouteLeg(
-				RouteMode.BUS, "Start", "End", "100", 2400, 12000, 1500, false)))));
+				RouteMode.BUS, "Start", "End", "100", 2400, 12000, 1500, false,
+				List.of())))));
 		when(horiTipService.findActiveRouteTips(204L)).thenReturn(List.of());
 		var service = new RouteService(repository, provider, horiTipService,
 			Clock.fixed(NOW, ZoneOffset.UTC));

@@ -42,9 +42,9 @@ class BuddyMessageServiceTest {
 	private static final String KEY = "message-key-001";
 	private static final ActiveUser USER = new ActiveUser(7L, "EN");
 	private static final MessageProfile SENDER = new MessageProfile(
-		50L, 7L, "Sender", null, false, true);
+		50L, 7L, "Sender", null, "KR", false, true);
 	private static final MessageProfile RECEIVER = new MessageProfile(
-		51L, 8L, "Receiver", "https://example.com/receiver.jpg", true, true);
+		51L, 8L, "Receiver", "https://example.com/receiver.jpg", "US", true, true);
 	private static final PlaceSnapshot PLACE = new PlaceSnapshot(
 		1001L, "Gimbap Festival", "https://example.com/place.jpg");
 	private static final MessageThread THREAD = new MessageThread(
@@ -200,11 +200,11 @@ class BuddyMessageServiceTest {
 	@Test
 	void rejectsSelfPrivateOptedOutAndBlockedTargets() {
 		allowSender();
-		MessageProfile self = new MessageProfile(50L, 7L, "Sender", null, true, true);
+		MessageProfile self = new MessageProfile(50L, 7L, "Sender", null, "KR", true, true);
 		MessageProfile privateProfile = new MessageProfile(
-			51L, 8L, "Private", null, false, true);
+			51L, 8L, "Private", null, "US", false, true);
 		MessageProfile optedOut = new MessageProfile(
-			51L, 8L, "Opted Out", null, true, false);
+			51L, 8L, "Opted Out", null, "US", true, false);
 
 		for (MessageProfile target : new MessageProfile[] { self, privateProfile, optedOut }) {
 			when(repository.findActiveProfile(target.profileId()))

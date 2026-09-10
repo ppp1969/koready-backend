@@ -235,6 +235,7 @@ class BuddyMessageSchemaIntegrationTest {
 		assertEquals(1, firstPage.size());
 		assertEquals("thread_inbox_newest", firstPage.getFirst().threadPublicId());
 		assertEquals("Inbox Festival EN", firstPage.getFirst().place().title());
+		assertEquals("US", firstPage.getFirst().otherProfile().nationalityCode());
 		assertEquals(1, firstPage.getFirst().unreadCount());
 		assertTrue(firstPage.getFirst().blocked());
 		assertFalse(firstPage.getFirst().otherProfile().profilePublic());
@@ -251,8 +252,10 @@ class BuddyMessageSchemaIntegrationTest {
 		assertEquals("thread_inbox_older", secondPage.getFirst().threadPublicId());
 		assertEquals(2, repository.countUnreadMessages(viewerProfileId));
 
-		assertTrue(repository.findThreadContext(
-			"thread_inbox_newest", viewerProfileId, "EN").orElseThrow().blocked());
+		var threadContext = repository.findThreadContext(
+			"thread_inbox_newest", viewerProfileId, "EN").orElseThrow();
+		assertTrue(threadContext.blocked());
+		assertEquals("US", threadContext.otherProfile().nationalityCode());
 		assertTrue(repository.findThreadContext(
 			"thread_inbox_deleted", viewerProfileId, "EN").isEmpty());
 

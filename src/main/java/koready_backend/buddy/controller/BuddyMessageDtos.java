@@ -93,10 +93,16 @@ final class BuddyMessageDtos {
 		}
 	}
 
-	record ProfileSummary(long profileId, String nickname, String profileImageUrl) {
+	record ProfileSummary(
+		long profileId,
+		String nickname,
+		String profileImageUrl,
+		String nationalityCode
+	) {
 		static ProfileSummary from(BuddyMessageService.ProfileSummary summary) {
 			return new ProfileSummary(
-				summary.profileId(), summary.nickname(), summary.profileImageUrl());
+				summary.profileId(), summary.nickname(), summary.profileImageUrl(),
+				summary.nationalityCode());
 		}
 	}
 

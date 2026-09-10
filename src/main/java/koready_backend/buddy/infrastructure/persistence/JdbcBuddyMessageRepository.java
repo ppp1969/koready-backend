@@ -42,7 +42,7 @@ public class JdbcBuddyMessageRepository implements BuddyMessageRepository {
 	public Optional<MessageProfile> findProfileByUserId(long userId) {
 		return jdbcTemplate.query(
 			"""
-			SELECT id, user_id, nickname, profile_image_url,
+			SELECT id, user_id, nickname, profile_image_url, nationality_code,
 			       profile_public, allows_messages
 			FROM buddy_profiles
 			WHERE user_id = ?
@@ -56,7 +56,8 @@ public class JdbcBuddyMessageRepository implements BuddyMessageRepository {
 		return jdbcTemplate.query(
 			"""
 			SELECT profile.id, profile.user_id, profile.nickname,
-			       profile.profile_image_url, profile.profile_public,
+			       profile.profile_image_url, profile.nationality_code,
+			       profile.profile_public,
 			       profile.allows_messages
 			FROM buddy_profiles profile
 			JOIN users owner ON owner.id = profile.user_id
@@ -312,6 +313,7 @@ public class JdbcBuddyMessageRepository implements BuddyMessageRepository {
 			       other_profile.user_id AS other_user_id,
 			       other_profile.nickname AS other_nickname,
 			       other_profile.profile_image_url AS other_profile_image_url,
+			       other_profile.nationality_code AS other_nationality_code,
 			       other_profile.profile_public AS other_profile_public,
 			       other_profile.allows_messages AS other_allows_messages,
 			       latest_message.content AS latest_content,
@@ -402,6 +404,7 @@ public class JdbcBuddyMessageRepository implements BuddyMessageRepository {
 					resultSet.getLong("other_user_id"),
 					resultSet.getString("other_nickname"),
 					resultSet.getString("other_profile_image_url"),
+					resultSet.getString("other_nationality_code"),
 					resultSet.getBoolean("other_profile_public"),
 					resultSet.getBoolean("other_allows_messages")),
 				resultSet.getString("latest_content"),
@@ -448,6 +451,7 @@ public class JdbcBuddyMessageRepository implements BuddyMessageRepository {
 			       other_profile.user_id AS other_user_id,
 			       other_profile.nickname AS other_nickname,
 			       other_profile.profile_image_url AS other_profile_image_url,
+			       other_profile.nationality_code AS other_nationality_code,
 			       other_profile.profile_public AS other_profile_public,
 			       other_profile.allows_messages AS other_allows_messages,
 			       EXISTS (
@@ -493,6 +497,7 @@ public class JdbcBuddyMessageRepository implements BuddyMessageRepository {
 					resultSet.getLong("other_user_id"),
 					resultSet.getString("other_nickname"),
 					resultSet.getString("other_profile_image_url"),
+					resultSet.getString("other_nationality_code"),
 					resultSet.getBoolean("other_profile_public"),
 					resultSet.getBoolean("other_allows_messages")),
 				resultSet.getBoolean("blocked_by_requester"),
@@ -587,6 +592,7 @@ public class JdbcBuddyMessageRepository implements BuddyMessageRepository {
 			resultSet.getLong("user_id"),
 			resultSet.getString("nickname"),
 			resultSet.getString("profile_image_url"),
+			resultSet.getString("nationality_code"),
 			resultSet.getBoolean("profile_public"),
 			resultSet.getBoolean("allows_messages"));
 	}

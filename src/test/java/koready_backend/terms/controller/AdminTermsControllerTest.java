@@ -74,4 +74,29 @@ class AdminTermsControllerTest {
 			.andExpect(jsonPath("$.data.contentUrl").value("https://www.notion.so/example"))
 			.andExpect(jsonPath("$.data.content").doesNotExist());
 	}
+
+	@Test
+	void createsKoreanAndEnglishContentUnderOneVersion() throws Exception {
+		when(service.createVersion(eq(1L), any())).thenAnswer(invocation -> {
+			AdminTermsService.VersionCommand command = invocation.getArgument(1);
+			return new TermVersion(2, 1, command.version(), "서비스 이용약관", null,
+				"한국어 본문", koready_backend.terms.domain.TermContentFormat.MARKDOWN,
+				command.required(), command.effectiveAt(), null, null, command.translations());
+		});
+
+		mockMvc.perform(post("/api/v1/admin/terms/1/versions")
+				.with(user("admin").roles("ADMIN"))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{"version":"1.0","required":true,"effectiveAt":"2026-09-10T00:00:00Z",
+					 "translations":[
+					  {"language":"KO","title":"서비스 이용약관","content":"한국어 본문","contentFormat":"MARKDOWN"},
+					  {"language":"EN","title":"Terms of Service","content":"English content","contentFormat":"MARKDOWN"}
+					 ]}
+					"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.id").value(2))
+			.andExpect(jsonPath("$.data.translations.length()").value(2))
+			.andExpect(jsonPath("$.data.translations[1].language").value("EN"));
+	}
 }

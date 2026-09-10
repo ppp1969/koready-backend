@@ -5278,6 +5278,7 @@ components:
           example: SERVICE_TERMS
         title:
           type: string
+          description: 사용자의 preferredLanguage에 맞는 제목. 해당 번역이 없으면 한국어, 기존 단일 언어 값 순으로 대체
           example: 서비스 이용약관
         required:
           type: boolean
@@ -5421,16 +5422,29 @@ components:
         enabled: {type: boolean}
     AdminTermVersionRequest:
       type: object
-      required: [version, title, required, effectiveAt]
-      description: content와 contentUrl 중 최대 하나만 입력합니다. 게시 시점에는 둘 중 정확히 하나가 필요합니다.
+      required: [version, required, effectiveAt]
+      description: translations를 사용하면 같은 약관 버전 ID에 한글·영문을 함께 저장합니다. 기존 단일 언어 요청도 호환되며 title/content/contentUrl은 한국어 기본값으로 처리합니다.
       properties:
         version: {type: string, maxLength: 40, example: '1.0'}
-        title: {type: string, maxLength: 200, example: 만 14세 이상 확인}
+        title: {type: string, nullable: true, maxLength: 200, example: 만 14세 이상 확인, description: 기존 관리자 화면 호환용 한국어 제목. translations 사용 시 생략 가능}
         contentUrl: {type: string, format: uri, nullable: true, maxLength: 2048, description: Notion 등을 포함한 HTTPS 외부 문서 절대 URL. 백엔드는 이 URL을 호출하거나 복사하지 않음}
         content: {type: string, nullable: true, maxLength: 100000, description: KoReady DB에서 직접 관리할 약관 원문}
         contentFormat: {type: string, enum: [PLAIN_TEXT, MARKDOWN], nullable: true, description: content가 있고 생략하면 MARKDOWN}
+        translations:
+          type: array
+          description: 신규 관리자 화면용. KO와 EN을 각각 한 번씩 입력하며 각 언어에서 content와 contentUrl 중 정확히 하나를 사용합니다.
+          items: {$ref: '#/components/schemas/AdminTermTranslationRequest'}
         required: {type: boolean}
         effectiveAt: {type: string, format: date-time}
+    AdminTermTranslationRequest:
+      type: object
+      required: [language, title]
+      properties:
+        language: {type: string, enum: [KO, EN]}
+        title: {type: string, maxLength: 200}
+        contentUrl: {type: string, format: uri, nullable: true, maxLength: 2048}
+        content: {type: string, nullable: true, maxLength: 100000}
+        contentFormat: {type: string, enum: [PLAIN_TEXT, MARKDOWN], nullable: true}
     AdminTermsEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'
@@ -5458,7 +5472,7 @@ components:
         versions: {type: array, items: {$ref: '#/components/schemas/AdminTermVersion'}}
     AdminTermVersion:
       type: object
-      required: [id, termId, version, title, required, effectiveAt, state]
+      required: [id, termId, version, title, required, effectiveAt, state, translations]
       properties:
         id: {type: integer, format: int64}
         termId: {type: integer, format: int64}
@@ -5473,6 +5487,17 @@ components:
         publishedAt: {type: string, format: date-time, nullable: true}
         withdrawnAt: {type: string, format: date-time, nullable: true}
         state: {type: string, enum: [DRAFT, PUBLISHED, WITHDRAWN]}
+        translations:
+          type: array
+          description: 같은 termVersionId에 묶인 언어별 약관. 동의는 번역별이 아니라 이 버전 ID 하나에 기록됩니다.
+          items: {$ref: '#/components/schemas/AdminTermTranslation'}
+    AdminTermTranslation:
+      allOf:
+        - $ref: '#/components/schemas/AdminTermTranslationRequest'
+        - type: object
+          required: [language, title, sourceType]
+          properties:
+            sourceType: {type: string, enum: [INLINE, EXTERNAL_URL]}
     LanguageEnvelope:
       allOf:
         - $ref: '#/components/schemas/ApiEnvelope'

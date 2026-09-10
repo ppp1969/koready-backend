@@ -44,7 +44,7 @@ public class TermsService {
 		UserState user = repository.findActiveUser(userPublicId)
 			.orElseThrow(TermsUserUnavailableException::new);
 		List<CurrentTerm> terms =
-			repository.findCurrentTerms(user.userId(), now);
+			repository.findCurrentTerms(user.userId(), now, user.preferredLanguage());
 		return new RequiredTermsResult(terms, allRequiredAgreed(terms));
 	}
 
@@ -57,7 +57,7 @@ public class TermsService {
 		UserState user = repository.findActiveUserForUpdate(userPublicId)
 			.orElseThrow(TermsUserUnavailableException::new);
 		List<CurrentTerm> currentTerms =
-			repository.findCurrentTerms(user.userId(), now);
+			repository.findCurrentTerms(user.userId(), now, user.preferredLanguage());
 		Map<Long, AgreementCommand> submitted = validate(commands, currentTerms);
 
 		boolean requiredAgreed = currentTerms.stream()
@@ -83,7 +83,7 @@ public class TermsService {
 		}
 
 		List<CurrentTerm> updatedTerms =
-			repository.findCurrentTerms(user.userId(), now);
+			repository.findCurrentTerms(user.userId(), now, user.preferredLanguage());
 		return new AgreementResult(
 			updatedTerms,
 			allRequiredAgreed(updatedTerms),

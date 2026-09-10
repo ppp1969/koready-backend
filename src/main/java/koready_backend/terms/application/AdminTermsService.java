@@ -12,7 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import koready_backend.terms.application.port.AdminTermsRepository;
 import koready_backend.terms.application.port.AdminTermsRepository.TermDefinition;
+import koready_backend.terms.application.port.AdminTermsRepository.TermTranslation;
 import koready_backend.terms.application.port.AdminTermsRepository.TermVersion;
+import koready_backend.place.domain.PlaceLanguage;
 import koready_backend.terms.domain.TermContentFormat;
 
 @Service
@@ -43,18 +45,24 @@ public class AdminTermsService {
 	@Transactional
 	public TermVersion createVersion(long termId, VersionCommand command) {
 		VersionCommand normalized = normalize(command);
-		return repository.createVersion(termId, normalized.version(), normalized.title(), normalized.contentUrl(),
+		TermVersion created = repository.createVersion(termId, normalized.version(), normalized.title(), normalized.contentUrl(),
 			normalized.content(), normalized.contentFormat(), normalized.required(), normalized.effectiveAt(),
 			clock.instant()).orElseThrow(AdminTermNotFoundException::new);
+		repository.replaceTranslations(created.id(), normalized.translations(), clock.instant());
+		return repository.findVersion(termId, created.id()).orElseThrow(AdminTermNotFoundException::new);
 	}
 
 	@Transactional
 	public TermVersion updateDraft(long termId, long versionId, VersionCommand command) {
 		VersionCommand normalized = normalize(command);
-		return repository.updateDraft(termId, versionId, normalized.version(), normalized.title(),
+		TermVersion updated = repository.updateDraft(termId, versionId, normalized.version(), normalized.title(),
 			normalized.contentUrl(), normalized.content(), normalized.contentFormat(), normalized.required(),
 			normalized.effectiveAt(), clock.instant())
 			.orElseThrow(() -> new AdminTermConflictException("Only an existing draft can be edited."));
+		if (!normalized.translations().isEmpty()) {
+			repository.replaceTranslations(updated.id(), normalized.translations(), clock.instant());
+		}
+		return repository.findVersion(termId, updated.id()).orElseThrow(AdminTermNotFoundException::new);
 	}
 
 	@Transactional
@@ -73,6 +81,17 @@ public class AdminTermsService {
 	}
 
 	private static VersionCommand normalize(VersionCommand command) {
+		List<TermTranslation> translations = normalizeTranslations(command.translations());
+		if (!translations.isEmpty()) {
+			TermTranslation korean = translations.stream().filter(value -> value.language() == PlaceLanguage.KO)
+				.findFirst().orElseThrow(() -> new IllegalArgumentException("KO translation is required."));
+			if (translations.stream().noneMatch(value -> value.language() == PlaceLanguage.EN))
+				throw new IllegalArgumentException("EN translation is required.");
+			command = new VersionCommand(command.version(), korean.title(), korean.contentUrl(), korean.content(),
+				korean.contentFormat(), command.required(), command.effectiveAt(), translations);
+		}
+		if (command.title() == null || command.title().isBlank())
+			throw new IllegalArgumentException("title is required.");
 		boolean hasUrl = command.contentUrl() != null;
 		boolean hasContent = command.content() != null && !command.content().isBlank();
 		if (hasUrl && (hasContent || command.contentFormat() != null))
@@ -87,7 +106,26 @@ public class AdminTermsService {
 		TermContentFormat format = hasContent
 			? (command.contentFormat() == null ? TermContentFormat.MARKDOWN : command.contentFormat()) : null;
 		return new VersionCommand(command.version().trim(), command.title().trim(), command.contentUrl(),
-			command.content(), format, command.required(), command.effectiveAt());
+			command.content(), format, command.required(), command.effectiveAt(), translations);
+	}
+
+	private static List<TermTranslation> normalizeTranslations(List<TermTranslation> values) {
+		if (values == null || values.isEmpty()) return List.of();
+		if (values.stream().map(TermTranslation::language).distinct().count() != values.size())
+			throw new IllegalArgumentException("Each language can appear only once.");
+		return values.stream().map(value -> {
+			if (value.language() == null || value.title() == null || value.title().isBlank())
+				throw new IllegalArgumentException("Each translation requires language and title.");
+			boolean hasUrl = value.contentUrl() != null;
+			boolean hasContent = value.content() != null && !value.content().isBlank();
+			if (hasUrl == hasContent) throw new IllegalArgumentException("Each translation requires exactly one content source.");
+			if (hasUrl) validateUrl(value.contentUrl());
+			TermContentFormat format = hasContent
+				? (value.contentFormat() == null ? TermContentFormat.MARKDOWN : value.contentFormat()) : null;
+			if (hasUrl && value.contentFormat() != null)
+				throw new IllegalArgumentException("contentFormat requires inline content.");
+			return new TermTranslation(value.language(), value.title().trim(), value.contentUrl(), value.content(), format);
+		}).toList();
 	}
 
 	private static void validateUrl(URI url) {
@@ -97,10 +135,20 @@ public class AdminTermsService {
 	}
 
 	private static boolean hasCompleteContent(TermVersion version) {
-		return version.contentUrl() != null
+		boolean baseComplete = version.contentUrl() != null
 			|| (version.content() != null && !version.content().isBlank() && version.contentFormat() != null);
+		if (version.translations().isEmpty()) return baseComplete;
+		return version.translations().stream().map(TermTranslation::language).distinct().count() == 2
+			&& version.translations().stream().allMatch(value -> value.contentUrl() != null
+				|| (value.content() != null && !value.content().isBlank() && value.contentFormat() != null));
 	}
 
 	public record VersionCommand(String version, String title, URI contentUrl, String content,
-		TermContentFormat contentFormat, boolean required, Instant effectiveAt) {}
+		TermContentFormat contentFormat, boolean required, Instant effectiveAt,
+		List<TermTranslation> translations) {
+		public VersionCommand(String version, String title, URI contentUrl, String content,
+			TermContentFormat contentFormat, boolean required, Instant effectiveAt) {
+			this(version, title, contentUrl, content, contentFormat, required, effectiveAt, List.of());
+		}
+	}
 }

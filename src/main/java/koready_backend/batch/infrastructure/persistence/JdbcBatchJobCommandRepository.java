@@ -142,6 +142,37 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 			jobType.name()).stream().findFirst();
 	}
 
+	@Override
+	public MaintenanceStageState findMaintenanceStageState(String scheduleKey) {
+		return jdbcTemplate.query("""
+			WITH RECURSIVE job_chain AS (
+			    SELECT id, status
+			    FROM batch_jobs
+			    WHERE schedule_key = ?
+			    UNION ALL
+			    SELECT child.id, child.status
+			    FROM batch_jobs child
+			    JOIN job_chain parent ON child.parent_job_id = parent.id
+			)
+			SELECT COUNT(*) AS total_count,
+			       COALESCE(SUM(status IN ('PENDING', 'RUNNING')), 0) AS active_count,
+			       COALESCE(SUM(status IN ('FAILED', 'PARTIAL_FAILED')), 0) AS failed_count
+			FROM job_chain
+			""", resultSet -> {
+			resultSet.next();
+			if (resultSet.getInt("total_count") == 0) {
+				return MaintenanceStageState.NOT_STARTED;
+			}
+			if (resultSet.getInt("failed_count") > 0) {
+				return MaintenanceStageState.FAILED;
+			}
+			if (resultSet.getInt("active_count") > 0) {
+				return MaintenanceStageState.IN_PROGRESS;
+			}
+			return MaintenanceStageState.COMPLETED;
+		}, scheduleKey);
+	}
+
 	private RetrySource mapRetrySource(ResultSet resultSet, int rowNumber) throws SQLException {
 		return new RetrySource(
 			resultSet.getLong("id"),

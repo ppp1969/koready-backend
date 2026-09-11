@@ -105,6 +105,14 @@ class KtoClassificationBackfillServiceTest {
 		}
 
 		@Override
+		public void applyChanges(
+			String ruleVersion,
+			List<KtoClassificationDecision> decisions
+		) {
+			pages.add(List.copyOf(decisions));
+		}
+
+		@Override
 		public void applyPage(
 			String ruleVersion,
 			List<KtoClassificationDecision> decisions,

@@ -18,6 +18,15 @@ public interface BatchJobCommandRepository {
 
 	Optional<RetrySource> findLatestSourceForUpdate(BatchJobType jobType);
 
+	MaintenanceStageState findMaintenanceStageState(String scheduleKey);
+
+	enum MaintenanceStageState {
+		NOT_STARTED,
+		IN_PROGRESS,
+		COMPLETED,
+		FAILED
+	}
+
 	record EnqueueCommand(
 		BatchJobType jobType,
 		BatchTriggerSource triggerSource,

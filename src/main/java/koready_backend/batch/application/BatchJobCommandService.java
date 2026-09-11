@@ -21,6 +21,7 @@ import koready_backend.batch.application.exception.BatchJobRetryNotAllowedExcept
 import koready_backend.batch.application.port.BatchJobCommandRepository;
 import koready_backend.batch.application.port.BatchJobCommandRepository.BatchAuditRecord;
 import koready_backend.batch.application.port.BatchJobCommandRepository.EnqueueCommand;
+import koready_backend.batch.application.port.BatchJobCommandRepository.MaintenanceStageState;
 import koready_backend.batch.application.port.BatchJobCommandRepository.RetrySource;
 import koready_backend.batch.domain.BatchJobStatus;
 import koready_backend.batch.domain.BatchJobType;
@@ -42,7 +43,7 @@ public class BatchJobCommandService {
 	private static final int MAX_PAGES = 20;
 	private static final int DEFAULT_DETAIL_PLACES = 10;
 	private static final int MAX_DETAIL_PLACES = 50;
-	private static final int MAX_DAILY_DETAIL_PLACES = 900;
+	private static final int MAX_DAILY_DETAIL_PLACES = 100_000;
 	private static final int MAX_DAILY_DETAIL_CHUNK_PLACES = 50;
 	private static final int DEFAULT_QUALITY_RECORDS = 50;
 	private static final int MAX_QUALITY_RECORDS = 200;
@@ -132,6 +133,83 @@ public class BatchJobCommandService {
 				"BATCH_JOB_SCHEDULED",
 				jobId,
 				"Schedule the bounded daily KTO detail budget in resumable chunks.",
+				parameters,
+				createdAt));
+			return new DailyScheduleResult(true, jobId);
+		} catch (DuplicateKeyException exception) {
+			return new DailyScheduleResult(false, null);
+		}
+	}
+
+	@Transactional
+	public DailyScheduleResult scheduleWeeklyKtoSync(
+		LocalDate scheduleDate,
+		int requestBudget
+	) {
+		if (scheduleDate == null || requestBudget < 1 || requestBudget > 100_000) {
+			throw new IllegalArgumentException("KTO weekly sync schedule is invalid");
+		}
+		String runKey = "KTO_WEEKLY_SYNC:" + scheduleDate;
+		DailyScheduleResult kor = scheduleMaintenanceStage(
+			BatchJobType.KTO_FULL_CATALOG_SYNC,
+			runKey + ":KOR",
+			Map.of(
+				"startPage", 1,
+				"maxPages", Math.min(MAX_PAGES, requestBudget),
+				"remainingPages", requestBudget,
+				"catalogRunStartedAt", Instant.now(clock).toString()));
+		if (kor != null) {
+			return kor;
+		}
+		DailyScheduleResult english = scheduleMaintenanceStage(
+			BatchJobType.KTO_EN_SYNC,
+			runKey + ":EN",
+			Map.of(
+				"startPage", 1,
+				"maxPages", Math.min(MAX_PAGES, requestBudget),
+				"remainingPages", requestBudget));
+		if (english != null) {
+			return english;
+		}
+		DailyScheduleResult festival = scheduleMaintenanceStage(
+			BatchJobType.KTO_FESTIVAL_SYNC,
+			runKey + ":FESTIVAL",
+			Map.of(
+				"startPage", 1,
+				"maxPages", Math.min(MAX_PAGES, requestBudget),
+				"remainingPages", requestBudget,
+				"eventStartDate", scheduleDate.minusMonths(6).toString(),
+				"autoContinue", true));
+		return festival == null ? new DailyScheduleResult(false, null) : festival;
+	}
+
+	private DailyScheduleResult scheduleMaintenanceStage(
+		BatchJobType jobType,
+		String scheduleKey,
+		Map<String, Object> parameters
+	) {
+		MaintenanceStageState state = repository.findMaintenanceStageState(scheduleKey);
+		if (state == MaintenanceStageState.FAILED
+			|| state == MaintenanceStageState.IN_PROGRESS) {
+			return new DailyScheduleResult(false, null);
+		}
+		if (state == MaintenanceStageState.COMPLETED) {
+			return null;
+		}
+		try {
+			Instant createdAt = Instant.now(clock);
+			long jobId = repository.enqueue(new EnqueueCommand(
+				jobType,
+				BatchTriggerSource.SCHEDULED,
+				null,
+				parameters,
+				scheduleKey,
+				createdAt));
+			repository.recordAudit(new BatchAuditRecord(
+				"SYSTEM:KTO_WEEKLY_SYNC",
+				"BATCH_JOB_SCHEDULED",
+				jobId,
+				"Run the bounded weekly KTO source synchronization stage.",
 				parameters,
 				createdAt));
 			return new DailyScheduleResult(true, jobId);

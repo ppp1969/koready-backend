@@ -1,8 +1,11 @@
 package koready_backend.batch.infrastructure.kto;
 
 import java.time.LocalDate;
+import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import koready_backend.batch.application.port.BatchJobExecutionRepository.ClaimedJob;
@@ -27,6 +30,7 @@ import koready_backend.kto.application.model.KtoFestivalImportRequest;
 import koready_backend.kto.application.model.KtoPhotoAwardImportRequest;
 import koready_backend.kto.application.model.KtoPhotoGalleryImportRequest;
 import koready_backend.kto.application.model.KtoRelatedTourImportRequest;
+import koready_backend.kto.application.port.KtoCatalogReconciliationStore;
 
 @Component
 public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
@@ -39,7 +43,9 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 	private final KtoPhotoAwardImportService photoAwardImportService;
 	private final KtoPhotoGalleryImportService photoGalleryImportService;
 	private final KtoRelatedTourImportService relatedTourImportService;
+	private final KtoCatalogReconciliationStore catalogReconciliationStore;
 
+	@Autowired
 	public KtoBatchJobRunnerAdapter(
 		KtoDailySyncImportService dailySyncService,
 		KtoDetailEnrichmentService detailEnrichmentService,
@@ -48,7 +54,8 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 		KtoFestivalImportService festivalImportService,
 		KtoPhotoAwardImportService photoAwardImportService,
 		KtoPhotoGalleryImportService photoGalleryImportService,
-		KtoRelatedTourImportService relatedTourImportService
+		KtoRelatedTourImportService relatedTourImportService,
+		KtoCatalogReconciliationStore catalogReconciliationStore
 	) {
 		this.dailySyncService = dailySyncService;
 		this.detailEnrichmentService = detailEnrichmentService;
@@ -58,6 +65,23 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 		this.photoAwardImportService = photoAwardImportService;
 		this.photoGalleryImportService = photoGalleryImportService;
 		this.relatedTourImportService = relatedTourImportService;
+		this.catalogReconciliationStore = catalogReconciliationStore;
+	}
+
+	KtoBatchJobRunnerAdapter(
+		KtoDailySyncImportService dailySyncService,
+		KtoDetailEnrichmentService detailEnrichmentService,
+		KtoEnglishSyncImportService englishSyncService,
+		KtoEnglishQualityBackfillService englishQualityBackfillService,
+		KtoFestivalImportService festivalImportService,
+		KtoPhotoAwardImportService photoAwardImportService,
+		KtoPhotoGalleryImportService photoGalleryImportService,
+		KtoRelatedTourImportService relatedTourImportService
+	) {
+		this(dailySyncService, detailEnrichmentService, englishSyncService,
+			englishQualityBackfillService, festivalImportService,
+			photoAwardImportService, photoGalleryImportService,
+			relatedTourImportService, ignored -> 0);
 	}
 
 	@Override
@@ -149,21 +173,26 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 			return new RunResult(result.processedItems(), result.processedItems(), 0);
 		}
 		if (job.jobType() == BatchJobType.KTO_FULL_CATALOG_SYNC) {
-			var result = dailySyncService.sync(new KtoDailySyncRequest(startPage, maxPages), batchExecution);
-			var continuation = result.truncatedByPageLimit()
-				? new BatchJobContinuation(BatchJobType.KTO_FULL_CATALOG_SYNC, Map.of(
-					"startPage", result.lastProcessedPage() + 1,
-					"maxPages", maxPages))
-				: null;
+			Instant runStartedAt = optionalInstant(job.parameters(), "catalogRunStartedAt");
+			var result = dailySyncService.sync(
+				new KtoDailySyncRequest(startPage, maxPages, runStartedAt), batchExecution);
+			var continuation = pageContinuation(
+				BatchJobType.KTO_FULL_CATALOG_SYNC,
+				job.parameters(), result.lastProcessedPage(),
+				result.processedPages(), result.truncatedByPageLimit(),
+				Map.of("catalogRunStartedAt",
+					runStartedAt == null ? "" : runStartedAt.toString()));
+			if (!result.truncatedByPageLimit() && runStartedAt != null) {
+				catalogReconciliationStore.deactivatePlacesNotSeenSince(runStartedAt);
+			}
 			return new RunResult(result.processedItems(), result.processedItems(), 0, continuation);
 		}
 		if (job.jobType() == BatchJobType.KTO_EN_SYNC) {
 			var result = englishSyncService.sync(new KtoEnglishSyncRequest(startPage, maxPages), batchExecution);
-			var continuation = result.truncatedByPageLimit()
-				? new BatchJobContinuation(BatchJobType.KTO_EN_SYNC, Map.of(
-					"startPage", result.lastProcessedPage() + 1,
-					"maxPages", maxPages))
-				: null;
+			var continuation = pageContinuation(
+				BatchJobType.KTO_EN_SYNC,
+				job.parameters(), result.lastProcessedPage(),
+				result.processedPages(), result.truncatedByPageLimit(), Map.of());
 			return new RunResult(result.processedItems(), result.processedItems(), 0, continuation);
 		}
 		if (job.jobType() == BatchJobType.KTO_FESTIVAL_SYNC) {
@@ -175,17 +204,11 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 				LocalDate.parse(eventStartDate),
 				startPage,
 				maxPages), batchExecution);
-			var continuation = result.truncatedByPageLimit()
-				&& autoContinue
-				? new BatchJobContinuation(
-					BatchJobType.KTO_FESTIVAL_SYNC,
-					Map.of(
-						"eventStartDate", eventStartDate,
-						"startPage",
-						result.lastProcessedPage() + 1,
-						"maxPages", maxPages,
-						"autoContinue", true))
-				: null;
+			var continuation = !autoContinue ? null : pageContinuation(
+				BatchJobType.KTO_FESTIVAL_SYNC,
+				job.parameters(), result.lastProcessedPage(),
+				result.processedPages(), result.truncatedByPageLimit(),
+				Map.of("eventStartDate", eventStartDate, "autoContinue", true));
 			return new RunResult(
 				result.processedItems(),
 				result.processedItems(),
@@ -229,6 +252,37 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 				continuation);
 		}
 		throw new IllegalArgumentException("Unsupported manual batch job type");
+	}
+
+	private static BatchJobContinuation pageContinuation(
+		BatchJobType type,
+		Map<String, Object> parameters,
+		int lastProcessedPage,
+		int processedPages,
+		boolean truncated,
+		Map<String, Object> carriedParameters
+	) {
+		if (!truncated) {
+			return null;
+		}
+		Integer budget = optionalInteger(parameters, "remainingPages");
+		int currentMaxPages = integer(parameters, "maxPages");
+		if (budget == null) {
+			var values = new LinkedHashMap<String, Object>(carriedParameters);
+			values.entrySet().removeIf(entry -> entry.getValue() instanceof String value && value.isBlank());
+			values.put("startPage", lastProcessedPage + 1);
+			values.put("maxPages", currentMaxPages);
+			return new BatchJobContinuation(type, Map.copyOf(values));
+		}
+		int remaining = budget - processedPages;
+		if (remaining <= 0) {
+			throw new IllegalStateException("KTO synchronization request budget was exhausted before completion");
+		}
+		var values = new LinkedHashMap<String, Object>(carriedParameters);
+		values.put("startPage", lastProcessedPage + 1);
+		values.put("maxPages", Math.min(currentMaxPages, remaining));
+		values.put("remainingPages", remaining);
+		return new BatchJobContinuation(type, Map.copyOf(values));
 	}
 
 	private static int integer(Map<String, Object> parameters, String name) {
@@ -319,5 +373,16 @@ public class KtoBatchJobRunnerAdapter implements KtoBatchJobRunner {
 				"Batch job parameter is invalid");
 		}
 		return text;
+	}
+
+	private static Instant optionalInstant(Map<String, Object> parameters, String name) {
+		Object value = parameters.get(name);
+		if (value == null) {
+			return null;
+		}
+		if (!(value instanceof String text)) {
+			throw new IllegalArgumentException("Batch job parameter is invalid");
+		}
+		return Instant.parse(text);
 	}
 }

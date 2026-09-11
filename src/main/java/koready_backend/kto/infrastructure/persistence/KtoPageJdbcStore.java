@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Collections;
@@ -23,8 +24,12 @@ import koready_backend.kto.application.exception.KtoDuplicateContentIdException;
 import koready_backend.kto.application.exception.KtoSnapshotConflictException;
 import koready_backend.kto.application.model.KtoStorePageCommand;
 import koready_backend.kto.application.model.KtoStorePageResult;
+import koready_backend.kto.application.model.KtoClassificationDecision;
+import koready_backend.kto.application.port.KtoClassificationBackfillStore;
 import koready_backend.kto.application.port.KtoPageStore;
+import koready_backend.kto.domain.KtoPlaceClassificationInput;
 import koready_backend.kto.domain.KtoPlaceItem;
+import koready_backend.kto.domain.KtoPlaceStyleRuleV1;
 import koready_backend.kto.infrastructure.config.KtoBatchProperties;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
@@ -46,8 +51,8 @@ public class KtoPageJdbcStore implements KtoPageStore {
 			 area_code, sigungu_code, ldong_regn_cd, ldong_signgu_cd,
 			 lcls_systm1, lcls_systm2, lcls_systm3, address,
 			 latitude, longitude, tel, first_image_url, source_modified_time,
-			 show_flag, active)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 kto_catalog_source_hash, kto_catalog_seen_at, show_flag, active)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			kto_content_type_id = VALUES(kto_content_type_id),
 			service_region_code = VALUES(service_region_code),
@@ -64,6 +69,8 @@ public class KtoPageJdbcStore implements KtoPageStore {
 			tel = VALUES(tel),
 			first_image_url = VALUES(first_image_url),
 			source_modified_time = VALUES(source_modified_time),
+			kto_catalog_source_hash = VALUES(kto_catalog_source_hash),
+			kto_catalog_seen_at = VALUES(kto_catalog_seen_at),
 			show_flag = show_flag,
 			active = VALUES(active)
 		""";
@@ -74,11 +81,11 @@ public class KtoPageJdbcStore implements KtoPageStore {
 			 source_content_id, source_hash)
 		VALUES (?, 'KO', ?, ?, 'KTO_KO', ?, ?)
 		ON DUPLICATE KEY UPDATE
-			title = VALUES(title),
-			address_text = VALUES(address_text),
-			translation_source = 'KTO_KO',
-			source_content_id = VALUES(source_content_id),
-			source_hash = VALUES(source_hash)
+			title = IF(translation_source = 'MANUAL_EDITED', title, VALUES(title)),
+			address_text = IF(translation_source = 'MANUAL_EDITED', address_text, VALUES(address_text)),
+			translation_source = IF(translation_source = 'MANUAL_EDITED', translation_source, 'KTO_KO'),
+			source_content_id = IF(translation_source = 'MANUAL_EDITED', source_content_id, VALUES(source_content_id)),
+			source_hash = IF(translation_source = 'MANUAL_EDITED', source_hash, VALUES(source_hash))
 		""";
 
 	private static final String INSERT_SOURCE_RECORD_SQL = """
@@ -98,15 +105,19 @@ public class KtoPageJdbcStore implements KtoPageStore {
 	private final JdbcTemplate jdbcTemplate;
 	private final JsonMapper jsonMapper;
 	private final KtoBatchProperties batchProperties;
+	private final KtoClassificationBackfillStore classificationStore;
+	private final KtoPlaceStyleRuleV1 classificationRule = new KtoPlaceStyleRuleV1();
 
 	public KtoPageJdbcStore(
 		JdbcTemplate jdbcTemplate,
 		JsonMapper jsonMapper,
-		KtoBatchProperties batchProperties
+		KtoBatchProperties batchProperties,
+		KtoClassificationBackfillStore classificationStore
 	) {
 		this.jdbcTemplate = jdbcTemplate;
 		this.jsonMapper = jsonMapper;
 		this.batchProperties = batchProperties;
+		this.classificationStore = classificationStore;
 	}
 
 	@Override
@@ -125,15 +136,22 @@ public class KtoPageJdbcStore implements KtoPageStore {
 		List<PlaceRow> places = command.page().items().stream()
 			.map(item -> toPlaceRow(
 				item,
-				item.areaCode() == null ? null : serviceRegions.get(item.areaCode())))
+				item.areaCode() == null ? null : serviceRegions.get(item.areaCode()),
+				observationTime(command)))
 			.toList();
 
+		Map<String, String> existingHashes = loadCatalogHashes(places);
+		List<PlaceRow> changedPlaces = places.stream()
+			.filter(place -> !existingHashes.containsKey(place.contentId())
+				|| !Objects.equals(existingHashes.get(place.contentId()), place.sourceHash()))
+			.toList();
 		upsertPlaces(places);
 		Map<String, Long> placeIds = loadPlaceIds(places);
-		upsertLocalizations(places, placeIds);
-		insertSourceRecords(command, snapshotId, places);
+		upsertLocalizations(changedPlaces, placeIds);
+		insertSourceRecords(command, snapshotId, changedPlaces);
 		Map<String, Long> sourceRecordIds = loadSourceRecordIds(snapshotId);
-		insertSourceMatches(places, placeIds, sourceRecordIds);
+		insertSourceMatches(changedPlaces, placeIds, sourceRecordIds);
+		applyClassification(changedPlaces, placeIds);
 		advancePageCursor(command);
 
 		int activeCount = (int) places.stream().filter(PlaceRow::active).count();
@@ -145,6 +163,37 @@ public class KtoPageJdbcStore implements KtoPageStore {
 			activeCount,
 			localizationCount,
 			false);
+	}
+
+	private Map<String, String> loadCatalogHashes(List<PlaceRow> places) {
+		if (places.isEmpty()) {
+			return Map.of();
+		}
+		String placeholders = String.join(",", Collections.nCopies(places.size(), "?"));
+		Map<String, String> hashes = new HashMap<>();
+		List<CatalogHashRow> rows = jdbcTemplate.query(
+			"SELECT kto_content_id, kto_catalog_source_hash FROM places WHERE kto_content_id IN (" + placeholders + ")",
+			(resultSet, rowNumber) -> new CatalogHashRow(
+				resultSet.getString("kto_content_id"),
+				resultSet.getString("kto_catalog_source_hash")),
+			places.stream().map(PlaceRow::contentId).toArray());
+		rows.forEach(row -> hashes.put(row.contentId(), row.sourceHash()));
+		return hashes;
+	}
+
+	private void applyClassification(List<PlaceRow> places, Map<String, Long> placeIds) {
+		List<KtoClassificationDecision> decisions = places.stream()
+			.map(place -> new KtoClassificationDecision(
+				placeIds.get(place.contentId()),
+				place.contentTypeId(),
+				place.classificationCode1(),
+				place.classificationCode2(),
+				place.classificationCode3(),
+				classificationRule.classify(new KtoPlaceClassificationInput(
+					place.contentTypeId(), place.classificationCode1(),
+					place.classificationCode2(), place.classificationCode3()))))
+			.toList();
+		classificationStore.applyChanges(KtoPlaceStyleRuleV1.VERSION, decisions);
 	}
 
 	private ExistingSnapshot findExistingSnapshot(String storageKey) {
@@ -178,6 +227,7 @@ public class KtoPageJdbcStore implements KtoPageStore {
 			|| existing.itemCount() != command.page().items().size()) {
 			throw new KtoSnapshotConflictException();
 		}
+		markObserved(command);
 
 		int activeCount = (int) command.page().items().stream()
 			.filter(item -> item.visible() && item.title() != null)
@@ -192,6 +242,25 @@ public class KtoPageJdbcStore implements KtoPageStore {
 			activeCount,
 			localizationCount,
 			true);
+	}
+
+	private Instant observationTime(KtoStorePageCommand command) {
+		return command.catalogRunStartedAt() == null
+			? command.snapshot().capturedAt()
+			: command.catalogRunStartedAt();
+	}
+
+	private void markObserved(KtoStorePageCommand command) {
+		if (command.catalogRunStartedAt() == null || command.page().items().isEmpty()) {
+			return;
+		}
+		String placeholders = String.join(",", Collections.nCopies(command.page().items().size(), "?"));
+		List<Object> parameters = new java.util.ArrayList<>();
+		parameters.add(Timestamp.from(command.catalogRunStartedAt()));
+		command.page().items().stream().map(KtoPlaceItem::contentId).forEach(parameters::add);
+		jdbcTemplate.update(
+			"UPDATE places SET kto_catalog_seen_at = ? WHERE kto_content_id IN (" + placeholders + ")",
+			parameters.toArray());
 	}
 
 	private void validateUniqueContentIds(List<KtoPlaceItem> items) {
@@ -315,7 +384,11 @@ public class KtoPageJdbcStore implements KtoPageStore {
 		return Map.copyOf(regions);
 	}
 
-	private PlaceRow toPlaceRow(KtoPlaceItem item, String serviceRegionCode) {
+	private PlaceRow toPlaceRow(
+		KtoPlaceItem item,
+		String serviceRegionCode,
+		Instant observedAt
+	) {
 		String title = item.title();
 		return new PlaceRow(
 			item.contentId(),
@@ -337,7 +410,8 @@ public class KtoPageJdbcStore implements KtoPageStore {
 			false,
 			item.visible() && title != null,
 			title,
-			item.sourceHash());
+			item.sourceHash(),
+			observedAt);
 	}
 
 	private String joinAddress(String address1, String address2) {
@@ -402,8 +476,10 @@ public class KtoPageJdbcStore implements KtoPageStore {
 				statement.setString(14, place.phoneNumber());
 				statement.setString(15, place.primaryImageUrl());
 				statement.setObject(16, place.sourceModifiedTime());
-				statement.setBoolean(17, place.showFlag());
-				statement.setBoolean(18, place.active());
+				statement.setString(17, place.sourceHash());
+				statement.setTimestamp(18, Timestamp.from(place.observedAt()));
+				statement.setBoolean(19, place.showFlag());
+				statement.setBoolean(20, place.active());
 			});
 	}
 
@@ -551,6 +627,9 @@ public class KtoPageJdbcStore implements KtoPageStore {
 	private record RegionRow(String code, String serviceRegionCode) {
 	}
 
+	private record CatalogHashRow(String contentId, String sourceHash) {
+	}
+
 	private record PlaceRow(
 		String contentId,
 		String contentTypeId,
@@ -571,7 +650,8 @@ public class KtoPageJdbcStore implements KtoPageStore {
 		boolean showFlag,
 		boolean active,
 		String title,
-		String sourceHash
+		String sourceHash,
+		Instant observedAt
 	) {
 	}
 }

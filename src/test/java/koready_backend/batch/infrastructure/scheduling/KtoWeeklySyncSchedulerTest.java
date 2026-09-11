@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.env.MapPropertySource;
 
 import koready_backend.batch.application.BatchJobCommandService;
 
@@ -20,6 +22,24 @@ class KtoWeeklySyncSchedulerTest {
 
 	@Mock
 	BatchJobCommandService commandService;
+
+	@Test
+	void springSelectsTheRuntimeConstructorWhenTheSchedulerIsEnabled() {
+		try (var context = new AnnotationConfigApplicationContext()) {
+			context.getEnvironment().getPropertySources().addFirst(
+				new MapPropertySource("test", java.util.Map.of(
+					"koready.kto.continuous-sync.schedule.enabled", "true")));
+			context.registerBean(BatchJobCommandService.class, () -> commandService);
+			context.registerBean(
+				KtoWeeklySyncScheduleProperties.class,
+				() -> new KtoWeeklySyncScheduleProperties(800, "Asia/Seoul"));
+			context.register(KtoWeeklySyncScheduler.class);
+
+			context.refresh();
+
+			context.getBean(KtoWeeklySyncScheduler.class);
+		}
+	}
 
 	@Test
 	void schedulesTheWeeklyPipelineWithTheConfiguredBudget() {

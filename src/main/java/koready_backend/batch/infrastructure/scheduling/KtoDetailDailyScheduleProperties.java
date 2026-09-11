@@ -12,13 +12,13 @@ public record KtoDetailDailyScheduleProperties(
 	String zone
 ) {
 
-	private static final int MAX_DAILY_PLACES = 900;
+	private static final int MAX_DAILY_PLACES = 100_000;
 	private static final int MAX_CHUNK_PLACES = 50;
 
 	public KtoDetailDailyScheduleProperties {
 		if (dailyPlaces < 1 || dailyPlaces > MAX_DAILY_PLACES) {
 			throw new IllegalArgumentException(
-				"KTO daily detail places must be between 1 and 900");
+				"KTO daily detail places must be between 1 and 100000");
 		}
 		if (chunkPlaces < 1 || chunkPlaces > MAX_CHUNK_PLACES
 			|| chunkPlaces > dailyPlaces) {

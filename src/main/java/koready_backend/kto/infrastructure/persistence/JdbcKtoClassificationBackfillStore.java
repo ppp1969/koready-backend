@@ -83,10 +83,22 @@ public class JdbcKtoClassificationBackfillStore
 		if (lastPlaceId != decisions.getLast().placeId()) {
 			throw new IllegalArgumentException("Checkpoint must match the last decision");
 		}
+		applyChanges(ruleVersion, decisions);
+		upsertCheckpoint(ruleVersion, lastPlaceId);
+	}
+
+	@Override
+	@Transactional
+	public void applyChanges(
+		String ruleVersion,
+		List<KtoClassificationDecision> decisions
+	) {
+		if (decisions == null || decisions.isEmpty()) {
+			return;
+		}
 		deleteCurrentMappings(ruleVersion, decisions);
 		upsertAutomaticMappings(ruleVersion, decisions);
 		reselectPrimary(decisions);
-		upsertCheckpoint(ruleVersion, lastPlaceId);
 	}
 
 	private void deleteCurrentMappings(

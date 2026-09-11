@@ -12,6 +12,11 @@ public interface KtoClassificationBackfillStore {
 
 	void recordFailure(String ruleVersion);
 
+	void applyChanges(
+		String ruleVersion,
+		List<KtoClassificationDecision> decisions
+	);
+
 	void applyPage(
 		String ruleVersion,
 		List<KtoClassificationDecision> decisions,

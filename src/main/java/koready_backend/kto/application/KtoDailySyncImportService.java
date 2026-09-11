@@ -93,7 +93,8 @@ public class KtoDailySyncImportService {
 				page,
 				fetched.call(),
 				snapshot,
-				batchExecution));
+				batchExecution,
+				request.catalogRunStartedAt()));
 			processedPages++;
 			processedItems += stored.processedCount();
 			replayedPages += stored.replayed() ? 1 : 0;

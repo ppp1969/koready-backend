@@ -164,6 +164,12 @@ koready:
         zone: ${KTO_DETAIL_DAILY_SCHEDULE_ZONE:Asia/Seoul}
         daily-places: ${KTO_DETAIL_DAILY_PLACES:800}
         chunk-places: ${KTO_DETAIL_DAILY_CHUNK_PLACES:50}
+    continuous-sync:
+      schedule:
+        enabled: ${KTO_CONTINUOUS_SYNC_SCHEDULE_ENABLED:false}
+        cron: ${KTO_CONTINUOUS_SYNC_SCHEDULE_CRON:0 */10 3-23 * * SUN}
+        zone: ${KTO_CONTINUOUS_SYNC_SCHEDULE_ZONE:Asia/Seoul}
+        request-budget: ${KTO_CONTINUOUS_SYNC_REQUEST_BUDGET:800}
     related-tour-resume:
       schedule:
         enabled: ${KTO_RELATED_TOUR_RESUME_SCHEDULE_ENABLED:false}

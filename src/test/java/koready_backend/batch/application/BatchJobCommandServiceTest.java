@@ -27,6 +27,7 @@ import koready_backend.batch.application.exception.BatchJobRetryNotAllowedExcept
 import koready_backend.batch.application.port.BatchJobCommandRepository;
 import koready_backend.batch.application.port.BatchJobCommandRepository.EnqueueCommand;
 import koready_backend.batch.application.port.BatchJobCommandRepository.BatchAuditRecord;
+import koready_backend.batch.application.port.BatchJobCommandRepository.MaintenanceStageState;
 import koready_backend.batch.application.port.BatchJobCommandRepository.RetrySource;
 import koready_backend.batch.domain.BatchJobStatus;
 import koready_backend.batch.domain.BatchJobType;
@@ -37,6 +38,38 @@ class BatchJobCommandServiceTest {
 
 	@Mock
 	BatchJobCommandRepository repository;
+
+	@Test
+	void schedulesKoreanCatalogAsTheFirstWeeklyStage() {
+		when(repository.findMaintenanceStageState("KTO_WEEKLY_SYNC:2026-09-13:KOR"))
+			.thenReturn(MaintenanceStageState.NOT_STARTED);
+		when(repository.enqueue(any())).thenReturn(701L);
+		BatchJobCommandService service = service();
+
+		var result = service.scheduleWeeklyKtoSync(LocalDate.parse("2026-09-13"), 800);
+
+		assertTrue(result.scheduled());
+		ArgumentCaptor<EnqueueCommand> captor = ArgumentCaptor.forClass(EnqueueCommand.class);
+		verify(repository).enqueue(captor.capture());
+		assertEquals(BatchJobType.KTO_FULL_CATALOG_SYNC, captor.getValue().jobType());
+		assertEquals(800, captor.getValue().parameters().get("remainingPages"));
+	}
+
+	@Test
+	void schedulesEnglishOnlyAfterTheKoreanWeeklyStageCompletes() {
+		when(repository.findMaintenanceStageState("KTO_WEEKLY_SYNC:2026-09-13:KOR"))
+			.thenReturn(MaintenanceStageState.COMPLETED);
+		when(repository.findMaintenanceStageState("KTO_WEEKLY_SYNC:2026-09-13:EN"))
+			.thenReturn(MaintenanceStageState.NOT_STARTED);
+		when(repository.enqueue(any())).thenReturn(702L);
+		BatchJobCommandService service = service();
+
+		service.scheduleWeeklyKtoSync(LocalDate.parse("2026-09-13"), 800);
+
+		ArgumentCaptor<EnqueueCommand> captor = ArgumentCaptor.forClass(EnqueueCommand.class);
+		verify(repository).enqueue(captor.capture());
+		assertEquals(BatchJobType.KTO_EN_SYNC, captor.getValue().jobType());
+	}
 
 	@Test
 	void acceptsOnlyBoundedKtoParametersAndPersistsAQueuedManualJob() {
@@ -335,7 +368,7 @@ class BatchJobCommandServiceTest {
 		assertThrows(
 			IllegalArgumentException.class,
 			() -> service.scheduleDailyDetail(
-				LocalDate.parse("2026-07-20"), 901, 50));
+				LocalDate.parse("2026-07-20"), 100_001, 50));
 		assertThrows(
 			IllegalArgumentException.class,
 			() -> service.scheduleDailyDetail(

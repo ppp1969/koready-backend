@@ -73,14 +73,14 @@ class AdminEditorialControllerTest {
 	@Test
 	@WithMockUser(roles = "ADMIN")
 	void listsCandidatePlaces() throws Exception {
-		when(service.candidates(any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
+		when(service.candidates(any(), any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
 			.thenReturn(new EditorialService.CandidatePage(List.of(), null, false, 0));
 
 		mockMvc.perform(get("/api/v1/admin/editorial/candidates"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.items").isArray())
 			.andExpect(jsonPath("$.data.hasMore").value(false));
-		verify(service).candidates(any(), any(), any(), any(), any(),
+		verify(service).candidates(any(), any(), any(), any(), any(), any(),
 			org.mockito.ArgumentMatchers.eq(EditorialCandidateSourceTrack.KTO_BILINGUAL),
 			any(Long.class), any(Integer.class));
 	}
@@ -88,7 +88,7 @@ class AdminEditorialControllerTest {
 	@Test
 	@WithMockUser(roles = "ADMIN")
 	void acceptsSelectionFiltersAndReturnsTotalCount() throws Exception {
-		when(service.candidates(any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
+		when(service.candidates(any(), any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
 			.thenReturn(new EditorialService.CandidatePage(List.of(), null, false, 0));
 
 		mockMvc.perform(get("/api/v1/admin/editorial/candidates")
@@ -97,10 +97,12 @@ class AdminEditorialControllerTest {
 				.param("region", "SEOUL")
 				.param("hasKoreanOverview", "true")
 				.param("queueEligible", "false")
+				.param("sourceChanged", "true")
 				.param("sourceTrack", "KOREAN_ONLY_AI"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.totalCount").value(0));
 		verify(service).candidates(any(), any(), any(), any(), any(),
+			org.mockito.ArgumentMatchers.eq(true),
 			org.mockito.ArgumentMatchers.eq(EditorialCandidateSourceTrack.KOREAN_ONLY_AI),
 			any(Long.class), any(Integer.class));
 	}

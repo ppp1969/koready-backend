@@ -53,6 +53,18 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		), 256)
 		""";
 
+	private static final String SOURCE_CHANGED_SQL = """
+		(EXISTS (
+		    SELECT 1 FROM place_editorial_contents previous_content
+		    WHERE previous_content.place_id = p.id
+		      AND previous_content.status = 'READY')
+		 AND NOT EXISTS (
+		    SELECT 1 FROM place_editorial_contents current_content
+		    WHERE current_content.place_id = p.id
+		      AND current_content.status = 'READY'
+		      AND current_content.source_fingerprint = %s))
+		""".formatted(SOURCE_FINGERPRINT);
+
 	private static final String CANDIDATE_FROM_SQL = """
 		FROM places p
 		JOIN place_localizations ko ON ko.place_id = p.id AND ko.language = 'KO'
@@ -72,8 +84,9 @@ public class JdbcEditorialRepository implements EditorialRepository {
 	private static final String QUEUE_ELIGIBLE_SQL = """
 		(NULLIF(TRIM(ko.overview), '') IS NOT NULL
 		 AND NULLIF(TRIM(COALESCE(ko.address_text, p.road_address, p.address)), '') IS NOT NULL
-		 AND COALESCE(latest.status, 'NOT_REQUESTED') IN ('NOT_REQUESTED', 'FAILED', 'STALE'))
-		""";
+		 AND (COALESCE(latest.status, 'NOT_REQUESTED') IN ('NOT_REQUESTED', 'FAILED', 'STALE')
+		      OR (%s AND latest.status NOT IN ('QUEUED', 'PROCESSING'))))
+		""".formatted(SOURCE_CHANGED_SQL);
 
 	private final JdbcTemplate jdbcTemplate;
 	private final NamedParameterJdbcTemplate namedJdbcTemplate;
@@ -226,10 +239,11 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			          NULLIF(TRIM(p.first_image_url), '')) AS image_url,
 			       (NULLIF(TRIM(ko.overview), '') IS NOT NULL) AS has_ko_overview,
 			       %s AS queue_eligible,
+			       %s AS source_changed,
 			       COALESCE(latest.status, 'NOT_REQUESTED') AS editorial_status,
 			       latest.requested_at
 			%s
-			""".formatted(QUEUE_ELIGIBLE_SQL, CANDIDATE_FROM_SQL));
+			""".formatted(QUEUE_ELIGIBLE_SQL, SOURCE_CHANGED_SQL, CANDIDATE_FROM_SQL));
 		MapSqlParameterSource params = new MapSqlParameterSource()
 			.addValue("cursor", query.startAfterPlaceId())
 			.addValue("limit", query.limit());
@@ -344,6 +358,11 @@ public class JdbcEditorialRepository implements EditorialRepository {
 				? " AND " + QUEUE_ELIGIBLE_SQL
 				: " AND NOT " + QUEUE_ELIGIBLE_SQL);
 		}
+		if (query.sourceChanged() != null) {
+			sql.append(query.sourceChanged()
+				? " AND " + SOURCE_CHANGED_SQL
+				: " AND NOT " + SOURCE_CHANGED_SQL);
+		}
 		switch (query.sourceTrack()) {
 			case KTO_BILINGUAL -> sql.append(" AND en.place_id IS NOT NULL");
 			case KOREAN_ONLY_AI -> sql.append(" AND en.place_id IS NULL");
@@ -360,6 +379,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			       ko.overview AS overview_ko,
 			       COALESCE(ko.address_text, p.road_address, p.address) AS address,
 			       p.service_region_code, p.active, p.show_flag, p.curation_priority,
+			       %s AS source_changed,
 			       COALESCE(latest.status, 'NOT_REQUESTED') AS editorial_status,
 			       latest.requested_at
 			FROM places p
@@ -375,7 +395,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			  AND EXISTS (SELECT 1 FROM place_style_mappings s WHERE s.place_id = p.id)
 			  AND (NULLIF(TRIM(p.first_image_url), '') IS NOT NULL
 			       OR EXISTS (SELECT 1 FROM place_images i WHERE i.place_id = p.id))
-			""", (rs, rowNumber) -> new CandidateDetailBase(
+			""".formatted(SOURCE_CHANGED_SQL), (rs, rowNumber) -> new CandidateDetailBase(
 				rs.getLong("place_id"), rs.getString("title_ko"),
 				rs.getString("title_en"), rs.getString("overview_ko"),
 				rs.getString("address"),
@@ -383,6 +403,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 				rs.getBoolean("has_trusted_english"),
 				rs.getBoolean("active"), rs.getBoolean("show_flag"),
 				rs.getInt("curation_priority"),
+				rs.getBoolean("source_changed"),
 				EditorialJobStatus.valueOf(rs.getString("editorial_status")),
 				instant(rs, "requested_at")), placeId);
 		if (rows.isEmpty()) {
@@ -415,6 +436,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		return Optional.of(new CandidateDetailRecord(
 			base.placeId(), base.titleKo(), base.titleEn(), base.overviewKo(),
 			base.address(), base.region(), images, orderedImages, styles,
+			base.sourceChanged(),
 			base.hasTrustedEnglish()
 				? EditorialCandidateSourceTrack.KTO_BILINGUAL
 				: EditorialCandidateSourceTrack.KOREAN_ONLY_AI,
@@ -576,6 +598,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			rs.getString("service_region_code"),
 			rs.getString("image_url"), rs.getBoolean("has_ko_overview"),
 			rs.getBoolean("queue_eligible"),
+			rs.getBoolean("source_changed"),
 			rs.getBoolean("has_trusted_english")
 				? EditorialCandidateSourceTrack.KTO_BILINGUAL
 				: EditorialCandidateSourceTrack.KOREAN_ONLY_AI,
@@ -642,6 +665,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		boolean active,
 		boolean showFlag,
 		int curationPriority,
+		boolean sourceChanged,
 		EditorialJobStatus status,
 		Instant requestedAt
 	) {

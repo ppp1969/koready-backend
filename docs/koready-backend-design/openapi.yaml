@@ -3000,7 +3000,7 @@ paths:
         후보는 활성 장소 중 KoReady 여행 유형과 이미지 1장 이상을 가진 장소입니다.
         `sourceTrack`을 생략하면 기존과 동일하게 검증된 KTO 한영 후보만 반환합니다.
         한국어 전용 후보 조회는 AI를 호출하지 않으며, 관리자가 큐 등록 API를 호출할 때만 비용이 발생합니다.
-        한국어 원문이 없거나 이미 처리된 장소는 목록에서 확인할 수 있지만 `queueEligible=false`입니다.
+        기존 AI 가공 후 원문·이미지·분류가 바뀐 장소는 `sourceChanged=true`이며 다시 큐에 등록할 수 있습니다.
       x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN]
       parameters:
@@ -3026,6 +3026,11 @@ paths:
         - name: queueEligible
           in: query
           description: 현재 즉시 큐 등록 가능한 후보 여부
+          schema:
+            type: boolean
+        - name: sourceChanged
+          in: query
+          description: true면 기존 AI 가공 이후 원문·이미지·분류 중 하나가 변경된 재가공 후보만 조회
           schema:
             type: boolean
         - name: sourceTrack
@@ -6805,7 +6810,7 @@ components:
           description: 커서를 제외한 현재 필터 전체 결과 수
     EditorialCandidateResponse:
       type: object
-      required: [placeId, titleKo, titleEn, imageUrl, hasKoreanOverview, queueEligible, sourceTrack, hasTrustedEnglish, curationPriority, editorialStatus, active, showFlag, visible]
+      required: [placeId, titleKo, titleEn, imageUrl, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack, hasTrustedEnglish, curationPriority, editorialStatus, active, showFlag, visible]
       properties:
         placeId:
           type: integer
@@ -6829,6 +6834,9 @@ components:
         queueEligible:
           type: boolean
           description: 한국어 원문과 주소를 보유하고 현재 미요청·실패·갱신 필요 상태인지 여부
+        sourceChanged:
+          type: boolean
+          description: 기존 AI 가공 이후 KTO 원문·이미지·분류 등 AI 입력 데이터가 변경되었는지 여부
         sourceTrack:
           $ref: '#/components/schemas/EditorialCandidateSourceTrack'
         hasTrustedEnglish:
@@ -6862,7 +6870,7 @@ components:
               $ref: '#/components/schemas/EditorialCandidateDetailResponse'
     EditorialCandidateDetailResponse:
       type: object
-      required: [placeId, titleKo, titleEn, imageUrls, images, travelStyles, sourceTrack, hasTrustedEnglish, curationPriority, editorialStatus, active, showFlag, visible]
+      required: [placeId, titleKo, titleEn, imageUrls, images, travelStyles, sourceChanged, sourceTrack, hasTrustedEnglish, curationPriority, editorialStatus, active, showFlag, visible]
       properties:
         placeId:
           type: integer
@@ -6903,6 +6911,9 @@ components:
           uniqueItems: true
           items:
             $ref: '#/components/schemas/TravelStyle'
+        sourceChanged:
+          type: boolean
+          description: 기존 AI 가공 이후 KTO 원문·이미지·분류 등 AI 입력 데이터가 변경되었는지 여부
         sourceTrack:
           $ref: '#/components/schemas/EditorialCandidateSourceTrack'
         hasTrustedEnglish:

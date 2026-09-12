@@ -89,6 +89,7 @@ public class EditorialService {
 		EditorialCandidateRegionFilter region,
 		Boolean hasKoreanOverview,
 		Boolean queueEligible,
+		Boolean sourceChanged,
 		EditorialCandidateSourceTrack sourceTrack,
 		long startAfterPlaceId,
 		int size
@@ -96,10 +97,10 @@ public class EditorialService {
 		validatePage(startAfterPlaceId, size);
 		List<EditorialRepository.CandidateRecord> records = repository.findCandidates(
 			new CandidateQuery(
-				optional(query), status, region, hasKoreanOverview, queueEligible, sourceTrack,
+				optional(query), status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack,
 				startAfterPlaceId, size + 1));
 		long totalCount = repository.countCandidates(new CandidateQuery(
-			optional(query), status, region, hasKoreanOverview, queueEligible, sourceTrack, 0L, 1));
+			optional(query), status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack, 0L, 1));
 		boolean hasMore = records.size() > size;
 		List<CandidateView> items = records.subList(0, Math.min(size, records.size()))
 			.stream().map(CandidateView::from).toList();
@@ -125,7 +126,7 @@ public class EditorialService {
 					image.imageId(), image.imageUrl(), image.displayOrder(),
 					image.displayOrder() == 1))
 				.toList(),
-			candidate.travelStyles(), candidate.sourceTrack(), candidate.hasTrustedEnglish(),
+			candidate.travelStyles(), candidate.sourceChanged(), candidate.sourceTrack(), candidate.hasTrustedEnglish(),
 			candidate.active(),
 			candidate.showFlag(), candidate.active() && candidate.showFlag(),
 			candidate.curationPriority(), candidate.status(),
@@ -322,6 +323,7 @@ public class EditorialService {
 		String imageUrl,
 		boolean hasKoreanOverview,
 		boolean queueEligible,
+		boolean sourceChanged,
 		EditorialCandidateSourceTrack sourceTrack,
 		boolean hasTrustedEnglish,
 		boolean active,
@@ -335,6 +337,7 @@ public class EditorialService {
 			return new CandidateView(
 				record.placeId(), record.titleKo(), record.titleEn(), record.region(),
 				record.imageUrl(), record.hasKoreanOverview(), record.queueEligible(),
+				record.sourceChanged(),
 				record.sourceTrack(), record.hasTrustedEnglish(),
 				record.active(), record.showFlag(), record.active() && record.showFlag(),
 				record.curationPriority(), record.status(),
@@ -355,6 +358,7 @@ public class EditorialService {
 		List<String> imageUrls,
 		List<PlaceImageView> images,
 		List<String> travelStyles,
+		boolean sourceChanged,
 		EditorialCandidateSourceTrack sourceTrack,
 		boolean hasTrustedEnglish,
 		boolean active,

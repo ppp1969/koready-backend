@@ -98,7 +98,7 @@ public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
 			Long.class,
 			item.contentId());
 		upsertKoreanLocalization(placeId, item, detail, address);
-		upsertEnglishLocalization(placeId, specification, item.contentId(), address);
+		upsertEnglishLocalization(placeId, specification, item.contentId());
 		upsertApprovedStyle(placeId, specification);
 		return placeId;
 	}
@@ -134,8 +134,7 @@ public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
 	private void upsertEnglishLocalization(
 		long placeId,
 		InitialCandidatePlace specification,
-		String contentId,
-		String address
+		String contentId
 	) {
 		jdbcTemplate.update(
 			"""
@@ -153,7 +152,7 @@ public class KtoCuratedPlaceJdbcStore implements KtoCuratedPlaceStore {
 			""",
 			placeId,
 			EnglishPlaceTitleNormalizer.normalize(specification.titleEn()),
-			address,
+			specification.addressEn(),
 			contentId);
 	}
 

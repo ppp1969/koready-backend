@@ -83,6 +83,8 @@ class KtoCuratedPlaceJdbcStoreIntegrationTest {
 			"SELECT title FROM place_localizations WHERE language = 'EN'", String.class));
 		assertEquals("MANUAL_EDITED", jdbcTemplate.queryForObject(
 			"SELECT translation_source FROM place_localizations WHERE language = 'EN'", String.class));
+		assertEquals("161 Sajik-ro, Jongno-gu, Seoul", jdbcTemplate.queryForObject(
+			"SELECT address_text FROM place_localizations WHERE language = 'EN'", String.class));
 		assertEquals("경복궁 소개", jdbcTemplate.queryForObject(
 			"SELECT overview FROM place_localizations WHERE language = 'KO'", String.class));
 	}

@@ -59,6 +59,19 @@ class InitialCandidatePlaceCatalogTest {
 		assertTrue(counts.values().stream().allMatch(count -> count <= 2));
 	}
 
+	@Test
+	void containsApprovedEnglishAddressesForEveryPlace() {
+		List<String> addresses = InitialCandidatePlaceCatalog.approved().stream()
+			.map(InitialCandidatePlace::addressEn)
+			.toList();
+
+		assertEquals(10, addresses.size());
+		assertTrue(addresses.stream().allMatch(address -> !address.isBlank()));
+		assertEquals(
+			"88, Changgyeonggung-ro, Jongno-gu, Seoul",
+			addresses.get(1));
+	}
+
 	private static <T> Map<T, Long> counts(Function<InitialCandidatePlace, T> classifier) {
 		return InitialCandidatePlaceCatalog.approved().stream()
 			.collect(Collectors.groupingBy(classifier, Collectors.counting()));

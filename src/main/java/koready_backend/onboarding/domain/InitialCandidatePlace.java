@@ -14,6 +14,7 @@ public record InitialCandidatePlace(
 	String ktoContentTypeId,
 	String expectedKtoTitleKo,
 	String titleEn,
+	String addressEn,
 	ServiceRegionCode serviceRegionCode,
 	TravelStyle travelStyle,
 	List<String> displayTags,
@@ -31,6 +32,7 @@ public record InitialCandidatePlace(
 		ktoContentTypeId = required(ktoContentTypeId, 30, "KTO content type ID");
 		expectedKtoTitleKo = required(expectedKtoTitleKo, 300, "Expected KTO title");
 		titleEn = required(titleEn, 300, "English title");
+		addressEn = required(addressEn, 500, "English address");
 		serviceRegionCode = Objects.requireNonNull(serviceRegionCode, "Service region is required");
 		travelStyle = Objects.requireNonNull(travelStyle, "Travel style is required");
 		displayTags = normalizeTags(displayTags);

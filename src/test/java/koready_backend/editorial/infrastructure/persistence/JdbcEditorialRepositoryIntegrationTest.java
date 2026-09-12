@@ -187,6 +187,13 @@ class JdbcEditorialRepositoryIntegrationTest {
 			WHERE place_id = ? AND language = 'KO'
 			""", "f".repeat(64), placeId);
 
+		var publishedBeforeReprocessing = repository.findReady(
+			placeId, EditorialLanguage.KO, "prompt-v1").orElseThrow();
+		assertEquals("한줄", publishedBeforeReprocessing.oneLineDescription());
+		var publishedCardsBeforeReprocessing = repository.findReadyCardContents(
+			List.of(placeId), EditorialLanguage.KO, "prompt-v1");
+		assertEquals("한줄", publishedCardsBeforeReprocessing.getFirst().shortDescription());
+
 		var changedQuery = new CandidateQuery(
 			null, null, null, null, null, true,
 			EditorialCandidateSourceTrack.ALL, 0L, 20);
@@ -203,6 +210,30 @@ class JdbcEditorialRepositoryIntegrationTest {
 		assertEquals(2, jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM place_editorial_jobs WHERE place_id = ?",
 			Integer.class, placeId));
+		assertEquals("한줄", repository.findReady(
+			placeId, EditorialLanguage.KO, "prompt-v1").orElseThrow().oneLineDescription());
+
+		var reprocessing = workerRepository.claimNext(new ClaimCommand(
+			now.plusSeconds(3), now.plusSeconds(303), "lease-reprocessing", 2)).orElseThrow();
+		var refreshedGeneration = new EditorialGeneration(
+			new LocalizedContent("새 주제", "새 한줄", "새 소개", List.of("새 하나", "새 둘", "새 셋")),
+			new LocalizedContent("New topic", "New one line", "New introduction",
+				List.of("New one", "New two", "New three")),
+			"Test Place", "Seoul",
+			List.of(TourismPurposeTag.PHOTO, TourismPurposeTag.WALK),
+			"google-genai", "test-model", 10, 20);
+		workerRepository.complete(new CompleteCommand(
+			reprocessing.jobId(), reprocessing.leaseToken(), reprocessing.sourceFingerprint(),
+			reprocessing.promptVersion(), refreshedGeneration, now.plusSeconds(5)));
+
+		var publishedAfterReprocessing = repository.findReady(
+			placeId, EditorialLanguage.KO, "prompt-v1").orElseThrow();
+		assertEquals("새 한줄", publishedAfterReprocessing.oneLineDescription());
+		var publishedCardsAfterReprocessing = repository.findReadyCardContents(
+			List.of(placeId), EditorialLanguage.KO, "prompt-v1");
+		assertEquals("새 한줄", publishedCardsAfterReprocessing.getFirst().shortDescription());
+		assertEquals(List.of(TourismPurposeTag.PHOTO, TourismPurposeTag.WALK),
+			publishedCardsAfterReprocessing.getFirst().tags());
 	}
 
 	@Test

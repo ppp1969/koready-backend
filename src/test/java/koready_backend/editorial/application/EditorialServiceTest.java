@@ -76,7 +76,7 @@ class EditorialServiceTest {
 		EditorialService.CandidatePage result = service.candidates(
 			" 4 ", EditorialCandidateStatusFilter.IN_PROGRESS,
 			EditorialCandidateRegionFilter.SEOUL, true, false,
-			EditorialCandidateSourceTrack.KOREAN_ONLY_AI, 10L, 20);
+			true, EditorialCandidateSourceTrack.KOREAN_ONLY_AI, 10L, 20);
 
 		assertEquals(42L, result.totalCount());
 		verify(repository).findCandidates(Mockito.argThat(query ->
@@ -85,6 +85,7 @@ class EditorialServiceTest {
 				&& query.region() == EditorialCandidateRegionFilter.SEOUL
 				&& Boolean.TRUE.equals(query.hasKoreanOverview())
 				&& Boolean.FALSE.equals(query.queueEligible())
+				&& Boolean.TRUE.equals(query.sourceChanged())
 				&& query.sourceTrack() == EditorialCandidateSourceTrack.KOREAN_ONLY_AI
 				&& query.startAfterPlaceId() == 10L
 				&& query.limit() == 21));

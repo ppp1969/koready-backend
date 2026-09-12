@@ -79,6 +79,7 @@ public interface EditorialRepository {
 		EditorialCandidateRegionFilter region,
 		Boolean hasKoreanOverview,
 		Boolean queueEligible,
+		Boolean sourceChanged,
 		EditorialCandidateSourceTrack sourceTrack,
 		long startAfterPlaceId,
 		int limit
@@ -93,6 +94,7 @@ public interface EditorialRepository {
 		String imageUrl,
 		boolean hasKoreanOverview,
 		boolean queueEligible,
+		boolean sourceChanged,
 		EditorialCandidateSourceTrack sourceTrack,
 		boolean hasTrustedEnglish,
 		boolean active,
@@ -113,6 +115,7 @@ public interface EditorialRepository {
 		List<String> imageUrls,
 		List<PlaceImageRecord> images,
 		List<String> travelStyles,
+		boolean sourceChanged,
 		EditorialCandidateSourceTrack sourceTrack,
 		boolean hasTrustedEnglish,
 		boolean active,

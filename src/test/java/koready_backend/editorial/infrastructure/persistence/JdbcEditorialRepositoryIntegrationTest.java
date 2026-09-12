@@ -146,7 +146,7 @@ class JdbcEditorialRepositoryIntegrationTest {
 
 		var eligibleQuery = new CandidateQuery(
 			Long.toString(eligiblePlaceId), null, EditorialCandidateRegionFilter.SEOUL,
-			true, true, EditorialCandidateSourceTrack.KTO_BILINGUAL, 0L, 20);
+			true, true, null, EditorialCandidateSourceTrack.KTO_BILINGUAL, 0L, 20);
 		var eligible = repository.findCandidates(eligibleQuery);
 
 		assertEquals(1, eligible.size());
@@ -156,10 +156,53 @@ class JdbcEditorialRepositoryIntegrationTest {
 
 		var noOverview = repository.findCandidates(new CandidateQuery(
 			null, null, EditorialCandidateRegionFilter.GYEONGGI, false, false,
-			EditorialCandidateSourceTrack.KTO_BILINGUAL, 0L, 20));
+			null, EditorialCandidateSourceTrack.KTO_BILINGUAL, 0L, 20));
 		assertEquals(List.of(noOverviewPlaceId), noOverview.stream()
 			.map(EditorialRepository.CandidateRecord::placeId).toList());
 		assertFalse(noOverview.getFirst().queueEligible());
+	}
+
+	@Test
+	void exposesChangedReadySourceAsQueueEligibleForAdminReprocessing() {
+		long placeId = place();
+		Instant now = Instant.parse("2026-08-13T00:00:00Z");
+		repository.enqueue(new EnqueueCommand(
+			placeId, "prompt-v1", EditorialTriggerType.PM_CURATED,
+			EditorialJobPriority.HIGH, "admin", now));
+		var claimed = workerRepository.claimNext(new ClaimCommand(
+			now, now.plusSeconds(300), "lease-source-change", 2)).orElseThrow();
+		var generation = new EditorialGeneration(
+			new LocalizedContent("주제", "한줄", "소개", List.of("하나", "둘", "셋")),
+			new LocalizedContent("Topic", "One line", "Introduction",
+				List.of("One", "Two", "Three")),
+			"Test Place", "Seoul",
+			List.of(TourismPurposeTag.LOCAL, TourismPurposeTag.EXPERIENCE),
+			"google-genai", "test-model", 10, 20);
+		workerRepository.complete(new CompleteCommand(
+			claimed.jobId(), claimed.leaseToken(), claimed.sourceFingerprint(),
+			claimed.promptVersion(), generation, now.plusSeconds(2)));
+
+		jdbcTemplate.update("""
+			UPDATE place_localizations SET source_hash = ?
+			WHERE place_id = ? AND language = 'KO'
+			""", "f".repeat(64), placeId);
+
+		var changedQuery = new CandidateQuery(
+			null, null, null, null, null, true,
+			EditorialCandidateSourceTrack.ALL, 0L, 20);
+		var changed = repository.findCandidates(changedQuery);
+		assertEquals(List.of(placeId), changed.stream()
+			.map(EditorialRepository.CandidateRecord::placeId).toList());
+		assertTrue(changed.getFirst().sourceChanged());
+		assertTrue(changed.getFirst().queueEligible());
+
+		var requeued = repository.enqueue(new EnqueueCommand(
+			placeId, "prompt-v1", EditorialTriggerType.PM_CURATED,
+			EditorialJobPriority.HIGH, "admin", now.plusSeconds(3)));
+		assertTrue(requeued.created());
+		assertEquals(2, jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM place_editorial_jobs WHERE place_id = ?",
+			Integer.class, placeId));
 	}
 
 	@Test
@@ -274,6 +317,6 @@ class JdbcEditorialRepositoryIntegrationTest {
 	}
 
 	private static CandidateQuery candidateQuery(EditorialCandidateSourceTrack sourceTrack) {
-		return new CandidateQuery(null, null, null, null, null, sourceTrack, 0L, 100);
+		return new CandidateQuery(null, null, null, null, null, null, sourceTrack, 0L, 100);
 	}
 }

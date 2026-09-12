@@ -65,6 +65,11 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		      AND current_content.source_fingerprint = %s))
 		""".formatted(SOURCE_FINGERPRINT);
 
+	private static final String PUBLISHED_CONTENT_ORDER_SQL = """
+		(content.source_fingerprint = %s) DESC,
+		content.generated_at DESC, content.id DESC
+		""".formatted(SOURCE_FINGERPRINT);
+
 	private static final String CANDIDATE_FROM_SQL = """
 		FROM places p
 		JOIN place_localizations ko ON ko.place_id = p.id AND ko.language = 'KO'
@@ -176,14 +181,13 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			  ON content.place_id = p.id
 			 AND content.status = 'READY'
 			 AND content.prompt_version = :promptVersion
-			 AND content.source_fingerprint = """ + SOURCE_FINGERPRINT + """
 			JOIN place_editorial_localizations localized
 			  ON localized.editorial_content_id = content.id
 			 AND localized.language = :language
 			WHERE p.id = :placeId
-			ORDER BY content.generated_at DESC
+			ORDER BY %s
 			LIMIT 1
-			""", Map.of(
+			""".formatted(PUBLISHED_CONTENT_ORDER_SQL), Map.of(
 			"placeId", placeId,
 			"language", language.name(),
 			"promptVersion", promptVersion),
@@ -268,7 +272,8 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			    SELECT p.id AS place_id, content.id AS content_id,
 			           localized.one_line_description,
 			           ROW_NUMBER() OVER (
-			               PARTITION BY p.id ORDER BY content.generated_at DESC, content.id DESC
+			               PARTITION BY p.id
+			               ORDER BY %s
 			           ) AS content_rank
 			    FROM places p
 			    LEFT JOIN place_localizations ko
@@ -280,7 +285,6 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			      ON content.place_id = p.id
 			     AND content.status = 'READY'
 			     AND content.prompt_version = :promptVersion
-			     AND content.source_fingerprint = """ + SOURCE_FINGERPRINT + """
 			    JOIN place_editorial_localizations localized
 			      ON localized.editorial_content_id = content.id
 			     AND localized.language = :language
@@ -290,7 +294,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			  ON tag.editorial_content_id = ranked.content_id
 			WHERE ranked.content_rank = 1
 			GROUP BY ranked.place_id, ranked.content_id, ranked.one_line_description
-			""", new MapSqlParameterSource()
+			""".formatted(PUBLISHED_CONTENT_ORDER_SQL), new MapSqlParameterSource()
 			.addValue("placeIds", placeIds)
 			.addValue("language", language.name())
 			.addValue("promptVersion", promptVersion),

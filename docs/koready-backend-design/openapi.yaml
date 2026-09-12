@@ -838,7 +838,8 @@ paths:
         **검색 규칙:** 앞뒤 공백과 연속 공백은 서버가 정리합니다. `%`, `_`는 일반 문자로 검색되며
         SQL wildcard로 동작하지 않습니다. active와 showFlag가 모두 true인 장소만 반환합니다.
         MVP에서는 `KTO_EN` 또는 운영자 수정 영문 제목이 있는 장소만 검색됩니다.
-        READY AI 가공본이 없으면 shortDescription은 null, tags는 빈 배열이며 KTO 원문으로 대체하지 않습니다.
+        READY AI 가공 이력이 없으면 shortDescription은 null, tags는 빈 배열이며 KTO 원문으로 대체하지 않습니다.
+        KTO 원문 변경 후 재가공 전에는 기존 READY 게시본을 유지하고, 재가공 성공 시 새 게시본으로 교체합니다.
       security: []
       x-implementation-status: IMPLEMENTED
       parameters:
@@ -918,7 +919,8 @@ paths:
         장소만 후보가 됩니다.
 
         **언어:** MVP에서는 `KTO_EN` 또는 운영자 수정 영문 제목이 있는 장소만 조회됩니다.
-        READY AI 가공본이 없으면 shortDescription은 null, tags는 빈 배열이며 KTO 원문으로 대체하지 않습니다.
+        READY AI 가공 이력이 없으면 shortDescription은 null, tags는 빈 배열이며 KTO 원문으로 대체하지 않습니다.
+        KTO 원문 변경 후 재가공 전에는 기존 READY 게시본을 유지하고, 재가공 성공 시 새 게시본으로 교체합니다.
       security: []
       x-implementation-status: IMPLEMENTED
       parameters:
@@ -4844,7 +4846,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PlaceTag'
-          description: READY AI 가공본의 관광목적 태그 2개. 가공 전에는 빈 배열
+          description: 가장 최근 READY 게시본의 관광목적 태그 2개. 가공 이력이 없으면 빈 배열
         isSaved:
           type: boolean
           description: 익명 조회에서는 항상 false
@@ -4852,7 +4854,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/PlaceDescription'
           nullable: true
-          description: READY AI 가공본이 없으면 null
+          description: 가장 최근 READY 게시본. KTO 원문 변경 후에도 재가공 성공 전까지 기존 게시본 유지
         relatedPlaces:
           type: array
           maxItems: 3
@@ -5748,14 +5750,14 @@ components:
           nullable: true
         tags:
           type: array
-          description: READY AI 가공본의 관광목적 해시태그 2개. 가공본이 없으면 빈 배열
+          description: 가장 최근 READY 게시본의 관광목적 해시태그 2개. 가공 이력이 없으면 빈 배열
           items:
             type: string
           example: ['#로컬', '#체험']
         shortDescription:
           type: string
           nullable: true
-          description: READY AI 가공본 description.oneLineDescription. KTO 원문으로 대체하지 않음
+          description: 가장 최근 READY 게시본의 description.oneLineDescription. 재가공 성공 시 새 게시본으로 교체
           example: 김밥을 주제로 먹고, 만들고, 즐기는 지역 축제예요.
         saved:
           type: boolean
@@ -5942,12 +5944,12 @@ components:
           type: array
           items:
             type: string
-          description: READY AI 가공본의 관광목적 해시태그 2개. 가공본이 없으면 빈 배열
+          description: 가장 최근 READY 게시본의 관광목적 해시태그 2개. 가공 이력이 없으면 빈 배열
           example: ['#로컬', '#체험']
         shortDescription:
           type: string
           nullable: true
-          description: READY AI 가공본 description.oneLineDescription. KTO 원문으로 대체하지 않음
+          description: 가장 최근 READY 게시본의 description.oneLineDescription. 재가공 성공 시 새 게시본으로 교체
         serviceRegionCode:
           $ref: '#/components/schemas/ServiceRegionCode'
         travelStyle:
@@ -6147,14 +6149,14 @@ components:
           description: 장소의 대표 분류
         tags:
           type: array
-          description: READY AI 가공본의 관광목적 해시태그 2개. 가공본이 없으면 빈 배열
+          description: 가장 최근 READY 게시본의 관광목적 해시태그 2개. 가공 이력이 없으면 빈 배열
           items:
             type: string
           example: ['#전통', '#탐방']
         shortDescription:
           type: string
           nullable: true
-          description: READY AI 가공본 description.oneLineDescription. KTO overview를 반환하지 않음
+          description: 가장 최근 READY 게시본의 description.oneLineDescription. 재가공 성공 시 새 게시본으로 교체
           example: 김천에서 함께 둘러보기 좋은 전통 명소예요.
     RoutePoint:
       type: object
@@ -6836,7 +6838,7 @@ components:
           description: 한국어 원문과 주소를 보유하고 현재 미요청·실패·갱신 필요 상태인지 여부
         sourceChanged:
           type: boolean
-          description: 기존 AI 가공 이후 KTO 원문·이미지·분류 등 AI 입력 데이터가 변경되었는지 여부
+          description: 기존 AI 가공 이후 KTO 원문·이미지·분류 등 AI 입력 데이터가 변경되었는지 여부. true여도 재가공 성공 전까지 기존 게시본은 사용자 API에서 유지됨
         sourceTrack:
           $ref: '#/components/schemas/EditorialCandidateSourceTrack'
         hasTrustedEnglish:
@@ -6913,7 +6915,7 @@ components:
             $ref: '#/components/schemas/TravelStyle'
         sourceChanged:
           type: boolean
-          description: 기존 AI 가공 이후 KTO 원문·이미지·분류 등 AI 입력 데이터가 변경되었는지 여부
+          description: 기존 AI 가공 이후 KTO 원문·이미지·분류 등 AI 입력 데이터가 변경되었는지 여부. true여도 재가공 성공 전까지 기존 게시본은 사용자 API에서 유지됨
         sourceTrack:
           $ref: '#/components/schemas/EditorialCandidateSourceTrack'
         hasTrustedEnglish:

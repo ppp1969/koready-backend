@@ -24,6 +24,7 @@ import org.testcontainers.mysql.MySQLContainer;
 import koready_backend.editorial.application.port.EditorialRepository;
 import koready_backend.editorial.application.port.EditorialRepository.EnqueueCommand;
 import koready_backend.editorial.application.port.EditorialRepository.CandidateQuery;
+import koready_backend.editorial.application.port.EditorialRepository.ManualPlaceCommand;
 import koready_backend.editorial.application.port.EditorialWorkerRepository;
 import koready_backend.editorial.application.port.EditorialWorkerRepository.ClaimCommand;
 import koready_backend.editorial.application.port.EditorialWorkerRepository.CompleteCommand;
@@ -305,6 +306,36 @@ class JdbcEditorialRepositoryIntegrationTest {
 		assertEquals("Korean Source Place", candidate.titleEn());
 		assertEquals(EditorialCandidateSourceTrack.KOREAN_ONLY_AI, candidate.sourceTrack());
 		assertFalse(candidate.hasTrustedEnglish());
+	}
+
+	@Test
+	void atomicallyStoresManualDramaLocationAndEvidence() {
+		Instant now = Instant.parse("2026-09-13T09:00:00Z");
+
+		var created = repository.createManualDramaPlace(new ManualPlaceCommand(
+			"촬영지", "한국어 원문", "서울특별시 종로구",
+			null, null, null, "SEOUL", null, null,
+			List.of("https://example.com/1.jpg", "https://example.com/2.jpg"),
+			"https://example.com/source", "운영자 확인", "admin-subject", now));
+
+		assertTrue(created.active());
+		assertFalse(created.visible());
+		assertEquals("DRAMA_LOCATION", created.travelStyle());
+		assertEquals(1, jdbcTemplate.queryForObject("""
+			SELECT COUNT(*) FROM place_style_mappings
+			WHERE place_id = ? AND travel_style = 'DRAMA_LOCATION'
+			  AND source = 'MANUAL' AND is_primary = TRUE
+			""", Integer.class, created.placeId()));
+		assertEquals(2, jdbcTemplate.queryForObject(
+			"SELECT COUNT(*) FROM place_images WHERE place_id = ? AND source_type = 'MANUAL'",
+			Integer.class, created.placeId()));
+		assertEquals("admin-subject", jdbcTemplate.queryForObject(
+			"SELECT created_by_subject FROM manual_place_sources WHERE place_id = ?",
+			String.class, created.placeId()));
+		assertEquals(1, jdbcTemplate.queryForObject("""
+			SELECT COUNT(*) FROM place_localizations
+			WHERE place_id = ? AND language = 'KO' AND overview = '한국어 원문'
+			""", Integer.class, created.placeId()));
 	}
 
 	private long place() {

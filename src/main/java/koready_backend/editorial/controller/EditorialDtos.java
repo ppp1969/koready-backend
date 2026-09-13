@@ -6,6 +6,10 @@ import java.util.List;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
@@ -13,6 +17,7 @@ import koready_backend.editorial.application.EditorialService;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
+import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 
 final class EditorialDtos {
 
@@ -74,6 +79,12 @@ final class EditorialDtos {
 				image.imageId(), image.imageUrl(), image.displayOrder(), image.thumbnail()))
 				.toList(),
 			item.updatedAt());
+	}
+
+	static ManualPlaceResponse from(EditorialService.ManualPlaceView item) {
+		return new ManualPlaceResponse(
+			item.placeId(), item.active(), item.showFlag(), item.visible(),
+			item.travelStyle(), item.createdAt());
 	}
 
 	record QueueResponse(
@@ -196,6 +207,40 @@ final class EditorialDtos {
 		String imageUrl,
 		int displayOrder,
 		boolean thumbnail
+	) {
+	}
+
+	record ManualPlaceRequest(
+		@NotBlank @Size(max = 300) String titleKo,
+		@NotBlank @Size(max = 10000) String overviewKo,
+		@NotBlank @Size(max = 500) String addressKo,
+		@Size(max = 300) String titleEn,
+		@Size(max = 10000) String overviewEn,
+		@Size(max = 500) String addressEn,
+		@NotNull EditorialCandidateRegionFilter serviceRegionCode,
+		@DecimalMin("-90.0") @DecimalMax("90.0") java.math.BigDecimal latitude,
+		@DecimalMin("-180.0") @DecimalMax("180.0") java.math.BigDecimal longitude,
+		@NotNull @Size(min = 1, max = 10)
+		List<@NotBlank @Size(max = 1000)
+			@Pattern(regexp = "https://.+", message = "image URL must use HTTPS") String> imageUrls,
+		@Size(max = 1000)
+		@Pattern(regexp = "^$|https://.+", message = "source URL must use HTTPS") String sourceUrl,
+		@Size(max = 2000) String sourceNote
+	) {
+		EditorialService.ManualPlaceInput toInput() {
+			return new EditorialService.ManualPlaceInput(
+				titleKo, overviewKo, addressKo, titleEn, overviewEn, addressEn,
+				serviceRegionCode, latitude, longitude, imageUrls, sourceUrl, sourceNote);
+		}
+	}
+
+	record ManualPlaceResponse(
+		long placeId,
+		boolean active,
+		boolean showFlag,
+		boolean visible,
+		String travelStyle,
+		Instant createdAt
 	) {
 	}
 }

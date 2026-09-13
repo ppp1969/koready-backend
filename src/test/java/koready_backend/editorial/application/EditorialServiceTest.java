@@ -18,6 +18,7 @@ import org.mockito.Mockito;
 import koready_backend.editorial.application.port.EditorialRepository;
 import koready_backend.editorial.application.port.EditorialRepository.EnqueueRecord;
 import koready_backend.editorial.application.port.EditorialRepository.ReadyCardContentRecord;
+import koready_backend.editorial.application.port.EditorialRepository.ManualPlaceRecord;
 import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
 import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
@@ -110,5 +111,26 @@ class EditorialServiceTest {
 			List.of(TourismPurposeTag.HISTORY, TourismPurposeTag.TRADITION),
 			result.get(2L).tags());
 		assertFalse(result.containsKey(3L));
+	}
+
+	@Test
+	void createsHiddenManualDramaLocation() {
+		when(repository.createManualDramaPlace(Mockito.any())).thenReturn(
+			new ManualPlaceRecord(77L, true, false, "DRAMA_LOCATION", NOW));
+		var input = new EditorialService.ManualPlaceInput(
+			"촬영지", "사실 기반 원문", "서울특별시 종로구", null, null, null,
+			EditorialCandidateRegionFilter.SEOUL, null, null,
+			List.of("https://example.com/one.jpg"),
+			"https://example.com/source", null);
+
+		var result = service.createManualDramaPlace(input, "admin-subject");
+
+		assertEquals(77L, result.placeId());
+		assertFalse(result.visible());
+		assertEquals("DRAMA_LOCATION", result.travelStyle());
+		verify(repository).createManualDramaPlace(Mockito.argThat(command ->
+			command.titleKo().equals("촬영지")
+				&& command.serviceRegionCode().equals("SEOUL")
+				&& command.actorSubject().equals("admin-subject")));
 	}
 }

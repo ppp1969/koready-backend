@@ -39,6 +39,8 @@ public interface EditorialRepository {
 
 	Optional<PlaceImageOrderRecord> reorderImages(ImageOrderCommand command);
 
+	ManualPlaceRecord createManualDramaPlace(ManualPlaceCommand command);
+
 	record EnqueueCommand(
 		long placeId,
 		String promptVersion,
@@ -205,5 +207,35 @@ public interface EditorialRepository {
 		List<PlaceImageRecord> images,
 		Instant updatedAt
 	) {
+	}
+
+	record ManualPlaceCommand(
+		String titleKo,
+		String overviewKo,
+		String addressKo,
+		String titleEn,
+		String overviewEn,
+		String addressEn,
+		String serviceRegionCode,
+		java.math.BigDecimal latitude,
+		java.math.BigDecimal longitude,
+		List<String> imageUrls,
+		String sourceUrl,
+		String sourceNote,
+		String actorSubject,
+		Instant createdAt
+	) {
+	}
+
+	record ManualPlaceRecord(
+		long placeId,
+		boolean active,
+		boolean showFlag,
+		String travelStyle,
+		Instant createdAt
+	) {
+		public boolean visible() {
+			return active && showFlag;
+		}
 	}
 }

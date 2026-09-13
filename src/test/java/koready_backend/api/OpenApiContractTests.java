@@ -118,6 +118,7 @@ class OpenApiContractTests {
 		"DELETE /admin/kto/related-tours/{recordId}/mapping",
 		"GET /admin/editorial/candidates",
 		"GET /admin/editorial/candidates/{placeId}",
+		"POST /admin/editorial/places",
 		"POST /admin/editorial/places/{placeId}/queue",
 		"PATCH /admin/editorial/places/{placeId}/visibility",
 		"PATCH /admin/editorial/places/{placeId}/priority",
@@ -184,7 +185,7 @@ class OpenApiContractTests {
 			}
 		}
 
-		assertEquals(107, operationCount, "Unexpected API operation count");
+		assertEquals(108, operationCount, "Unexpected API operation count");
 		collectReferences(contract, references);
 		for (String reference : references) {
 			assertLocalReferenceResolves(contract, reference);

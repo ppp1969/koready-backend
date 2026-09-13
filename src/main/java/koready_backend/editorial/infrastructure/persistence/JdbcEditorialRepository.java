@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.HexFormat;
@@ -16,6 +17,7 @@ import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
 
 import koready_backend.editorial.application.exception.EditorialPlaceNotFoundException;
@@ -27,6 +29,8 @@ import koready_backend.editorial.application.port.EditorialRepository.PlaceImage
 import koready_backend.editorial.application.port.EditorialRepository.PlaceImageRecord;
 import koready_backend.editorial.application.port.EditorialRepository.PlacePriorityRecord;
 import koready_backend.editorial.application.port.EditorialRepository.PriorityCommand;
+import koready_backend.editorial.application.port.EditorialRepository.ManualPlaceCommand;
+import koready_backend.editorial.application.port.EditorialRepository.ManualPlaceRecord;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
@@ -561,6 +565,97 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			images.getFirst().imageId(), Timestamp.from(command.updatedAt()));
 		return Optional.of(new PlaceImageOrderRecord(
 			command.placeId(), List.copyOf(images), command.updatedAt()));
+	}
+
+	@Override
+	public ManualPlaceRecord createManualDramaPlace(ManualPlaceCommand command) {
+		var keyHolder = new GeneratedKeyHolder();
+		jdbcTemplate.update(connection -> {
+			var statement = connection.prepareStatement("""
+				INSERT INTO places
+				    (kto_content_id, service_region_code, address, road_address,
+				     latitude, longitude, first_image_url, show_flag, active,
+				     created_at, updated_at)
+				VALUES (NULL, ?, ?, ?, ?, ?, ?, FALSE, TRUE, ?, ?)
+				""", Statement.RETURN_GENERATED_KEYS);
+			statement.setString(1, command.serviceRegionCode());
+			statement.setString(2, command.addressKo());
+			statement.setString(3, command.addressKo());
+			statement.setBigDecimal(4, command.latitude());
+			statement.setBigDecimal(5, command.longitude());
+			statement.setString(6, command.imageUrls().getFirst());
+			statement.setTimestamp(7, Timestamp.from(command.createdAt()));
+			statement.setTimestamp(8, Timestamp.from(command.createdAt()));
+			return statement;
+		}, keyHolder);
+		Number generatedKey = keyHolder.getKey();
+		if (generatedKey == null) {
+			throw new IllegalStateException("Database did not return a generated place key");
+		}
+		long placeId = generatedKey.longValue();
+		insertManualLocalization(
+			placeId, "KO", command.titleKo(), command.overviewKo(), command.addressKo());
+		if (command.titleEn() != null) {
+			insertManualLocalization(
+				placeId, "EN", command.titleEn(), command.overviewEn(), command.addressEn());
+		}
+		jdbcTemplate.update("""
+			INSERT INTO place_style_mappings
+			    (place_id, travel_style, source, rule_version, evidence_json,
+			     confidence, is_primary)
+			VALUES (?, 'DRAMA_LOCATION', 'MANUAL', 'manual-drama-location-v1',
+			        JSON_OBJECT('registeredBy', 'ADMIN'), 1.0000, TRUE)
+			""", placeId);
+		List<Object[]> imageRows = java.util.stream.IntStream
+			.range(0, command.imageUrls().size())
+			.mapToObj(index -> new Object[] {
+				placeId,
+				command.imageUrls().get(index),
+				sha256(command.imageUrls().get(index)),
+				index + 1,
+				index + 1,
+				Timestamp.from(command.createdAt()),
+				Timestamp.from(command.createdAt())
+			})
+			.toList();
+		jdbcTemplate.batchUpdate("""
+			INSERT INTO place_images
+			    (place_id, image_url, image_url_sha256, source_type,
+			     source_priority, source_order, admin_display_order,
+			     created_at, updated_at)
+			VALUES (?, ?, ?, 'MANUAL', 1000, ?, ?, ?, ?)
+			""", imageRows);
+		jdbcTemplate.update("""
+			INSERT INTO manual_place_sources
+			    (place_id, source_url, source_note, created_by_subject, created_at)
+			VALUES (?, ?, ?, ?, ?)
+			""", placeId, command.sourceUrl(), command.sourceNote(),
+			command.actorSubject(), Timestamp.from(command.createdAt()));
+		jdbcTemplate.update("""
+			INSERT INTO place_editorial_audits
+			    (place_id, job_id, actor_subject, action, details_json, created_at)
+			VALUES (?, NULL, ?, 'MANUAL_DRAMA_PLACE_CREATED',
+			        JSON_OBJECT('imageCount', ?, 'visible', FALSE), ?)
+			""", placeId, command.actorSubject(), command.imageUrls().size(),
+			Timestamp.from(command.createdAt()));
+		return new ManualPlaceRecord(
+			placeId, true, false, "DRAMA_LOCATION", command.createdAt());
+	}
+
+	private void insertManualLocalization(
+		long placeId,
+		String language,
+		String title,
+		String overview,
+		String address
+	) {
+		jdbcTemplate.update("""
+			INSERT INTO place_localizations
+			    (place_id, language, title, overview, address_text, translation_source,
+			     source_hash)
+			VALUES (?, ?, ?, ?, ?, 'MANUAL_EDITED', ?)
+			""", placeId, language, title, overview, address,
+			sha256(String.join("|", title, overview, address)));
 	}
 
 	private Optional<Source> findSource(long placeId) {

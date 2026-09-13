@@ -3090,6 +3090,53 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /admin/editorial/places:
+    post:
+      tags: [Admin Editorial]
+      operationId: createAdminManualDramaPlace
+      summary: 관리자 수동 드라마 촬영지 등록
+      description: |
+        KTO 분류로 받을 수 없는 드라마 촬영지를 운영자가 근거를 확인한 뒤 직접 등록합니다.
+        한국어 장소명·주소·원문, 서비스 권역, HTTPS 사진 1~10장과 출처 URL 또는 메모가 필수입니다.
+        영문 장소명·주소·원문은 세 값을 모두 입력하거나 모두 생략합니다. 생략한 경우 기존 AI 가공 큐가
+        영어 데이터와 상세 콘텐츠를 함께 생성할 수 있습니다.
+
+        등록 결과는 `active=true`, `showFlag=false`, `visible=false`인 비공개 초안이며 여행 유형은
+        `DRAMA_LOCATION`으로 고정됩니다. 이어서 `/admin/editorial/places/{placeId}/queue`로 AI 가공을
+        요청하고 결과를 검수한 뒤 `/visibility` API로 공개합니다. KTO 식별자가 없는 수동 장소이므로
+        KTO 주간 동기화가 이 데이터를 덮어쓰지 않습니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditorialManualPlaceRequest'
+            example:
+              titleKo: 드라마 촬영지 예시
+              overviewKo: 공식 촬영지 안내에서 확인한 사실 기반 원문입니다.
+              addressKo: 서울특별시 종로구 사직로 161
+              serviceRegionCode: SEOUL
+              latitude: 37.579617
+              longitude: 126.977041
+              imageUrls:
+                - https://example.com/drama-location-1.jpg
+              sourceUrl: https://example.com/official-source
+              sourceNote: 운영자가 공식 안내와 사진 사용 범위를 확인함
+      responses:
+        '200':
+          description: 비공개 드라마 촬영지 초안 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditorialManualPlaceEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /admin/editorial/places/{placeId}/queue:
     post:
       tags: [Admin Editorial]
@@ -6947,6 +6994,43 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/EditorialQueueResponse'
+    EditorialManualPlaceRequest:
+      type: object
+      required: [titleKo, overviewKo, addressKo, serviceRegionCode, imageUrls]
+      properties:
+        titleKo: {type: string, maxLength: 300}
+        overviewKo: {type: string, maxLength: 10000, description: AI 가공의 근거가 되는 사실 기반 한국어 원문}
+        addressKo: {type: string, maxLength: 500}
+        titleEn: {type: string, maxLength: 300, nullable: true, description: 입력하려면 overviewEn과 addressEn도 함께 입력}
+        overviewEn: {type: string, maxLength: 10000, nullable: true}
+        addressEn: {type: string, maxLength: 500, nullable: true}
+        serviceRegionCode: {$ref: '#/components/schemas/ServiceRegionCode'}
+        latitude: {type: number, format: double, minimum: -90, maximum: 90, nullable: true, description: longitude와 함께 입력}
+        longitude: {type: number, format: double, minimum: -180, maximum: 180, nullable: true, description: latitude와 함께 입력}
+        imageUrls:
+          type: array
+          minItems: 1
+          maxItems: 10
+          uniqueItems: true
+          items: {type: string, format: uri, pattern: '^https://.+'}
+        sourceUrl: {type: string, format: uri, maxLength: 1000, nullable: true, description: sourceNote와 둘 중 하나 이상 필수}
+        sourceNote: {type: string, maxLength: 2000, nullable: true, description: sourceUrl과 둘 중 하나 이상 필수}
+    EditorialManualPlaceEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/EditorialManualPlaceResponse'}
+    EditorialManualPlaceResponse:
+      type: object
+      required: [placeId, active, showFlag, visible, travelStyle, createdAt]
+      properties:
+        placeId: {type: integer, format: int64, minimum: 1}
+        active: {type: boolean, enum: [true]}
+        showFlag: {type: boolean, enum: [false]}
+        visible: {type: boolean, enum: [false]}
+        travelStyle: {type: string, enum: [DRAMA_LOCATION]}
+        createdAt: {type: string, format: date-time}
     EditorialQueueResponse:
       type: object
       required: [jobId, placeId, status, priority, triggerType, requestedAt, created]

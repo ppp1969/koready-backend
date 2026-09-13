@@ -162,4 +162,50 @@ class AdminEditorialControllerTest {
 			.andExpect(jsonPath("$.data.images[0].thumbnail").value(true))
 			.andExpect(jsonPath("$.data.images[1].displayOrder").value(2));
 	}
+
+	@Test
+	@WithMockUser(username = "admin-subject", roles = "ADMIN")
+	void createsManualDramaLocationAsHiddenDraft() throws Exception {
+		Instant createdAt = Instant.parse("2026-09-13T09:00:00Z");
+		when(service.createManualDramaPlace(any(),
+			org.mockito.ArgumentMatchers.eq("admin-subject"))).thenReturn(
+			new EditorialService.ManualPlaceView(
+				77L, true, false, false, "DRAMA_LOCATION", createdAt));
+
+		mockMvc.perform(post("/api/v1/admin/editorial/places")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+					  "titleKo":"드라마 촬영지",
+					  "overviewKo":"운영자가 확인한 사실 기반 원문입니다.",
+					  "addressKo":"서울특별시 종로구",
+					  "serviceRegionCode":"SEOUL",
+					  "imageUrls":["https://example.com/place.jpg"],
+					  "sourceUrl":"https://example.com/evidence"
+					}
+					"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value("EDITORIAL_MANUAL_PLACE_CREATED"))
+			.andExpect(jsonPath("$.data.placeId").value(77))
+			.andExpect(jsonPath("$.data.travelStyle").value("DRAMA_LOCATION"))
+			.andExpect(jsonPath("$.data.visible").value(false));
+	}
+
+	@Test
+	@WithMockUser(username = "admin-subject", roles = "ADMIN")
+	void rejectsManualPlaceWithoutImages() throws Exception {
+		mockMvc.perform(post("/api/v1/admin/editorial/places")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+					  "titleKo":"드라마 촬영지",
+					  "overviewKo":"사실 기반 원문",
+					  "addressKo":"서울특별시 종로구",
+					  "serviceRegionCode":"SEOUL",
+					  "imageUrls":[],
+					  "sourceNote":"운영자 검증"
+					}
+					"""))
+			.andExpect(status().isBadRequest());
+	}
 }

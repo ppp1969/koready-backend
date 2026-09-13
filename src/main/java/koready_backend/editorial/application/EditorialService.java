@@ -19,6 +19,7 @@ import koready_backend.editorial.application.port.EditorialRepository.ReadyConte
 import koready_backend.editorial.application.port.EditorialRepository.VisibilityCommand;
 import koready_backend.editorial.application.port.EditorialRepository.PriorityCommand;
 import koready_backend.editorial.application.port.EditorialRepository.ImageOrderCommand;
+import koready_backend.editorial.application.port.EditorialRepository.ManualPlaceCommand;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
 import koready_backend.editorial.domain.EditorialJobStatus;
@@ -218,6 +219,53 @@ public class EditorialService {
 			})
 			.toList();
 		return new PlaceImageOrderView(record.placeId(), images, record.updatedAt());
+	}
+
+	@Transactional
+	public ManualPlaceView createManualDramaPlace(
+		ManualPlaceInput input,
+		String actorSubject
+	) {
+		if (input == null || input.serviceRegionCode() == null
+			|| input.imageUrls() == null || input.imageUrls().isEmpty()
+			|| input.imageUrls().size() > 10) {
+			throw new IllegalArgumentException("Manual place request is invalid");
+		}
+		String titleKo = required(input.titleKo(), "titleKo");
+		String overviewKo = required(input.overviewKo(), "overviewKo");
+		String addressKo = required(input.addressKo(), "addressKo");
+		String titleEn = optional(input.titleEn());
+		String overviewEn = optional(input.overviewEn());
+		String addressEn = optional(input.addressEn());
+		long englishFieldCount = java.util.stream.Stream.of(titleEn, overviewEn, addressEn)
+			.filter(java.util.Objects::nonNull).count();
+		if (englishFieldCount != 0 && englishFieldCount != 3) {
+			throw new IllegalArgumentException("English place fields must be supplied together");
+		}
+		if ((input.latitude() == null) != (input.longitude() == null)) {
+			throw new IllegalArgumentException("Latitude and longitude must be supplied together");
+		}
+		String sourceUrl = optional(input.sourceUrl());
+		String sourceNote = optional(input.sourceNote());
+		if (sourceUrl == null && sourceNote == null) {
+			throw new IllegalArgumentException("Source URL or note is required");
+		}
+		List<String> imageUrls = input.imageUrls().stream()
+			.map(value -> required(value, "imageUrl"))
+			.distinct()
+			.toList();
+		if (imageUrls.size() != input.imageUrls().size()
+			|| imageUrls.stream().anyMatch(value -> !value.startsWith("https://"))) {
+			throw new IllegalArgumentException("Manual place image URLs must be unique HTTPS URLs");
+		}
+		var record = repository.createManualDramaPlace(new ManualPlaceCommand(
+			titleKo, overviewKo, addressKo, titleEn, overviewEn, addressEn,
+			input.serviceRegionCode().name(), input.latitude(), input.longitude(),
+			imageUrls, sourceUrl, sourceNote,
+			required(actorSubject, "actorSubject"), clock.instant()));
+		return new ManualPlaceView(
+			record.placeId(), record.active(), record.showFlag(), record.visible(),
+			record.travelStyle(), record.createdAt());
 	}
 
 	public boolean publicationFilterEnabled() {
@@ -431,6 +479,32 @@ public class EditorialService {
 		long placeId,
 		List<PlaceImageView> images,
 		java.time.Instant updatedAt
+	) {
+	}
+
+	public record ManualPlaceInput(
+		String titleKo,
+		String overviewKo,
+		String addressKo,
+		String titleEn,
+		String overviewEn,
+		String addressEn,
+		EditorialCandidateRegionFilter serviceRegionCode,
+		java.math.BigDecimal latitude,
+		java.math.BigDecimal longitude,
+		List<String> imageUrls,
+		String sourceUrl,
+		String sourceNote
+	) {
+	}
+
+	public record ManualPlaceView(
+		long placeId,
+		boolean active,
+		boolean showFlag,
+		boolean visible,
+		String travelStyle,
+		java.time.Instant createdAt
 	) {
 	}
 }

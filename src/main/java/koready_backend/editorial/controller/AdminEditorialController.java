@@ -154,6 +154,22 @@ public class AdminEditorialController {
 			TraceIdFilter.current(request));
 	}
 
+	@PostMapping("/places")
+	@Operation(
+		summary = "관리자 수동 드라마 촬영지 등록",
+		description = "KTO에서 제공하지 않는 드라마 촬영지를 한국어 원문, 사진, 권역, 출처 근거와 함께 비공개 초안으로 등록합니다. 여행 유형은 DRAMA_LOCATION으로 고정됩니다. 영문 장소명·주소·원문은 세 항목을 모두 입력하거나 모두 생략해야 하며, 생략하면 기존 AI 가공 큐에서 생성할 수 있습니다. 등록 후 AI 가공을 요청하고 공개 상태 변경 API로 명시적으로 공개해야 사용자 API에 노출됩니다.")
+	public ApiEnvelope<EditorialDtos.ManualPlaceResponse> createManualPlace(
+		@Valid @RequestBody EditorialDtos.ManualPlaceRequest body,
+		Authentication authentication,
+		HttpServletRequest request
+	) {
+		return ApiEnvelope.success(
+			"EDITORIAL_MANUAL_PLACE_CREATED",
+			EditorialDtos.from(service.createManualDramaPlace(
+				body.toInput(), authentication.getName())),
+			TraceIdFilter.current(request));
+	}
+
 	private static long cursor(String value) {
 		if (value == null || value.isBlank()) {
 			return 0L;

@@ -8,6 +8,7 @@ import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
 import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
+import koready_backend.editorial.domain.EditorialCandidateTravelStyle;
 import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
 import koready_backend.editorial.domain.EditorialLanguage;
@@ -83,6 +84,7 @@ public interface EditorialRepository {
 		Boolean queueEligible,
 		Boolean sourceChanged,
 		EditorialCandidateSourceTrack sourceTrack,
+		EditorialCandidateTravelStyle travelStyle,
 		long startAfterPlaceId,
 		int limit
 	) {

@@ -36,6 +36,7 @@ import koready_backend.editorial.domain.TourismPurposeTag;
 import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
 import koready_backend.editorial.domain.EditorialLanguage;
+import koready_backend.editorial.domain.EditorialCandidateTravelStyle;
 
 @Tag("integration")
 @SpringBootTest
@@ -147,7 +148,8 @@ class JdbcEditorialRepositoryIntegrationTest {
 
 		var eligibleQuery = new CandidateQuery(
 			Long.toString(eligiblePlaceId), null, EditorialCandidateRegionFilter.SEOUL,
-			true, true, null, EditorialCandidateSourceTrack.KTO_BILINGUAL, 0L, 20);
+			true, true, null, EditorialCandidateSourceTrack.KTO_BILINGUAL,
+			EditorialCandidateTravelStyle.CULTURE_EXPERIENCE, 0L, 20);
 		var eligible = repository.findCandidates(eligibleQuery);
 
 		assertEquals(1, eligible.size());
@@ -157,10 +159,32 @@ class JdbcEditorialRepositoryIntegrationTest {
 
 		var noOverview = repository.findCandidates(new CandidateQuery(
 			null, null, EditorialCandidateRegionFilter.GYEONGGI, false, false,
-			null, EditorialCandidateSourceTrack.KTO_BILINGUAL, 0L, 20));
+			null, EditorialCandidateSourceTrack.KTO_BILINGUAL,
+			EditorialCandidateTravelStyle.CULTURE_EXPERIENCE, 0L, 20));
 		assertEquals(List.of(noOverviewPlaceId), noOverview.stream()
 			.map(EditorialRepository.CandidateRecord::placeId).toList());
 		assertFalse(noOverview.getFirst().queueEligible());
+	}
+
+	@Test
+	void filtersCandidatesAndCountByTravelStyle() {
+		long culturePlaceId = place("SEOUL", "문화 원문");
+		long dramaPlaceId = place("SEOUL", "촬영지 원문");
+		jdbcTemplate.update("""
+			UPDATE place_style_mappings SET travel_style = 'DRAMA_LOCATION'
+			WHERE place_id = ?
+			""", dramaPlaceId);
+
+		var query = new CandidateQuery(
+			null, null, null, null, null, null,
+			EditorialCandidateSourceTrack.KTO_BILINGUAL,
+			EditorialCandidateTravelStyle.DRAMA_LOCATION, 0L, 20);
+
+		assertEquals(List.of(dramaPlaceId), repository.findCandidates(query).stream()
+			.map(EditorialRepository.CandidateRecord::placeId).toList());
+		assertEquals(1, repository.countCandidates(query));
+		assertFalse(repository.findCandidates(query).stream()
+			.anyMatch(candidate -> candidate.placeId() == culturePlaceId));
 	}
 
 	@Test
@@ -197,7 +221,7 @@ class JdbcEditorialRepositoryIntegrationTest {
 
 		var changedQuery = new CandidateQuery(
 			null, null, null, null, null, true,
-			EditorialCandidateSourceTrack.ALL, 0L, 20);
+			EditorialCandidateSourceTrack.ALL, null, 0L, 20);
 		var changed = repository.findCandidates(changedQuery);
 		assertEquals(List.of(placeId), changed.stream()
 			.map(EditorialRepository.CandidateRecord::placeId).toList());
@@ -379,6 +403,6 @@ class JdbcEditorialRepositoryIntegrationTest {
 	}
 
 	private static CandidateQuery candidateQuery(EditorialCandidateSourceTrack sourceTrack) {
-		return new CandidateQuery(null, null, null, null, null, null, sourceTrack, 0L, 100);
+		return new CandidateQuery(null, null, null, null, null, null, sourceTrack, null, 0L, 100);
 	}
 }

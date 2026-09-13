@@ -41,6 +41,14 @@ class NestedKoreanPlaceAliasMigrationIntegrationTest {
 			jdbcTemplate,
 			"title-non-trailing",
 			"Museum (서울관) Main Hall");
+		long unclosedKoreanAlias = insertEnglishTitle(
+			jdbcTemplate,
+			"title-unclosed-korean",
+			"Sehwa Fifth-day Market (세화민속오일시장");
+		long unclosedEnglishParentheses = insertEnglishTitle(
+			jdbcTemplate,
+			"title-unclosed-english",
+			"Museum (Seoul Main Hall");
 
 		migrateToLatest();
 
@@ -53,6 +61,8 @@ class NestedKoreanPlaceAliasMigrationIntegrationTest {
 			title(jdbcTemplate, spacedNestedAlias));
 		assertEquals("Museum (Seoul (Main Hall))", title(jdbcTemplate, englishParentheses));
 		assertEquals("Museum (서울관) Main Hall", title(jdbcTemplate, nonTrailingKorean));
+		assertEquals("Sehwa Fifth-day Market", title(jdbcTemplate, unclosedKoreanAlias));
+		assertEquals("Museum (Seoul Main Hall", title(jdbcTemplate, unclosedEnglishParentheses));
 	}
 
 	private void migrateTo(String version) {

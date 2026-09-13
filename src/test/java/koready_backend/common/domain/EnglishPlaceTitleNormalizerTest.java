@@ -36,4 +36,14 @@ class EnglishPlaceTitleNormalizerTest {
 			"Museum (Seoul (Main Hall))",
 			EnglishPlaceTitleNormalizer.normalize("Museum (Seoul (Main Hall))"));
 	}
+
+	@Test
+	void removesAnUnclosedTrailingKoreanAlias() {
+		assertEquals(
+			"Sehwa Fifth-day Market",
+			EnglishPlaceTitleNormalizer.normalize("Sehwa Fifth-day Market (세화민속오일시장"));
+		assertEquals(
+			"Museum (Seoul Main Hall",
+			EnglishPlaceTitleNormalizer.normalize("Museum (Seoul Main Hall"));
+	}
 }

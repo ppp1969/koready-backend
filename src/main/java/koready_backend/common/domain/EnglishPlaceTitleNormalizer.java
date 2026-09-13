@@ -11,7 +11,15 @@ public final class EnglishPlaceTitleNormalizer {
 	public static String normalize(String title) {
 		if (title == null || !LATIN.matcher(title).find()) return title;
 		String normalized = title.strip();
-		if (!normalized.endsWith(")")) return normalized;
+		if (!normalized.endsWith(")")) {
+			int lastOpening = normalized.lastIndexOf('(');
+			int lastClosing = normalized.lastIndexOf(')');
+			if (lastOpening > lastClosing
+				&& KOREAN.matcher(normalized.substring(lastOpening + 1)).find()) {
+				return normalized.substring(0, lastOpening).stripTrailing();
+			}
+			return normalized;
+		}
 
 		int depth = 0;
 		for (int index = normalized.length() - 1; index >= 0; index--) {

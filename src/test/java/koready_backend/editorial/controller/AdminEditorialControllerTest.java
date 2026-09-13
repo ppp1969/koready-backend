@@ -28,6 +28,7 @@ import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
 import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
+import koready_backend.editorial.domain.EditorialCandidateTravelStyle;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -73,7 +74,7 @@ class AdminEditorialControllerTest {
 	@Test
 	@WithMockUser(roles = "ADMIN")
 	void listsCandidatePlaces() throws Exception {
-		when(service.candidates(any(), any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
+		when(service.candidates(any(), any(), any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
 			.thenReturn(new EditorialService.CandidatePage(List.of(), null, false, 0));
 
 		mockMvc.perform(get("/api/v1/admin/editorial/candidates"))
@@ -82,13 +83,14 @@ class AdminEditorialControllerTest {
 			.andExpect(jsonPath("$.data.hasMore").value(false));
 		verify(service).candidates(any(), any(), any(), any(), any(), any(),
 			org.mockito.ArgumentMatchers.eq(EditorialCandidateSourceTrack.KTO_BILINGUAL),
+			org.mockito.ArgumentMatchers.isNull(),
 			any(Long.class), any(Integer.class));
 	}
 
 	@Test
 	@WithMockUser(roles = "ADMIN")
 	void acceptsSelectionFiltersAndReturnsTotalCount() throws Exception {
-		when(service.candidates(any(), any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
+		when(service.candidates(any(), any(), any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
 			.thenReturn(new EditorialService.CandidatePage(List.of(), null, false, 0));
 
 		mockMvc.perform(get("/api/v1/admin/editorial/candidates")
@@ -98,12 +100,14 @@ class AdminEditorialControllerTest {
 				.param("hasKoreanOverview", "true")
 				.param("queueEligible", "false")
 				.param("sourceChanged", "true")
-				.param("sourceTrack", "KOREAN_ONLY_AI"))
+				.param("sourceTrack", "KOREAN_ONLY_AI")
+				.param("travelStyle", "DRAMA_LOCATION"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.totalCount").value(0));
 		verify(service).candidates(any(), any(), any(), any(), any(),
 			org.mockito.ArgumentMatchers.eq(true),
 			org.mockito.ArgumentMatchers.eq(EditorialCandidateSourceTrack.KOREAN_ONLY_AI),
+			org.mockito.ArgumentMatchers.eq(EditorialCandidateTravelStyle.DRAMA_LOCATION),
 			any(Long.class), any(Integer.class));
 	}
 

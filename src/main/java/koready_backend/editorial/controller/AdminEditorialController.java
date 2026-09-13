@@ -27,6 +27,7 @@ import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
 import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
+import koready_backend.editorial.domain.EditorialCandidateTravelStyle;
 
 @Validated
 @RestController
@@ -52,6 +53,7 @@ public class AdminEditorialController {
 		@RequestParam(required = false) Boolean queueEligible,
 		@RequestParam(required = false) Boolean sourceChanged,
 		@RequestParam(defaultValue = "KTO_BILINGUAL") EditorialCandidateSourceTrack sourceTrack,
+		@RequestParam(required = false) EditorialCandidateTravelStyle travelStyle,
 		@RequestParam(required = false) @Size(max = 30) String cursor,
 		@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
 		HttpServletRequest request
@@ -59,7 +61,7 @@ public class AdminEditorialController {
 		return ApiEnvelope.success(
 			"EDITORIAL_CANDIDATE_LIST_OK",
 			EditorialDtos.from(service.candidates(
-				query, status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack,
+				query, status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack, travelStyle,
 				cursor(cursor), size)),
 			TraceIdFilter.current(request));
 	}

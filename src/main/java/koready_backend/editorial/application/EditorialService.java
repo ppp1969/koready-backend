@@ -28,6 +28,7 @@ import koready_backend.editorial.domain.EditorialLanguage;
 import koready_backend.editorial.domain.TourismPurposeTag;
 import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
+import koready_backend.editorial.domain.EditorialCandidateTravelStyle;
 
 @Service
 public class EditorialService {
@@ -92,16 +93,17 @@ public class EditorialService {
 		Boolean queueEligible,
 		Boolean sourceChanged,
 		EditorialCandidateSourceTrack sourceTrack,
+		EditorialCandidateTravelStyle travelStyle,
 		long startAfterPlaceId,
 		int size
 	) {
 		validatePage(startAfterPlaceId, size);
 		List<EditorialRepository.CandidateRecord> records = repository.findCandidates(
 			new CandidateQuery(
-				optional(query), status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack,
+				optional(query), status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack, travelStyle,
 				startAfterPlaceId, size + 1));
 		long totalCount = repository.countCandidates(new CandidateQuery(
-			optional(query), status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack, 0L, 1));
+			optional(query), status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack, travelStyle, 0L, 1));
 		boolean hasMore = records.size() > size;
 		List<CandidateView> items = records.subList(0, Math.min(size, records.size()))
 			.stream().map(CandidateView::from).toList();

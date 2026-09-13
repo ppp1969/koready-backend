@@ -3044,6 +3044,11 @@ paths:
           schema:
             $ref: '#/components/schemas/EditorialCandidateSourceTrack'
             default: KTO_BILINGUAL
+        - name: travelStyle
+          in: query
+          description: 선택한 KoReady 여행 유형이 연결된 후보만 조회
+          schema:
+            $ref: '#/components/schemas/TravelStyle'
         - name: cursor
           in: query
           description: 이전 응답의 nextCursor. 첫 요청에서는 생략

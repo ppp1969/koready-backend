@@ -376,6 +376,11 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			case KOREAN_ONLY_AI -> sql.append(" AND en.place_id IS NULL");
 			case ALL -> { }
 		}
+		if (query.travelStyle() != null) {
+			sql.append(" AND EXISTS (SELECT 1 FROM place_style_mappings filtered_style"
+				+ " WHERE filtered_style.place_id = p.id AND filtered_style.travel_style = :travelStyle)");
+			params.addValue("travelStyle", query.travelStyle().name());
+		}
 	}
 
 	@Override

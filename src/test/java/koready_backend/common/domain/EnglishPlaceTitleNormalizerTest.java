@@ -16,4 +16,24 @@ class EnglishPlaceTitleNormalizerTest {
 	void supportsAttachedAndSpacedAliases() {
 		assertEquals("Shop [Tax Refund Shop]", EnglishPlaceTitleNormalizer.normalize("Shop [Tax Refund Shop](상점)"));
 	}
+
+	@Test
+	void removesATrailingKoreanAliasWithNestedParentheses() {
+		assertEquals(
+			"Sweet Park (Lotte Children's Food Experience Center)",
+			EnglishPlaceTitleNormalizer.normalize(
+				"Sweet Park (Lotte Children's Food Experience Center) "
+					+ "(스위트파크(롯데어린이식품체험관))"));
+		assertEquals(
+			"Daedunsan Provincial Park (Geumsan Section)",
+			EnglishPlaceTitleNormalizer.normalize(
+				"Daedunsan Provincial Park (Geumsan Section) (대둔산도립공원 (금산))"));
+	}
+
+	@Test
+	void preservesNestedEnglishParentheses() {
+		assertEquals(
+			"Museum (Seoul (Main Hall))",
+			EnglishPlaceTitleNormalizer.normalize("Museum (Seoul (Main Hall))"));
+	}
 }

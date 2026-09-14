@@ -18,7 +18,8 @@ import org.testcontainers.mysql.MySQLContainer;
 class EditorialSourceBaselineMigrationIntegrationTest {
 
 	@Container
-	static final MySQLContainer mysql = new MySQLContainer("mysql:8.4");
+	static final MySQLContainer mysql = new MySQLContainer("mysql:8.4")
+		.withCommand("--sql-require-primary-key=ON");
 
 	@Test
 	void baselinesExistingReadyContentWithoutQueueingAiWork() {
@@ -47,7 +48,35 @@ class EditorialSourceBaselineMigrationIntegrationTest {
 			    (place_id, source_fingerprint, prompt_version, status, generated_at)
 			VALUES (?, ?, 'prompt-v1', 'READY', CURRENT_TIMESTAMP(6))
 			""", placeId, "a".repeat(64));
-
+		jdbc.update("""
+			INSERT INTO open_api_call_logs
+			    (provider, api_name, operation, endpoint, request_started_at,
+			     success, request_params_masked)
+			VALUES ('KTO', 'KOR', 'detailIntro2', 'https://example.invalid/baseline',
+			        UTC_TIMESTAMP(6), TRUE, JSON_OBJECT())
+			""");
+		long callId = jdbc.queryForObject("SELECT MAX(id) FROM open_api_call_logs", Long.class);
+		jdbc.update("""
+			INSERT INTO open_api_raw_snapshots
+			    (call_log_id, provider, api_name, operation, storage_key,
+			     storage_format, content_type, raw_content_sha256,
+			     stored_object_sha256, byte_size, compressed_byte_size,
+			     item_count, captured_at, retention_class, immutable)
+			VALUES (?, 'KTO', 'KOR', 'detailIntro2', 'kto/test/editorial-baseline',
+			        'JSON_GZIP', 'application/json', ?, ?, 10, 10, 30,
+			        UTC_TIMESTAMP(6), 'DEBUG_TEMPORARY', TRUE)
+			""", callId, "d".repeat(64), "e".repeat(64));
+		long snapshotId = jdbc.queryForObject(
+			"SELECT id FROM open_api_raw_snapshots WHERE call_log_id = ?", Long.class, callId);
+		for (int index = 0; index < 30; index++) {
+			jdbc.update("""
+				INSERT INTO place_detail_attributes
+				    (place_id, source_operation, item_sequence, field_code, value_text,
+				     source_content_id, source_snapshot_id, source_hash)
+				VALUES (?, 'detailIntro2', ?, ?, ?, 'baseline-place', ?, ?)
+				""", placeId, index + 1, "field" + index,
+				"detail-" + index + "-" + "x".repeat(80), snapshotId, "c".repeat(64));
+		}
 		migrateToLatest();
 
 		String snapshot = jdbc.queryForObject("""
@@ -59,8 +88,7 @@ class EditorialSourceBaselineMigrationIntegrationTest {
 			FROM place_editorial_contents WHERE place_id = ?
 			""", String.class, placeId));
 		assertEquals(1, jdbc.queryForObject("""
-			SELECT source_fingerprint = SHA2(
-			    CONCAT_WS('|', 'Test', '', 'Seoul', 'Overview', 'CULTURE_EXPERIENCE', ''), 256)
+			SELECT CHAR_LENGTH(JSON_UNQUOTE(JSON_EXTRACT(source_snapshot_json, '$.facts'))) > 1024
 			FROM place_editorial_contents WHERE place_id = ?
 			""", Integer.class, placeId));
 		assertEquals(0, jdbc.queryForObject(

@@ -1,10 +1,38 @@
-ALTER TABLE place_editorial_jobs
-    ADD COLUMN source_snapshot_json JSON NULL AFTER source_fingerprint;
+SET @add_jobs_source_snapshot = IF(
+    EXISTS(
+        SELECT 1
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'place_editorial_jobs'
+          AND COLUMN_NAME = 'source_snapshot_json'
+    ),
+    'SELECT 1',
+    'ALTER TABLE place_editorial_jobs ADD COLUMN source_snapshot_json JSON NULL AFTER source_fingerprint'
+);
+PREPARE add_jobs_source_snapshot_stmt FROM @add_jobs_source_snapshot;
+EXECUTE add_jobs_source_snapshot_stmt;
+DEALLOCATE PREPARE add_jobs_source_snapshot_stmt;
 
-ALTER TABLE place_editorial_contents
-    ADD COLUMN source_snapshot_json JSON NULL AFTER source_fingerprint;
+SET @add_contents_source_snapshot = IF(
+    EXISTS(
+        SELECT 1
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'place_editorial_contents'
+          AND COLUMN_NAME = 'source_snapshot_json'
+    ),
+    'SELECT 1',
+    'ALTER TABLE place_editorial_contents ADD COLUMN source_snapshot_json JSON NULL AFTER source_fingerprint'
+);
+PREPARE add_contents_source_snapshot_stmt FROM @add_contents_source_snapshot;
+EXECUTE add_contents_source_snapshot_stmt;
+DEALLOCATE PREPARE add_contents_source_snapshot_stmt;
 
-CREATE TEMPORARY TABLE editorial_source_baseline_v59 AS
+SET SESSION group_concat_max_len = 16777216;
+
+CREATE TEMPORARY TABLE editorial_source_baseline_v59 (
+    PRIMARY KEY (place_id)
+) AS
 WITH ranked_facts AS (
     SELECT
         place_id,

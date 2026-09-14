@@ -44,7 +44,7 @@ public class AdminEditorialController {
 	@GetMapping("/candidates")
 	@Operation(
 		summary = "AI 장소 가공 후보 조회",
-		description = "공식 한영 KTO 후보와 한국어 원문 기반 AI 확장 후보를 출처 트랙별로 조회합니다. sourceChanged=true로 AI 가공 후 원문·이미지·분류가 바뀐 재가공 후보만 조회할 수 있습니다.")
+		description = "공식 한영 KTO 후보와 한국어 원문 기반 AI 확장 후보를 출처 트랙별로 조회합니다. sourceChanged=true는 장소명·주소·설명·AI 입력 상세정보·여행 유형이 실질적으로 바뀐 후보만 반환하며 사진과 KTO 응답 메타데이터 변경은 제외합니다.")
 	public ApiEnvelope<EditorialDtos.CandidateListResponse> candidates(
 		@RequestParam(required = false) @Size(max = 100) String query,
 		@RequestParam(required = false) EditorialCandidateStatusFilter status,

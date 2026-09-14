@@ -37,6 +37,7 @@ import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
 import koready_backend.editorial.domain.EditorialLanguage;
 import koready_backend.editorial.domain.EditorialCandidateTravelStyle;
+import koready_backend.editorial.domain.EditorialSourceChangeType;
 
 @Tag("integration")
 @SpringBootTest
@@ -208,9 +209,29 @@ class JdbcEditorialRepositoryIntegrationTest {
 			claimed.promptVersion(), generation, now.plusSeconds(2)));
 
 		jdbcTemplate.update("""
-			UPDATE place_localizations SET source_hash = ?
+			UPDATE place_localizations
+			SET source_hash = ?, overview = '<p>사실   기반 설명</p>'
 			WHERE place_id = ? AND language = 'KO'
 			""", "f".repeat(64), placeId);
+		jdbcTemplate.update("""
+			UPDATE places SET source_modified_time = '20260912000000' WHERE id = ?
+			""", placeId);
+		jdbcTemplate.update("""
+			INSERT INTO place_images
+			    (place_id, image_url, image_url_sha256, source_type,
+			     source_priority, source_order)
+			VALUES (?, 'https://example.com/new-image.jpg', ?, 'KTO_DETAIL', 100, 1)
+			""", placeId, "a".repeat(64));
+
+		var unchangedQuery = new CandidateQuery(
+			null, null, null, null, null, true,
+			EditorialCandidateSourceTrack.ALL, null, 0L, 20);
+		assertTrue(repository.findCandidates(unchangedQuery).isEmpty());
+
+		jdbcTemplate.update("""
+			UPDATE place_localizations SET overview = '실제로 변경된 설명'
+			WHERE place_id = ? AND language = 'KO'
+			""", placeId);
 
 		var publishedBeforeReprocessing = repository.findReady(
 			placeId, EditorialLanguage.KO, "prompt-v1").orElseThrow();
@@ -226,7 +247,15 @@ class JdbcEditorialRepositoryIntegrationTest {
 		assertEquals(List.of(placeId), changed.stream()
 			.map(EditorialRepository.CandidateRecord::placeId).toList());
 		assertTrue(changed.getFirst().sourceChanged());
+		assertEquals(EditorialSourceChangeType.CONTENT_CHANGED,
+			changed.getFirst().sourceChangeType());
 		assertTrue(changed.getFirst().queueEligible());
+		var detail = repository.findCandidate(placeId).orElseThrow();
+		assertEquals(EditorialSourceChangeType.CONTENT_CHANGED, detail.sourceChangeType());
+		assertEquals(List.of("overviewKo"), detail.sourceChanges().stream()
+			.map(change -> change.field()).toList());
+		assertEquals("사실 기반 설명", detail.sourceChanges().getFirst().beforeValue());
+		assertEquals("실제로 변경된 설명", detail.sourceChanges().getFirst().afterValue());
 
 		var requeued = repository.enqueue(new EnqueueCommand(
 			placeId, "prompt-v1", EditorialTriggerType.PM_CURATED,

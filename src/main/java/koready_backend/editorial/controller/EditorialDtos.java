@@ -35,7 +35,7 @@ final class EditorialDtos {
 			page.items().stream().map(item -> new CandidateResponse(
 				item.placeId(), item.titleKo(), item.titleEn(), item.region(),
 				item.imageUrl(), item.hasKoreanOverview(), item.queueEligible(),
-				item.sourceChanged(),
+				item.sourceChanged(), item.sourceChangeType(),
 				item.sourceTrack(), item.hasTrustedEnglish(),
 				item.curationPriority(), item.status(),
 				item.active(), item.showFlag(), item.visible(), item.requestedAt())).toList(),
@@ -59,7 +59,10 @@ final class EditorialDtos {
 				.map(image -> new ImageOrderItemResponse(
 					image.imageId(), image.imageUrl(), image.displayOrder(), image.thumbnail()))
 				.toList(), item.travelStyles(), item.curationPriority(),
-			item.sourceChanged(), item.sourceTrack(), item.hasTrustedEnglish(),
+			item.sourceChanged(), item.sourceChangeType(),
+			item.sourceChanges().stream().map(change -> new SourceChangeResponse(
+				change.field(), change.beforeValue(), change.afterValue())).toList(),
+			item.sourceTrack(), item.hasTrustedEnglish(),
 			item.active(), item.showFlag(), item.visible(), item.status(), item.requestedAt());
 	}
 
@@ -115,6 +118,7 @@ final class EditorialDtos {
 		boolean hasKoreanOverview,
 		boolean queueEligible,
 		boolean sourceChanged,
+		koready_backend.editorial.domain.EditorialSourceChangeType sourceChangeType,
 		koready_backend.editorial.domain.EditorialCandidateSourceTrack sourceTrack,
 		boolean hasTrustedEnglish,
 		int curationPriority,
@@ -138,6 +142,8 @@ final class EditorialDtos {
 		List<String> travelStyles,
 		int curationPriority,
 		boolean sourceChanged,
+		koready_backend.editorial.domain.EditorialSourceChangeType sourceChangeType,
+		List<SourceChangeResponse> sourceChanges,
 		koready_backend.editorial.domain.EditorialCandidateSourceTrack sourceTrack,
 		boolean hasTrustedEnglish,
 		boolean active,
@@ -145,6 +151,13 @@ final class EditorialDtos {
 		boolean visible,
 		EditorialJobStatus editorialStatus,
 		Instant requestedAt
+	) {
+	}
+
+	record SourceChangeResponse(
+		String field,
+		String beforeValue,
+		String afterValue
 	) {
 	}
 

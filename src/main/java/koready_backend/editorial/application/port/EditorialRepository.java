@@ -13,6 +13,8 @@ import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
 import koready_backend.editorial.domain.EditorialLanguage;
 import koready_backend.editorial.domain.TourismPurposeTag;
+import koready_backend.editorial.domain.EditorialSourceChange;
+import koready_backend.editorial.domain.EditorialSourceChangeType;
 
 public interface EditorialRepository {
 
@@ -99,6 +101,7 @@ public interface EditorialRepository {
 		boolean hasKoreanOverview,
 		boolean queueEligible,
 		boolean sourceChanged,
+		EditorialSourceChangeType sourceChangeType,
 		EditorialCandidateSourceTrack sourceTrack,
 		boolean hasTrustedEnglish,
 		boolean active,
@@ -120,6 +123,8 @@ public interface EditorialRepository {
 		List<PlaceImageRecord> images,
 		List<String> travelStyles,
 		boolean sourceChanged,
+		EditorialSourceChangeType sourceChangeType,
+		List<EditorialSourceChange> sourceChanges,
 		EditorialCandidateSourceTrack sourceTrack,
 		boolean hasTrustedEnglish,
 		boolean active,

@@ -29,6 +29,8 @@ import koready_backend.editorial.domain.TourismPurposeTag;
 import koready_backend.editorial.domain.EditorialCandidateRegionFilter;
 import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
 import koready_backend.editorial.domain.EditorialCandidateTravelStyle;
+import koready_backend.editorial.domain.EditorialSourceChange;
+import koready_backend.editorial.domain.EditorialSourceChangeType;
 
 @Service
 public class EditorialService {
@@ -129,7 +131,8 @@ public class EditorialService {
 					image.imageId(), image.imageUrl(), image.displayOrder(),
 					image.displayOrder() == 1))
 				.toList(),
-			candidate.travelStyles(), candidate.sourceChanged(), candidate.sourceTrack(), candidate.hasTrustedEnglish(),
+			candidate.travelStyles(), candidate.sourceChanged(), candidate.sourceChangeType(),
+			candidate.sourceChanges(), candidate.sourceTrack(), candidate.hasTrustedEnglish(),
 			candidate.active(),
 			candidate.showFlag(), candidate.active() && candidate.showFlag(),
 			candidate.curationPriority(), candidate.status(),
@@ -374,6 +377,7 @@ public class EditorialService {
 		boolean hasKoreanOverview,
 		boolean queueEligible,
 		boolean sourceChanged,
+		EditorialSourceChangeType sourceChangeType,
 		EditorialCandidateSourceTrack sourceTrack,
 		boolean hasTrustedEnglish,
 		boolean active,
@@ -387,7 +391,7 @@ public class EditorialService {
 			return new CandidateView(
 				record.placeId(), record.titleKo(), record.titleEn(), record.region(),
 				record.imageUrl(), record.hasKoreanOverview(), record.queueEligible(),
-				record.sourceChanged(),
+				record.sourceChanged(), record.sourceChangeType(),
 				record.sourceTrack(), record.hasTrustedEnglish(),
 				record.active(), record.showFlag(), record.active() && record.showFlag(),
 				record.curationPriority(), record.status(),
@@ -409,6 +413,8 @@ public class EditorialService {
 		List<PlaceImageView> images,
 		List<String> travelStyles,
 		boolean sourceChanged,
+		EditorialSourceChangeType sourceChangeType,
+		List<EditorialSourceChange> sourceChanges,
 		EditorialCandidateSourceTrack sourceTrack,
 		boolean hasTrustedEnglish,
 		boolean active,
@@ -422,6 +428,7 @@ public class EditorialService {
 			imageUrls = List.copyOf(imageUrls);
 			images = List.copyOf(images);
 			travelStyles = List.copyOf(travelStyles);
+			sourceChanges = List.copyOf(sourceChanges);
 		}
 	}
 

@@ -87,13 +87,15 @@ public class JdbcEditorialWorkerRepository implements EditorialWorkerRepository 
 		EditorialGeneration generation = command.generation();
 		jdbcTemplate.update("""
 			INSERT INTO place_editorial_contents
-			    (place_id, source_fingerprint, prompt_version, status,
+			    (place_id, source_fingerprint, source_snapshot_json, prompt_version, status,
 			     provider, model, generated_at)
-			VALUES (?, ?, ?, 'READY', ?, ?, ?)
+			VALUES (?, ?, ?, ?, 'READY', ?, ?, ?)
 			ON DUPLICATE KEY UPDATE
-			    status = 'READY', provider = VALUES(provider), model = VALUES(model),
+			    status = 'READY', source_snapshot_json = VALUES(source_snapshot_json),
+			    provider = VALUES(provider), model = VALUES(model),
 			    generated_at = VALUES(generated_at)
-			""", job.placeId(), command.sourceFingerprint(), command.promptVersion(),
+			""", job.placeId(), command.sourceFingerprint(), job.sourceSnapshot(),
+			command.promptVersion(),
 			generation.provider(), generation.model(), Timestamp.from(command.completedAt()));
 		Long contentId = jdbcTemplate.queryForObject("""
 			SELECT id FROM place_editorial_contents
@@ -216,10 +218,11 @@ public class JdbcEditorialWorkerRepository implements EditorialWorkerRepository 
 
 	private LockedJob lockOwnedJob(long jobId, String leaseToken) {
 		return jdbcTemplate.query("""
-			SELECT id, place_id FROM place_editorial_jobs
+			SELECT id, place_id, source_snapshot_json FROM place_editorial_jobs
 			WHERE id = ? AND status = 'PROCESSING' AND lease_token = ?
 			FOR UPDATE
-			""", (rs, rowNumber) -> new LockedJob(rs.getLong("id"), rs.getLong("place_id")),
+			""", (rs, rowNumber) -> new LockedJob(
+				rs.getLong("id"), rs.getLong("place_id"), rs.getString("source_snapshot_json")),
 			jobId, leaseToken).stream().findFirst()
 			.orElseThrow(() -> new IllegalStateException("Editorial job lease is no longer owned"));
 	}
@@ -319,7 +322,7 @@ public class JdbcEditorialWorkerRepository implements EditorialWorkerRepository 
 		return value == null ? null : Timestamp.from(value);
 	}
 
-	private record LockedJob(long id, long placeId) {
+	private record LockedJob(long id, long placeId, String sourceSnapshot) {
 	}
 
 	private record ClaimedBase(

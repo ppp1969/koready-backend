@@ -37,25 +37,69 @@ import koready_backend.editorial.domain.EditorialTriggerType;
 import koready_backend.editorial.domain.EditorialLanguage;
 import koready_backend.editorial.domain.TourismPurposeTag;
 import koready_backend.editorial.domain.EditorialCandidateSourceTrack;
+import koready_backend.editorial.domain.EditorialSourceComparison;
+import koready_backend.editorial.domain.EditorialSourceSnapshot;
 
 @Repository
 public class JdbcEditorialRepository implements EditorialRepository {
+	private static String normalized(String expression) {
+		return "TRIM(REGEXP_REPLACE(REGEXP_REPLACE(REPLACE(COALESCE("
+			+ expression
+			+ ", ''), '&nbsp;', ' '), '<[^>]*>', ' '), '[[:space:]]+', ' '))";
+	}
+
+	private static final String SOURCE_TITLE_KO = normalized("ko.title");
+	private static final String SOURCE_TITLE_EN = normalized("en.title");
+	private static final String SOURCE_ADDRESS = normalized(
+		"COALESCE(ko.address_text, p.road_address, p.address)");
+	private static final String SOURCE_OVERVIEW_KO = normalized("ko.overview");
+	private static final String SOURCE_STYLES = """
+		COALESCE((SELECT GROUP_CONCAT(s.travel_style
+			ORDER BY s.is_primary DESC, s.confidence DESC, s.travel_style SEPARATOR ',')
+			FROM place_style_mappings s WHERE s.place_id = p.id), '')
+		""";
+	private static final String SOURCE_FACTS = """
+		COALESCE((SELECT SUBSTRING_INDEX(GROUP_CONCAT(
+			CONCAT(a.field_code, ': ', %s)
+			ORDER BY a.source_operation, a.item_sequence, a.field_code, a.id SEPARATOR '\n'), '\n', 30)
+			FROM place_detail_attributes a
+			WHERE a.place_id = p.id AND NULLIF(TRIM(a.value_text), '') IS NOT NULL), '')
+		""".formatted(normalized("a.value_text"));
 
 	static final String SOURCE_FINGERPRINT = """
-		SHA2(CONCAT_WS('|',
-			COALESCE(CAST(p.source_modified_time AS CHAR), ''),
-			COALESCE(ko.source_hash, ''),
-			COALESCE(en.source_hash, ''),
-			COALESCE((SELECT GROUP_CONCAT(
-				COALESCE(i.image_url_sha256, SHA2(i.image_url, 256))
-				ORDER BY i.source_priority DESC, i.source_order, i.id SEPARATOR ',')
-				FROM place_images i WHERE i.place_id = p.id), ''),
-			COALESCE((SELECT GROUP_CONCAT(
-				CONCAT(s.travel_style, ':', COALESCE(s.rule_version, ''))
-				ORDER BY s.travel_style SEPARATOR ',')
-				FROM place_style_mappings s WHERE s.place_id = p.id), '')
-		), 256)
-		""";
+		SHA2(CONCAT_WS('|', %s, %s, %s, %s, %s, %s), 256)
+		""".formatted(
+		SOURCE_TITLE_KO, SOURCE_TITLE_EN, SOURCE_ADDRESS,
+		SOURCE_OVERVIEW_KO, SOURCE_STYLES, SOURCE_FACTS);
+
+	static final String SOURCE_SNAPSHOT = """
+		JSON_OBJECT(
+			'titleKo', %s,
+			'titleEn', %s,
+			'address', %s,
+			'overviewKo', %s,
+			'travelStyles', %s,
+			'facts', %s)
+		""".formatted(
+		SOURCE_TITLE_KO, SOURCE_TITLE_EN, SOURCE_ADDRESS,
+		SOURCE_OVERVIEW_KO, SOURCE_STYLES, SOURCE_FACTS);
+
+	private static final String SOURCE_COMPARISON_COLUMNS = """
+		%s AS current_title_ko,
+		%s AS current_title_en,
+		%s AS current_address,
+		%s AS current_overview_ko,
+		%s AS current_travel_styles,
+		%s AS current_facts,
+		JSON_UNQUOTE(JSON_EXTRACT(baseline.source_snapshot_json, '$.titleKo')) AS previous_title_ko,
+		JSON_UNQUOTE(JSON_EXTRACT(baseline.source_snapshot_json, '$.titleEn')) AS previous_title_en,
+		JSON_UNQUOTE(JSON_EXTRACT(baseline.source_snapshot_json, '$.address')) AS previous_address,
+		JSON_UNQUOTE(JSON_EXTRACT(baseline.source_snapshot_json, '$.overviewKo')) AS previous_overview_ko,
+		JSON_UNQUOTE(JSON_EXTRACT(baseline.source_snapshot_json, '$.travelStyles')) AS previous_travel_styles,
+		JSON_UNQUOTE(JSON_EXTRACT(baseline.source_snapshot_json, '$.facts')) AS previous_facts
+		""".formatted(
+		SOURCE_TITLE_KO, SOURCE_TITLE_EN, SOURCE_ADDRESS,
+		SOURCE_OVERVIEW_KO, SOURCE_STYLES, SOURCE_FACTS);
 
 	private static final String SOURCE_CHANGED_SQL = """
 		(EXISTS (
@@ -84,6 +128,10 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		LEFT JOIN place_editorial_jobs latest ON latest.id = (
 		  SELECT j.id FROM place_editorial_jobs j WHERE j.place_id = p.id
 		  ORDER BY j.requested_at DESC, j.id DESC LIMIT 1)
+		LEFT JOIN place_editorial_contents baseline ON baseline.id = (
+		  SELECT c.id FROM place_editorial_contents c
+		  WHERE c.place_id = p.id AND c.status = 'READY'
+		  ORDER BY c.generated_at DESC, c.id DESC LIMIT 1)
 		WHERE p.active = TRUE
 		  AND EXISTS (SELECT 1 FROM place_style_mappings s WHERE s.place_id = p.id)
 		  AND (NULLIF(TRIM(p.first_image_url), '') IS NOT NULL
@@ -121,9 +169,9 @@ public class JdbcEditorialRepository implements EditorialRepository {
 
 		jdbcTemplate.update("""
 			INSERT INTO place_editorial_jobs
-			    (public_id, place_id, request_key, source_fingerprint, prompt_version,
+			    (public_id, place_id, request_key, source_fingerprint, source_snapshot_json, prompt_version,
 			     trigger_type, priority, status, requested_by_subject, requested_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, 'QUEUED', ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'QUEUED', ?, ?)
 			ON DUPLICATE KEY UPDATE
 			    trigger_type = IF(VALUES(priority) > priority,
 			        VALUES(trigger_type), trigger_type),
@@ -143,6 +191,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			command.placeId(),
 			requestKey,
 			source.fingerprint(),
+			source.snapshot(),
 			command.promptVersion(),
 			command.triggerType().name(),
 			command.priority().weight(),
@@ -248,10 +297,13 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			       (NULLIF(TRIM(ko.overview), '') IS NOT NULL) AS has_ko_overview,
 			       %s AS queue_eligible,
 			       %s AS source_changed,
+			       %s,
 			       COALESCE(latest.status, 'NOT_REQUESTED') AS editorial_status,
 			       latest.requested_at
 			%s
-			""".formatted(QUEUE_ELIGIBLE_SQL, SOURCE_CHANGED_SQL, CANDIDATE_FROM_SQL));
+			""".formatted(
+			QUEUE_ELIGIBLE_SQL, SOURCE_CHANGED_SQL,
+			SOURCE_COMPARISON_COLUMNS, CANDIDATE_FROM_SQL));
 		MapSqlParameterSource params = new MapSqlParameterSource()
 			.addValue("cursor", query.startAfterPlaceId())
 			.addValue("limit", query.limit());
@@ -393,6 +445,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			       COALESCE(ko.address_text, p.road_address, p.address) AS address,
 			       p.service_region_code, p.active, p.show_flag, p.curation_priority,
 			       %s AS source_changed,
+			       %s,
 			       COALESCE(latest.status, 'NOT_REQUESTED') AS editorial_status,
 			       latest.requested_at
 			FROM places p
@@ -404,11 +457,16 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			LEFT JOIN place_editorial_jobs latest ON latest.id = (
 			  SELECT j.id FROM place_editorial_jobs j WHERE j.place_id = p.id
 			  ORDER BY j.requested_at DESC, j.id DESC LIMIT 1)
+			LEFT JOIN place_editorial_contents baseline ON baseline.id = (
+			  SELECT c.id FROM place_editorial_contents c
+			  WHERE c.place_id = p.id AND c.status = 'READY'
+			  ORDER BY c.generated_at DESC, c.id DESC LIMIT 1)
 			WHERE p.id = ? AND p.active = TRUE
 			  AND EXISTS (SELECT 1 FROM place_style_mappings s WHERE s.place_id = p.id)
 			  AND (NULLIF(TRIM(p.first_image_url), '') IS NOT NULL
 			       OR EXISTS (SELECT 1 FROM place_images i WHERE i.place_id = p.id))
-			""".formatted(SOURCE_CHANGED_SQL), (rs, rowNumber) -> new CandidateDetailBase(
+			""".formatted(SOURCE_CHANGED_SQL, SOURCE_COMPARISON_COLUMNS),
+			(rs, rowNumber) -> new CandidateDetailBase(
 				rs.getLong("place_id"), rs.getString("title_ko"),
 				rs.getString("title_en"), rs.getString("overview_ko"),
 				rs.getString("address"),
@@ -417,6 +475,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 				rs.getBoolean("active"), rs.getBoolean("show_flag"),
 				rs.getInt("curation_priority"),
 				rs.getBoolean("source_changed"),
+				comparison(rs),
 				EditorialJobStatus.valueOf(rs.getString("editorial_status")),
 				instant(rs, "requested_at")), placeId);
 		if (rows.isEmpty()) {
@@ -449,7 +508,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		return Optional.of(new CandidateDetailRecord(
 			base.placeId(), base.titleKo(), base.titleEn(), base.overviewKo(),
 			base.address(), base.region(), images, orderedImages, styles,
-			base.sourceChanged(),
+			base.sourceChanged(), base.comparison().type(), base.comparison().changes(),
 			base.hasTrustedEnglish()
 				? EditorialCandidateSourceTrack.KTO_BILINGUAL
 				: EditorialCandidateSourceTrack.KOREAN_ONLY_AI,
@@ -667,7 +726,9 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		return namedJdbcTemplate.query("""
 			SELECT p.id, (en.id IS NOT NULL) AS has_trusted_english,
 			""" + SOURCE_FINGERPRINT + """
-			AS fingerprint
+			AS fingerprint,
+			""" + SOURCE_SNAPSHOT + """
+			AS source_snapshot
 			FROM places p
 			LEFT JOIN place_localizations ko
 			  ON ko.place_id = p.id AND ko.language = 'KO'
@@ -678,6 +739,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			""", Map.of("placeId", placeId),
 			(rs, rowNumber) -> new Source(
 				rs.getLong("id"), rs.getString("fingerprint"),
+				rs.getString("source_snapshot"),
 				rs.getBoolean("has_trusted_english")))
 			.stream().findFirst();
 	}
@@ -697,12 +759,14 @@ public class JdbcEditorialRepository implements EditorialRepository {
 	}
 
 	private CandidateRecord candidate(ResultSet rs, int rowNumber) throws SQLException {
-			return new CandidateRecord(
+		var comparison = comparison(rs);
+		return new CandidateRecord(
 			rs.getLong("place_id"), rs.getString("title_ko"), rs.getString("title_en"),
 			rs.getString("service_region_code"),
 			rs.getString("image_url"), rs.getBoolean("has_ko_overview"),
 			rs.getBoolean("queue_eligible"),
 			rs.getBoolean("source_changed"),
+			comparison.type(),
 			rs.getBoolean("has_trusted_english")
 				? EditorialCandidateSourceTrack.KTO_BILINGUAL
 				: EditorialCandidateSourceTrack.KOREAN_ONLY_AI,
@@ -711,6 +775,23 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			rs.getInt("curation_priority"),
 			EditorialJobStatus.valueOf(rs.getString("editorial_status")),
 			instant(rs, "requested_at"));
+	}
+
+	private EditorialSourceComparison.Result comparison(ResultSet rs) throws SQLException {
+		EditorialSourceSnapshot previous = rs.getString("previous_title_ko") == null
+			&& rs.getString("previous_overview_ko") == null
+			? null : snapshot(rs, "previous");
+		return EditorialSourceComparison.compare(previous, snapshot(rs, "current"));
+	}
+
+	private EditorialSourceSnapshot snapshot(ResultSet rs, String prefix) throws SQLException {
+		return new EditorialSourceSnapshot(
+			rs.getString(prefix + "_title_ko"),
+			rs.getString(prefix + "_title_en"),
+			rs.getString(prefix + "_address"),
+			rs.getString(prefix + "_overview_ko"),
+			rs.getString(prefix + "_travel_styles"),
+			rs.getString(prefix + "_facts"));
 	}
 
 	private JobRecord job(ResultSet rs, int rowNumber) throws SQLException {
@@ -743,7 +824,12 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		}
 	}
 
-	private record Source(long placeId, String fingerprint, boolean hasTrustedEnglish) {
+	private record Source(
+		long placeId,
+		String fingerprint,
+		String snapshot,
+		boolean hasTrustedEnglish
+	) {
 	}
 
 	private record ReadyBase(
@@ -770,6 +856,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		boolean showFlag,
 		int curationPriority,
 		boolean sourceChanged,
+		EditorialSourceComparison.Result comparison,
 		EditorialJobStatus status,
 		Instant requestedAt
 	) {

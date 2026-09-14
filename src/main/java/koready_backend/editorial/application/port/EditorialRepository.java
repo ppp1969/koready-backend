@@ -42,6 +42,8 @@ public interface EditorialRepository {
 
 	Optional<PlaceImageOrderRecord> reorderImages(ImageOrderCommand command);
 
+	Optional<SourceReviewRecord> dismissSourceChange(SourceReviewCommand command);
+
 	ManualPlaceRecord createManualDramaPlace(ManualPlaceCommand command);
 
 	record EnqueueCommand(
@@ -213,6 +215,20 @@ public interface EditorialRepository {
 		long placeId,
 		List<PlaceImageRecord> images,
 		Instant updatedAt
+	) {
+	}
+
+	record SourceReviewCommand(
+		long placeId,
+		String actorSubject,
+		Instant reviewedAt
+	) {
+	}
+
+	record SourceReviewRecord(
+		long placeId,
+		String sourceFingerprint,
+		Instant reviewedAt
 	) {
 	}
 

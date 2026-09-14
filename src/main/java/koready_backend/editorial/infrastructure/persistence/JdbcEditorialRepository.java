@@ -31,6 +31,8 @@ import koready_backend.editorial.application.port.EditorialRepository.PlacePrior
 import koready_backend.editorial.application.port.EditorialRepository.PriorityCommand;
 import koready_backend.editorial.application.port.EditorialRepository.ManualPlaceCommand;
 import koready_backend.editorial.application.port.EditorialRepository.ManualPlaceRecord;
+import koready_backend.editorial.application.port.EditorialRepository.SourceReviewCommand;
+import koready_backend.editorial.application.port.EditorialRepository.SourceReviewRecord;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialJobStatus;
 import koready_backend.editorial.domain.EditorialTriggerType;
@@ -59,7 +61,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			FROM place_style_mappings s WHERE s.place_id = p.id), '')
 		""";
 	private static final String SOURCE_FACTS = """
-		COALESCE((SELECT SUBSTRING_INDEX(GROUP_CONCAT(
+		COALESCE((SELECT /*+ SET_VAR(group_concat_max_len = 16777216) */ SUBSTRING_INDEX(GROUP_CONCAT(
 			CONCAT(a.field_code, ': ', %s)
 			ORDER BY a.source_operation, a.item_sequence, a.field_code, a.id SEPARATOR '\n'), '\n', 30)
 			FROM place_detail_attributes a
@@ -84,6 +86,15 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		SOURCE_TITLE_KO, SOURCE_TITLE_EN, SOURCE_ADDRESS,
 		SOURCE_OVERVIEW_KO, SOURCE_STYLES, SOURCE_FACTS);
 
+	private static final String REVIEWED_OR_PUBLISHED_SNAPSHOT = """
+		CASE
+		  WHEN review.reviewed_at IS NOT NULL
+		   AND (baseline.generated_at IS NULL OR review.reviewed_at >= baseline.generated_at)
+		  THEN review.source_snapshot_json
+		  ELSE baseline.source_snapshot_json
+		END
+		""";
+
 	private static final String SOURCE_COMPARISON_COLUMNS = """
 		%s AS current_title_ko,
 		%s AS current_title_en,
@@ -91,15 +102,18 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		%s AS current_overview_ko,
 		%s AS current_travel_styles,
 		%s AS current_facts,
-		JSON_UNQUOTE(JSON_EXTRACT(baseline.source_snapshot_json, '$.titleKo')) AS previous_title_ko,
-		JSON_UNQUOTE(JSON_EXTRACT(baseline.source_snapshot_json, '$.titleEn')) AS previous_title_en,
-		JSON_UNQUOTE(JSON_EXTRACT(baseline.source_snapshot_json, '$.address')) AS previous_address,
-		JSON_UNQUOTE(JSON_EXTRACT(baseline.source_snapshot_json, '$.overviewKo')) AS previous_overview_ko,
-		JSON_UNQUOTE(JSON_EXTRACT(baseline.source_snapshot_json, '$.travelStyles')) AS previous_travel_styles,
-		JSON_UNQUOTE(JSON_EXTRACT(baseline.source_snapshot_json, '$.facts')) AS previous_facts
+		JSON_UNQUOTE(JSON_EXTRACT(%s, '$.titleKo')) AS previous_title_ko,
+		JSON_UNQUOTE(JSON_EXTRACT(%s, '$.titleEn')) AS previous_title_en,
+		JSON_UNQUOTE(JSON_EXTRACT(%s, '$.address')) AS previous_address,
+		JSON_UNQUOTE(JSON_EXTRACT(%s, '$.overviewKo')) AS previous_overview_ko,
+		JSON_UNQUOTE(JSON_EXTRACT(%s, '$.travelStyles')) AS previous_travel_styles,
+		JSON_UNQUOTE(JSON_EXTRACT(%s, '$.facts')) AS previous_facts
 		""".formatted(
 		SOURCE_TITLE_KO, SOURCE_TITLE_EN, SOURCE_ADDRESS,
-		SOURCE_OVERVIEW_KO, SOURCE_STYLES, SOURCE_FACTS);
+		SOURCE_OVERVIEW_KO, SOURCE_STYLES, SOURCE_FACTS,
+		REVIEWED_OR_PUBLISHED_SNAPSHOT, REVIEWED_OR_PUBLISHED_SNAPSHOT,
+		REVIEWED_OR_PUBLISHED_SNAPSHOT, REVIEWED_OR_PUBLISHED_SNAPSHOT,
+		REVIEWED_OR_PUBLISHED_SNAPSHOT, REVIEWED_OR_PUBLISHED_SNAPSHOT);
 
 	private static final String SOURCE_CHANGED_SQL = """
 		(EXISTS (
@@ -110,8 +124,12 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		    SELECT 1 FROM place_editorial_contents current_content
 		    WHERE current_content.place_id = p.id
 		      AND current_content.status = 'READY'
-		      AND current_content.source_fingerprint = %s))
-		""".formatted(SOURCE_FINGERPRINT);
+		      AND current_content.source_fingerprint = %s)
+		 AND NOT EXISTS (
+		    SELECT 1 FROM place_editorial_source_reviews current_review
+		    WHERE current_review.place_id = p.id
+		      AND current_review.source_fingerprint = %s))
+		""".formatted(SOURCE_FINGERPRINT, SOURCE_FINGERPRINT);
 
 	private static final String PUBLISHED_CONTENT_ORDER_SQL = """
 		(content.source_fingerprint = %s) DESC,
@@ -132,6 +150,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 		  SELECT c.id FROM place_editorial_contents c
 		  WHERE c.place_id = p.id AND c.status = 'READY'
 		  ORDER BY c.generated_at DESC, c.id DESC LIMIT 1)
+		LEFT JOIN place_editorial_source_reviews review ON review.place_id = p.id
 		WHERE p.active = TRUE
 		  AND EXISTS (SELECT 1 FROM place_style_mappings s WHERE s.place_id = p.id)
 		  AND (NULLIF(TRIM(p.first_image_url), '') IS NOT NULL
@@ -461,6 +480,7 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			  SELECT c.id FROM place_editorial_contents c
 			  WHERE c.place_id = p.id AND c.status = 'READY'
 			  ORDER BY c.generated_at DESC, c.id DESC LIMIT 1)
+			LEFT JOIN place_editorial_source_reviews review ON review.place_id = p.id
 			WHERE p.id = ? AND p.active = TRUE
 			  AND EXISTS (SELECT 1 FROM place_style_mappings s WHERE s.place_id = p.id)
 			  AND (NULLIF(TRIM(p.first_image_url), '') IS NOT NULL
@@ -560,6 +580,36 @@ public class JdbcEditorialRepository implements EditorialRepository {
 			""", value.placeId(), command.actorSubject(), value.visible(),
 			value.active(), value.showFlag(), Timestamp.from(command.updatedAt())));
 		return updated;
+	}
+
+	@Override
+	public Optional<SourceReviewRecord> dismissSourceChange(SourceReviewCommand command) {
+		Optional<Source> source = findSource(command.placeId());
+		if (source.isEmpty()) {
+			return Optional.empty();
+		}
+		Source current = source.get();
+		jdbcTemplate.update("""
+			INSERT INTO place_editorial_source_reviews
+			    (place_id, source_fingerprint, source_snapshot_json,
+			     reviewed_by_subject, reviewed_at)
+			VALUES (?, ?, ?, ?, ?)
+			ON DUPLICATE KEY UPDATE
+			    source_fingerprint = VALUES(source_fingerprint),
+			    source_snapshot_json = VALUES(source_snapshot_json),
+			    reviewed_by_subject = VALUES(reviewed_by_subject),
+			    reviewed_at = VALUES(reviewed_at)
+			""", command.placeId(), current.fingerprint(), current.snapshot(),
+			command.actorSubject(), Timestamp.from(command.reviewedAt()));
+		jdbcTemplate.update("""
+			INSERT INTO place_editorial_audits
+			    (place_id, job_id, actor_subject, action, details_json, created_at)
+			VALUES (?, NULL, ?, 'SOURCE_CHANGE_DISMISSED',
+			        JSON_OBJECT('sourceFingerprint', ?), ?)
+			""", command.placeId(), command.actorSubject(), current.fingerprint(),
+			Timestamp.from(command.reviewedAt()));
+		return Optional.of(new SourceReviewRecord(
+			command.placeId(), current.fingerprint(), command.reviewedAt()));
 	}
 
 	@Override

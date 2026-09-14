@@ -75,6 +75,11 @@ final class EditorialDtos {
 		return new PriorityResponse(item.placeId(), item.priority(), item.updatedAt());
 	}
 
+	static SourceChangeReviewResponse from(EditorialService.SourceChangeReviewView item) {
+		return new SourceChangeReviewResponse(
+			item.placeId(), item.sourceChanged(), item.sourceFingerprint(), item.reviewedAt());
+	}
+
 	static ImageOrderResponse from(EditorialService.PlaceImageOrderView item) {
 		return new ImageOrderResponse(
 			item.placeId(),
@@ -201,6 +206,14 @@ final class EditorialDtos {
 	}
 
 	record PriorityResponse(long placeId, int priority, Instant updatedAt) {
+	}
+
+	record SourceChangeReviewResponse(
+		long placeId,
+		boolean sourceChanged,
+		String sourceFingerprint,
+		Instant reviewedAt
+	) {
 	}
 
 	record ImageOrderRequest(

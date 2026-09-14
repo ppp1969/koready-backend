@@ -25,6 +25,7 @@ import koready_backend.editorial.application.port.EditorialRepository;
 import koready_backend.editorial.application.port.EditorialRepository.EnqueueCommand;
 import koready_backend.editorial.application.port.EditorialRepository.CandidateQuery;
 import koready_backend.editorial.application.port.EditorialRepository.ManualPlaceCommand;
+import koready_backend.editorial.application.port.EditorialRepository.SourceReviewCommand;
 import koready_backend.editorial.application.port.EditorialWorkerRepository;
 import koready_backend.editorial.application.port.EditorialWorkerRepository.ClaimCommand;
 import koready_backend.editorial.application.port.EditorialWorkerRepository.CompleteCommand;
@@ -291,6 +292,68 @@ class JdbcEditorialRepositoryIntegrationTest {
 	}
 
 	@Test
+	void comparesDetailFactsBeyondMysqlDefaultGroupConcatLimit() {
+		long placeId = place();
+		String sharedPrefix = "상세 운영 정보 ".repeat(100);
+		long snapshotId = rawSnapshot();
+		jdbcTemplate.update("""
+			INSERT INTO place_detail_attributes
+			    (place_id, source_operation, item_sequence, field_code, value_text,
+			     source_content_id, source_snapshot_id, source_hash)
+			VALUES (?, 'detailInfo2', 1, 'infotext', ?, ?, ?, ?)
+			""", placeId, sharedPrefix + "기존 끝", "content-" + placeId,
+			snapshotId, "c".repeat(64));
+
+		Instant now = Instant.parse("2026-09-14T00:00:00Z");
+		repository.enqueue(new EnqueueCommand(
+			placeId, "prompt-v1", EditorialTriggerType.PM_CURATED,
+			EditorialJobPriority.HIGH, "admin", now));
+		var claimed = workerRepository.claimNext(new ClaimCommand(
+			now, now.plusSeconds(300), "long-facts-lease", 2)).orElseThrow();
+		var generation = new EditorialGeneration(
+			new LocalizedContent("주제", "한줄", "소개", List.of("하나", "둘", "셋")),
+			new LocalizedContent("Topic", "One line", "Introduction",
+				List.of("One", "Two", "Three")),
+			"Test Place", "Seoul",
+			List.of(TourismPurposeTag.LOCAL, TourismPurposeTag.EXPERIENCE),
+			"google-genai", "test-model", 10, 20);
+		workerRepository.complete(new CompleteCommand(
+			claimed.jobId(), claimed.leaseToken(), claimed.sourceFingerprint(),
+			claimed.promptVersion(), generation, now.plusSeconds(2)));
+
+		jdbcTemplate.update("""
+			UPDATE place_detail_attributes SET value_text = ?
+			WHERE place_id = ? AND field_code = 'infotext'
+			""", sharedPrefix + "변경 끝", placeId);
+
+		var detail = repository.findCandidate(placeId).orElseThrow();
+		assertEquals(EditorialSourceChangeType.CONTENT_CHANGED, detail.sourceChangeType());
+		var factsChange = detail.sourceChanges().stream()
+			.filter(change -> change.field().equals("facts"))
+			.findFirst().orElseThrow();
+		assertTrue(factsChange.beforeValue().endsWith("기존 끝"));
+		assertTrue(factsChange.afterValue().endsWith("변경 끝"));
+		assertTrue(factsChange.beforeValue().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 1024);
+		assertTrue(factsChange.afterValue().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 1024);
+
+		repository.dismissSourceChange(new SourceReviewCommand(
+			placeId, "admin", now.plusSeconds(3))).orElseThrow();
+		assertFalse(repository.findCandidate(placeId).orElseThrow().sourceChanged());
+
+		jdbcTemplate.update("""
+			UPDATE place_detail_attributes SET value_text = ?
+			WHERE place_id = ? AND field_code = 'infotext'
+			""", sharedPrefix + "다시 변경", placeId);
+		var changedAgain = repository.findCandidate(placeId).orElseThrow();
+		assertTrue(changedAgain.sourceChanged());
+		var nextFactsChange = changedAgain.sourceChanges().stream()
+			.filter(change -> change.field().equals("facts"))
+			.findFirst().orElseThrow();
+		assertTrue(nextFactsChange.beforeValue().endsWith("변경 끝"));
+		assertTrue(nextFactsChange.afterValue().endsWith("다시 변경"));
+	}
+
+	@Test
 	void separatesVerifiedBilingualAndKoreanOnlyAiCandidateTracks() {
 		long bilingualPlaceId = place("SEOUL", "공식 한영 후보", true);
 		long koreanOnlyPlaceId = place("GANGWON", "한국어 전용 후보", false);
@@ -429,6 +492,32 @@ class JdbcEditorialRepositoryIntegrationTest {
 			VALUES (?, 'CULTURE_EXPERIENCE', 'LCLS', 1.0, 'rule-v1', TRUE)
 			""", id);
 		return id;
+	}
+
+	private long rawSnapshot() {
+		jdbcTemplate.update("""
+			INSERT INTO open_api_call_logs
+			    (provider, api_name, operation, endpoint, request_started_at,
+			     success, request_params_masked)
+			VALUES ('KTO', 'KOR', 'detailInfo2', 'https://example.invalid/detail',
+			        UTC_TIMESTAMP(6), TRUE, JSON_OBJECT())
+			""");
+		long callId = jdbcTemplate.queryForObject(
+			"SELECT MAX(id) FROM open_api_call_logs", Long.class);
+		jdbcTemplate.update("""
+			INSERT INTO open_api_raw_snapshots
+			    (call_log_id, provider, api_name, operation, storage_key,
+			     storage_format, content_type, raw_content_sha256,
+			     stored_object_sha256, byte_size, compressed_byte_size,
+			     item_count, captured_at, retention_class, immutable)
+			VALUES (?, 'KTO', 'KOR', 'detailInfo2', ?,
+			        'JSON_GZIP', 'application/json', ?, ?, 10, 10, 1,
+			        UTC_TIMESTAMP(6), 'DEBUG_TEMPORARY', TRUE)
+			""", callId, "kto/test/long-facts-" + callId,
+			"d".repeat(64), "e".repeat(64));
+		return jdbcTemplate.queryForObject(
+			"SELECT id FROM open_api_raw_snapshots WHERE call_log_id = ?",
+			Long.class, callId);
 	}
 
 	private static CandidateQuery candidateQuery(EditorialCandidateSourceTrack sourceTrack) {

@@ -20,6 +20,7 @@ import koready_backend.editorial.application.port.EditorialRepository.Visibility
 import koready_backend.editorial.application.port.EditorialRepository.PriorityCommand;
 import koready_backend.editorial.application.port.EditorialRepository.ImageOrderCommand;
 import koready_backend.editorial.application.port.EditorialRepository.ManualPlaceCommand;
+import koready_backend.editorial.application.port.EditorialRepository.SourceReviewCommand;
 import koready_backend.editorial.domain.EditorialJobPriority;
 import koready_backend.editorial.domain.EditorialCandidateStatusFilter;
 import koready_backend.editorial.domain.EditorialJobStatus;
@@ -200,6 +201,23 @@ public class EditorialService {
 			placeId, priority, required(actorSubject, "actorSubject"), clock.instant()))
 			.orElseThrow(() -> new EditorialPlaceNotFoundException(placeId));
 		return new PlacePriorityView(record.placeId(), record.priority(), record.updatedAt());
+	}
+
+	@Transactional
+	public SourceChangeReviewView dismissSourceChange(long placeId, String actorSubject) {
+		if (placeId <= 0) {
+			throw new IllegalArgumentException("placeId must be positive");
+		}
+		var candidate = repository.findCandidate(placeId)
+			.orElseThrow(() -> new EditorialPlaceNotFoundException(placeId));
+		if (!candidate.sourceChanged()) {
+			throw new IllegalArgumentException("No source change is waiting for review");
+		}
+		var record = repository.dismissSourceChange(new SourceReviewCommand(
+			placeId, required(actorSubject, "actorSubject"), clock.instant()))
+			.orElseThrow(() -> new EditorialPlaceNotFoundException(placeId));
+		return new SourceChangeReviewView(
+			record.placeId(), false, record.sourceFingerprint(), record.reviewedAt());
 	}
 
 	@Transactional
@@ -474,6 +492,14 @@ public class EditorialService {
 	}
 
 	public record PlacePriorityView(long placeId, int priority, java.time.Instant updatedAt) {
+	}
+
+	public record SourceChangeReviewView(
+		long placeId,
+		boolean sourceChanged,
+		String sourceFingerprint,
+		java.time.Instant reviewedAt
+	) {
 	}
 
 	public record PlaceImageView(

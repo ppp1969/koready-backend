@@ -81,6 +81,22 @@ public class AdminEditorialController {
 			TraceIdFilter.current(request));
 	}
 
+	@PostMapping("/places/{placeId}/source-change/dismiss")
+	@Operation(
+		summary = "KTO 원문 변경 재가공 안 함 처리",
+		description = "관리자가 현재 KTO 원문 변경을 확인했지만 AI 재가공은 하지 않기로 결정할 때 사용합니다. 기존 공개 콘텐츠는 유지되고 현재 원문 버전의 변경 알림만 닫힙니다. 이후 KTO 원문이 다시 바뀌면 새 변경으로 다시 표시됩니다.")
+	public ApiEnvelope<EditorialDtos.SourceChangeReviewResponse> dismissSourceChange(
+		@PathVariable @Positive long placeId,
+		Authentication authentication,
+		HttpServletRequest request
+	) {
+		return ApiEnvelope.success(
+			"EDITORIAL_SOURCE_CHANGE_DISMISSED",
+			EditorialDtos.from(service.dismissSourceChange(
+				placeId, authentication.getName())),
+			TraceIdFilter.current(request));
+	}
+
 	@GetMapping("/candidates/{placeId}")
 	@Operation(
 		summary = "AI 장소 가공 후보 상세 조회",

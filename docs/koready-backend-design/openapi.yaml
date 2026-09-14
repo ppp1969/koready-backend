@@ -3169,6 +3169,37 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /admin/editorial/places/{placeId}/source-change/dismiss:
+    post:
+      tags: [Admin Editorial]
+      operationId: dismissAdminEditorialSourceChange
+      summary: KTO 원문 변경 재가공 안 함 처리
+      description: |
+        관리자가 현재 KTO 원문 변경 내용을 확인했지만 AI 재가공은 하지 않기로 결정할 때 호출합니다.
+        요청 본문은 없습니다. 기존 공개 콘텐츠는 그대로 유지하고 현재 원문 버전에 대한 변경 알림만 닫습니다.
+        이후 KTO 원문이 다시 바뀌면 `sourceChanged=true`로 새 변경이 다시 표시됩니다.
+
+        이미 재가공이 성공한 것처럼 기존 가공본의 생성 근거를 바꾸지 않고, 별도의 관리자 검토 기록과
+        감사 로그를 남깁니다. 현재 검토할 변경이 없으면 `400 INVALID_REQUEST`를 반환합니다.
+      x-implementation-status: IMPLEMENTED
+      x-required-roles: [ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+      responses:
+        '200':
+          description: 현재 원문 변경 알림 닫기 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditorialSourceChangeReviewEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /admin/editorial/places/{placeId}/visibility:
     patch:
       tags: [Admin Editorial]
@@ -6992,7 +7023,7 @@ components:
           $ref: '#/components/schemas/EditorialSourceChangeType'
         sourceChanges:
           type: array
-          description: 가장 최근 공개 가공본이 사용한 값과 현재 정규화된 AI 입력값의 필드별 차이
+          description: 가장 최근 공개 가공본 또는 관리자가 재가공하지 않기로 확인한 원문과 현재 정규화된 AI 입력값의 필드별 차이
           items:
             $ref: '#/components/schemas/EditorialSourceChange'
         sourceTrack:
@@ -7026,6 +7057,33 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/EditorialQueueResponse'
+    EditorialSourceChangeReviewEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/ApiEnvelope'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/EditorialSourceChangeReviewResponse'
+    EditorialSourceChangeReviewResponse:
+      type: object
+      required: [placeId, sourceChanged, sourceFingerprint, reviewedAt]
+      properties:
+        placeId:
+          type: integer
+          format: int64
+          minimum: 1
+        sourceChanged:
+          type: boolean
+          enum: [false]
+          description: 현재 원문 버전의 변경 알림이 닫혔으므로 항상 false
+        sourceFingerprint:
+          type: string
+          minLength: 64
+          maxLength: 64
+          description: 관리자가 확인한 현재 원문 버전 식별값
+        reviewedAt:
+          type: string
+          format: date-time
     EditorialManualPlaceRequest:
       type: object
       required: [titleKo, overviewKo, addressKo, serviceRegionCode, imageUrls]

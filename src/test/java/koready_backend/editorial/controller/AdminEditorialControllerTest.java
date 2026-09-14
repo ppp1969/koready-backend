@@ -72,6 +72,22 @@ class AdminEditorialControllerTest {
 	}
 
 	@Test
+	@WithMockUser(username = "admin-subject", roles = "ADMIN")
+	void dismissesReviewedSourceChangeWithoutReprocessing() throws Exception {
+		Instant reviewedAt = Instant.parse("2026-09-14T01:00:00Z");
+		when(service.dismissSourceChange(10L, "admin-subject")).thenReturn(
+			new EditorialService.SourceChangeReviewView(
+				10L, false, "f".repeat(64), reviewedAt));
+
+		mockMvc.perform(post("/api/v1/admin/editorial/places/10/source-change/dismiss"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.code").value("EDITORIAL_SOURCE_CHANGE_DISMISSED"))
+			.andExpect(jsonPath("$.data.placeId").value(10))
+			.andExpect(jsonPath("$.data.sourceChanged").value(false))
+			.andExpect(jsonPath("$.data.sourceFingerprint").value("f".repeat(64)));
+	}
+
+	@Test
 	@WithMockUser(roles = "ADMIN")
 	void listsCandidatePlaces() throws Exception {
 		when(service.candidates(any(), any(), any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))

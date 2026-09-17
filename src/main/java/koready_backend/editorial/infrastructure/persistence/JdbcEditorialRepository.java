@@ -452,6 +452,25 @@ public class JdbcEditorialRepository implements EditorialRepository {
 				+ " WHERE filtered_style.place_id = p.id AND filtered_style.travel_style = :travelStyle)");
 			params.addValue("travelStyle", query.travelStyle().name());
 		}
+		if (query.eventMonth() != null) {
+			sql.append("""
+				 AND EXISTS (
+				   SELECT 1 FROM place_event_occurrences filtered_event
+				   WHERE filtered_event.place_id = p.id
+				     AND filtered_event.date_validation_status = 'VALID'
+				     AND (
+				       (YEAR(filtered_event.start_date) = YEAR(filtered_event.end_date)
+				        AND :eventMonth BETWEEN MONTH(filtered_event.start_date) AND MONTH(filtered_event.end_date))
+				       OR
+				       (YEAR(filtered_event.end_date) > YEAR(filtered_event.start_date)
+				        AND (YEAR(filtered_event.end_date) - YEAR(filtered_event.start_date) > 1
+				             OR :eventMonth >= MONTH(filtered_event.start_date)
+				             OR :eventMonth <= MONTH(filtered_event.end_date)))
+				     )
+				 )
+				""");
+			params.addValue("eventMonth", query.eventMonth());
+		}
 	}
 
 	@Override

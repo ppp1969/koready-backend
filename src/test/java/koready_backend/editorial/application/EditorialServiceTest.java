@@ -79,7 +79,7 @@ class EditorialServiceTest {
 			" 4 ", EditorialCandidateStatusFilter.IN_PROGRESS,
 			EditorialCandidateRegionFilter.SEOUL, true, false,
 			true, EditorialCandidateSourceTrack.KOREAN_ONLY_AI,
-			EditorialCandidateTravelStyle.DRAMA_LOCATION, 10L, 20);
+			EditorialCandidateTravelStyle.DRAMA_LOCATION, 9, 10L, 20);
 
 		assertEquals(42L, result.totalCount());
 		verify(repository).findCandidates(Mockito.argThat(query ->
@@ -91,6 +91,7 @@ class EditorialServiceTest {
 				&& Boolean.TRUE.equals(query.sourceChanged())
 				&& query.sourceTrack() == EditorialCandidateSourceTrack.KOREAN_ONLY_AI
 				&& query.travelStyle() == EditorialCandidateTravelStyle.DRAMA_LOCATION
+				&& query.eventMonth() == 9
 				&& query.startAfterPlaceId() == 10L
 				&& query.limit() == 21));
 		verify(repository).countCandidates(Mockito.argThat(query ->

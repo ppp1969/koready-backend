@@ -90,7 +90,7 @@ class AdminEditorialControllerTest {
 	@Test
 	@WithMockUser(roles = "ADMIN")
 	void listsCandidatePlaces() throws Exception {
-		when(service.candidates(any(), any(), any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
+		when(service.candidates(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
 			.thenReturn(new EditorialService.CandidatePage(List.of(), null, false, 0));
 
 		mockMvc.perform(get("/api/v1/admin/editorial/candidates"))
@@ -100,13 +100,13 @@ class AdminEditorialControllerTest {
 		verify(service).candidates(any(), any(), any(), any(), any(), any(),
 			org.mockito.ArgumentMatchers.eq(EditorialCandidateSourceTrack.KTO_BILINGUAL),
 			org.mockito.ArgumentMatchers.isNull(),
-			any(Long.class), any(Integer.class));
+			org.mockito.ArgumentMatchers.isNull(), any(Long.class), any(Integer.class));
 	}
 
 	@Test
 	@WithMockUser(roles = "ADMIN")
 	void acceptsSelectionFiltersAndReturnsTotalCount() throws Exception {
-		when(service.candidates(any(), any(), any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
+		when(service.candidates(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(Long.class), any(Integer.class)))
 			.thenReturn(new EditorialService.CandidatePage(List.of(), null, false, 0));
 
 		mockMvc.perform(get("/api/v1/admin/editorial/candidates")
@@ -117,14 +117,24 @@ class AdminEditorialControllerTest {
 				.param("queueEligible", "false")
 				.param("sourceChanged", "true")
 				.param("sourceTrack", "KOREAN_ONLY_AI")
-				.param("travelStyle", "DRAMA_LOCATION"))
+				.param("travelStyle", "DRAMA_LOCATION")
+				.param("eventMonth", "9"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.totalCount").value(0));
 		verify(service).candidates(any(), any(), any(), any(), any(),
 			org.mockito.ArgumentMatchers.eq(true),
 			org.mockito.ArgumentMatchers.eq(EditorialCandidateSourceTrack.KOREAN_ONLY_AI),
 			org.mockito.ArgumentMatchers.eq(EditorialCandidateTravelStyle.DRAMA_LOCATION),
+			org.mockito.ArgumentMatchers.eq(9),
 			any(Long.class), any(Integer.class));
+	}
+
+	@Test
+	@WithMockUser(roles = "ADMIN")
+	void rejectsInvalidEventMonth() throws Exception {
+		mockMvc.perform(get("/api/v1/admin/editorial/candidates")
+				.param("eventMonth", "13"))
+			.andExpect(status().isBadRequest());
 	}
 
 	@Test

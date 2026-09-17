@@ -3004,6 +3004,8 @@ paths:
         한국어 전용 후보 조회는 AI를 호출하지 않으며, 관리자가 큐 등록 API를 호출할 때만 비용이 발생합니다.
         기존 AI 가공 후 장소명·주소·설명·AI 입력 상세정보·여행 유형이 실질적으로 바뀐 장소만 `sourceChanged=true`입니다.
         KTO 수정 시각, 응답 메타데이터, HTML·공백 표현, 사진 변경과 PM 우선순위는 원문 변경으로 계산하지 않습니다.
+        `eventMonth`를 생략하면 날짜 필터를 적용하지 않습니다. 1~12를 보내면 유효한 행사 기간이 선택 월과
+        겹치는 후보만 반환하며, 날짜가 없는 장소는 제외됩니다. 여러 달에 걸친 행사는 각 해당 월에서 조회됩니다.
       x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN]
       parameters:
@@ -3050,6 +3052,13 @@ paths:
           description: 선택한 KoReady 여행 유형이 연결된 후보만 조회
           schema:
             $ref: '#/components/schemas/TravelStyle'
+        - name: eventMonth
+          in: query
+          description: 행사 개최 월. 생략하면 날짜 필터를 적용하지 않고, 선택 월과 행사 기간이 겹치는 후보만 조회
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
         - name: cursor
           in: query
           description: 이전 응답의 nextCursor. 첫 요청에서는 생략

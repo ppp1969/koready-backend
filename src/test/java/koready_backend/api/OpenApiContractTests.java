@@ -262,6 +262,25 @@ class OpenApiContractTests {
 	}
 
 	@Test
+	void editorialCandidatesDocumentOptionalEventMonthFilter() throws IOException {
+		Map<String, Object> paths = asMap(loadContract().get("paths"), "paths");
+		Map<String, Object> operation = asMap(
+			asMap(paths.get("/admin/editorial/candidates"), "candidates path").get("get"),
+			"GET candidates");
+		Map<String, Object> eventMonth = asList(
+			operation.get("parameters"), "candidate parameters").stream()
+			.map(parameter -> asMap(parameter, "candidate parameter"))
+			.filter(parameter -> "eventMonth".equals(parameter.get("name")))
+			.findFirst()
+			.orElseThrow();
+		Map<String, Object> schema = asMap(eventMonth.get("schema"), "eventMonth schema");
+
+		assertEquals("query", eventMonth.get("in"));
+		assertEquals(1, schema.get("minimum"));
+		assertEquals(12, schema.get("maximum"));
+	}
+
+	@Test
 	void bearerSecurityDocumentsTheLocalOnlyDevelopmentHarness() throws IOException {
 		Map<String, Object> contract = loadContract();
 		Map<String, Object> components = asMap(contract.get("components"), "components");

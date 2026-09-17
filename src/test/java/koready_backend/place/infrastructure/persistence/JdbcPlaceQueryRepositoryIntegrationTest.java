@@ -192,6 +192,27 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 	}
 
 	@Test
+	void searchesBothLanguagesWhileKeepingTheRequestedResponseLanguage() {
+		long place = insertPlace("cross-language", "JEJU", true, true, "90.00");
+		insertLocalization(place, "KO", "송악산", "서귀포시 대정읍", "화산 지형");
+		insertLocalization(place, "EN", "Songaksan Mountain", "Daejeong-eup, Seogwipo", "Volcanic landscape");
+		insertStyle(place, "NATURE", "1.0000");
+		for (String query : List.of("송악산", "대정읍", "Songaksan", "Seogwipo")) {
+			for (PlaceLanguage language : PlaceLanguage.values()) {
+				List<PlaceRow> rows = repository.search(new PlaceSearchCriteria(
+					query, null, 10, language, TODAY));
+				assertEquals(List.of(place), rows.stream().map(PlaceRow::placeId).toList(),
+					query + " / " + language);
+				assertEquals(language == PlaceLanguage.KO ? "송악산" : "Songaksan Mountain",
+					rows.getFirst().title());
+			}
+		}
+		jdbcTemplate.update("UPDATE places SET show_flag = FALSE WHERE id = ?", place);
+		assertTrue(repository.search(new PlaceSearchCriteria(
+			"송악산", null, 10, PlaceLanguage.EN, TODAY)).isEmpty());
+	}
+
+	@Test
 	void escapesSqlWildcardsInSearch() {
 		long literal = placeWithKorean("literal-percent", "70.00", "100% 로컬시장");
 		placeWithKorean("ordinary", "99.00", "평범한 장소");

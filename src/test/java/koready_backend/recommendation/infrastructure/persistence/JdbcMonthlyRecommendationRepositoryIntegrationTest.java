@@ -60,6 +60,64 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 	}
 
 	@Test
+	void groupsFestivalsBeforeEvergreenThenOrdersByPriorityAndActiveHearts() {
+		long festivalLow = festivalPlace("sort-f-low", "SEOUL", "99", true, true);
+		long festivalHigh = festivalPlace("sort-f-high", "SEOUL", "20", true, true);
+		long festivalPopular = festivalPlace("sort-f-popular", "SEOUL", "10", true, true);
+		for (long id : List.of(festivalLow, festivalHigh, festivalPopular)) {
+			occurrence(id, "sort-" + id, 2026, TODAY.minusDays(2), TODAY, TODAY.minusMonths(6));
+		}
+		long evergreenLow = evergreenPlace("sort-e-low", "SEOUL", "99");
+		long evergreenHigh = evergreenPlace("sort-e-high", "SEOUL", "20");
+		long evergreenPopular = evergreenPlace("sort-e-popular", "SEOUL", "10");
+		for (long id : List.of(festivalHigh, festivalPopular, evergreenHigh, evergreenPopular)) {
+			jdbcTemplate.update("UPDATE places SET curation_priority = 100 WHERE id = ?", id);
+		}
+		long user = user("usr_sort");
+		for (long id : List.of(festivalLow, festivalPopular, evergreenLow, evergreenPopular)) {
+			save(user, id, false);
+		}
+		save(user, festivalHigh, true);
+		save(user, evergreenHigh, true);
+		var filter = filter(TODAY.withDayOfMonth(1), TODAY.withDayOfMonth(31),
+			ServiceRegionCode.SEOUL, List.of(), RecommendationSort.RECOMMENDED, PlaceLanguage.KO);
+		assertOrderAcrossPages(filter, List.of(festivalPopular, festivalHigh, festivalLow,
+			evergreenPopular, evergreenHigh, evergreenLow));
+	}
+
+	@Test
+	void deadlineUsesAbsoluteDistanceAndPagesAcrossNullDates() {
+		long farPast = festivalPlace("distance-past-far", "SEOUL", "100", true, true);
+		long future = festivalPlace("distance-future", "SEOUL", "90", true, true);
+		long nearPast = festivalPlace("distance-past-near", "SEOUL", "80", true, true);
+		long today = festivalPlace("distance-today", "SEOUL", "70", true, true);
+		occurrence(farPast, "distance-past-far", 2026, TODAY.minusDays(8), TODAY.minusDays(7), TODAY.minusMonths(6));
+		occurrence(future, "distance-future", 2026, TODAY, TODAY.plusDays(2), TODAY.minusMonths(6));
+		occurrence(nearPast, "distance-past-near", 2026, TODAY.minusDays(3), TODAY.minusDays(2), TODAY.minusMonths(6));
+		occurrence(today, "distance-today", 2026, TODAY.minusDays(1), TODAY, TODAY.minusMonths(6));
+		long evergreen1 = evergreenPlace("distance-evergreen-1", "SEOUL", "100");
+		long evergreen2 = evergreenPlace("distance-evergreen-2", "SEOUL", "100");
+		var filter = new MonthlyRecommendationFilter(TODAY.withDayOfMonth(1), TODAY.withDayOfMonth(31),
+			TODAY, ServiceRegionCode.SEOUL, List.of(), PlaceLanguage.KO, RecommendationSort.DEADLINE, true);
+		assertOrderAcrossPages(filter, List.of(today, nearPast, future, farPast, evergreen1, evergreen2));
+	}
+
+	private void assertOrderAcrossPages(MonthlyRecommendationFilter filter, List<Long> expected) {
+		assertEquals(expected, repository.findPage(new MonthlyRecommendationPageQuery(filter, null, 100))
+			.stream().map(MonthlyRecommendationRow::placeId).toList());
+		assertEquals(expected.size(), repository.count(filter));
+		MonthlyRecommendationCursor cursor = null;
+		for (long placeId : expected) {
+			var page = repository.findPage(new MonthlyRecommendationPageQuery(filter, cursor, 1));
+			assertEquals(List.of(placeId), page.stream().map(MonthlyRecommendationRow::placeId).toList());
+			var last = page.getFirst();
+			cursor = new MonthlyRecommendationCursor(last.statusRank(), last.curationPriority(), last.heartCount(),
+				last.qualityScore(), last.endDate(), last.occurrenceId());
+		}
+		assertTrue(repository.findPage(new MonthlyRecommendationPageQuery(filter, cursor, 1)).isEmpty());
+	}
+
+	@Test
 	void includesEvergreenPlacesAndOrdersByActiveHeartsBeforeQuality() {
 		long popular = evergreenPlace("popular-nature", "SEOUL", "40.00");
 		long highQuality = evergreenPlace("high-quality-nature", "SEOUL", "99.00");
@@ -148,6 +206,7 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 
 		MonthlyRecommendationCursor cursor = new MonthlyRecommendationCursor(
 			first.getFirst().statusRank(),
+			first.getFirst().curationPriority(),
 			first.getFirst().heartCount(),
 			first.getFirst().qualityScore(),
 			first.getFirst().endDate(),
@@ -178,7 +237,7 @@ class JdbcMonthlyRecommendationRepositoryIntegrationTest {
 
 		MonthlyRecommendationRow last = first.getFirst();
 		MonthlyRecommendationCursor cursor = new MonthlyRecommendationCursor(
-			last.statusRank(), last.heartCount(), last.qualityScore(),
+			last.statusRank(), last.curationPriority(), last.heartCount(), last.qualityScore(),
 			last.endDate(), last.occurrenceId());
 		List<MonthlyRecommendationRow> rest = repository.findPage(
 			new MonthlyRecommendationPageQuery(filter, cursor, 10));

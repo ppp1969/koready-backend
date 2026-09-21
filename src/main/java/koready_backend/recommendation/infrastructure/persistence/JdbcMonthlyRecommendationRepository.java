@@ -18,9 +18,8 @@ import koready_backend.recommendation.domain.RecommendationSort;
 @Repository
 public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendationRepository {
 
-	// Monthly queries always carry an explicit year/month window. Within that
-	// window, the requested sort must win even when an occurrence has ended.
-	private static final String STATUS_RANK = "0";
+	// Group festivals before evergreen places, regardless of occurrence status.
+	private static final String STATUS_RANK = "CASE WHEN event.id IS NULL THEN 1 ELSE 0 END";
 
 	private static final String PRIMARY_STYLE = """
 		(SELECT style.travel_style
@@ -74,6 +73,8 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 		    requested.overview AS overview,
 		    COALESCE(hearts.heart_count, 0) AS heart_count,
 		    p.data_quality_score,
+		    p.curation_priority,
+		    COALESCE(ABS(DATEDIFF(event.end_date, :today)), 0) AS deadline_distance,
 		    %s AS recommendation_status_rank
 		""".formatted(PRIMARY_STYLE, STATUS_RANK);
 
@@ -174,6 +175,7 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 			if (query.filter().sort() == RecommendationSort.RECOMMENDED) {
 				parameters
 					.addValue("cursorStatusRank", query.cursor().statusRank())
+					.addValue("cursorPriority", query.cursor().curationPriority())
 					.addValue("cursorHeartCount", query.cursor().heartCount())
 					.addValue("cursorScore", query.cursor().qualityScore());
 				sql.append("""
@@ -181,16 +183,23 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 					    candidate.recommendation_status_rank > :cursorStatusRank
 					    OR (
 					        candidate.recommendation_status_rank = :cursorStatusRank
+					        AND candidate.curation_priority < :cursorPriority
+					    )
+					    OR (
+					        candidate.recommendation_status_rank = :cursorStatusRank
+					        AND candidate.curation_priority = :cursorPriority
 					        AND candidate.heart_count < :cursorHeartCount
 					    )
 					    OR (
 					        candidate.recommendation_status_rank = :cursorStatusRank
 					        AND candidate.heart_count = :cursorHeartCount
+					        AND candidate.curation_priority = :cursorPriority
 					        AND candidate.data_quality_score < :cursorScore
 					    )
 					    OR (
 					        candidate.recommendation_status_rank = :cursorStatusRank
 					        AND candidate.heart_count = :cursorHeartCount
+					        AND candidate.curation_priority = :cursorPriority
 					        AND candidate.data_quality_score = :cursorScore
 					        AND candidate.occurrence_id < :cursorOccurrenceId
 					    )
@@ -199,18 +208,19 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 			} else {
 				parameters
 					.addValue("cursorStatusRank", query.cursor().statusRank())
-					.addValue("cursorEndDate", query.cursor().endDate());
+					.addValue("cursorDistance", query.cursor().endDate() == null ? 0L
+						: Math.abs(java.time.temporal.ChronoUnit.DAYS.between(
+							query.filter().today(), query.cursor().endDate())));
 				sql.append("""
 					AND (
 					    candidate.recommendation_status_rank > :cursorStatusRank
 					    OR (
 					        candidate.recommendation_status_rank = :cursorStatusRank
-					        AND candidate.end_date > :cursorEndDate
+					        AND candidate.deadline_distance > :cursorDistance
 					    )
 					    OR (
 					        candidate.recommendation_status_rank = :cursorStatusRank
-					        AND
-					        candidate.end_date = :cursorEndDate
+					        AND candidate.deadline_distance = :cursorDistance
 					        AND candidate.occurrence_id < :cursorOccurrenceId
 					    )
 					)
@@ -222,6 +232,7 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 			sql.append("""
 				ORDER BY
 				    candidate.recommendation_status_rank ASC,
+				    candidate.curation_priority DESC,
 				    candidate.heart_count DESC,
 				    candidate.data_quality_score DESC,
 				    candidate.occurrence_id DESC
@@ -229,7 +240,7 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 		} else {
 			sql.append("""
 				ORDER BY candidate.recommendation_status_rank ASC,
-				         candidate.end_date ASC,
+				         candidate.deadline_distance ASC,
 				         candidate.occurrence_id DESC
 				""");
 		}
@@ -317,6 +328,7 @@ public class JdbcMonthlyRecommendationRepository implements MonthlyRecommendatio
 			resultSet.getString("overview"),
 			resultSet.getLong("heart_count"),
 			resultSet.getBigDecimal("data_quality_score"),
-			resultSet.getInt("recommendation_status_rank"));
+			resultSet.getInt("recommendation_status_rank"),
+			resultSet.getInt("curation_priority"));
 	}
 }

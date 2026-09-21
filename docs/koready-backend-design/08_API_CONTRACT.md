@@ -629,7 +629,7 @@ size=1..50
 
 `dateFilterType` 범위는 선택 연월과 교집합만 반환한다. 교집합이 없으면 오류가 아니라 `items=[]`, `totalCount=0`인 성공 응답이다. `CUSTOM`은 두 날짜가 모두 필요하고 시작일이 종료일보다 늦으면 `400 INVALID_DATE_RANGE`다. 다른 필터에서는 custom 날짜를 보내지 않는다.
 
-`sort=RECOMMENDED`는 `ONGOING`, `UPCOMING`, `ENDED` 순의 상태를 품질 점수보다 먼저 적용한다. `sort=DEADLINE`은 종료일 오름차순이다. `totalCount`는 페이지 크기와 cursor에 관계없는 전체 필터 결과 수다. cursor는 필터·언어·정렬을 묶은 값이므로 조건을 바꾼 뒤 재사용하면 `400 INVALID_CURSOR`다.
+두 정렬 모두 축제 다음에 비축제를 배치한다. `sort=RECOMMENDED`는 각 그룹에서 관리자 노출 우선순위 내림차순 → 하트 개수 내림차순 → 품질점수 내림차순 → 내부 회차 ID 내림차순이다. `sort=DEADLINE`은 과거·미래 구분 없이 서울 기준 오늘과 종료일의 절대 일수 차이 오름차순이며, 동률은 내부 회차 ID 내림차순이다. 종료일이 없는 비축제는 마지막에 장소 ID 오름차순으로 배치한다. 비축제는 두 정렬 모두 `dateFilterType=ALL`에서만 포함한다. `totalCount`는 페이지 크기와 cursor에 관계없는 전체 필터 결과 수다. cursor는 필터·언어·정렬·서울 기준 조회일을 묶은 값이므로 구버전 cursor 또는 조건을 바꾼 뒤 재사용하면 `400 INVALID_CURSOR`다.
 
 ---
 

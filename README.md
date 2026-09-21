@@ -46,6 +46,14 @@ KoReady는 2026 관광공모전 참가를 위해 개발하는 외국인 유학�
 
 프로필 이미지 버킷은 KTO 원본 스냅샷 버킷과 분리하며 외부 공개를 차단합니다. 브라우저는 백엔드에서 발급한 제한 시간 PUT 주소로 S3에 직접 업로드하므로 애플리케이션 서버 메모리에 이미지 전체를 적재하지 않습니다.
 
+## 가입 순서
+
+신규 `POST /api/v1/auth/google` 응답은 `nextStep=LANGUAGE`입니다.
+`PATCH /api/v1/users/me/language`로 `KO` 또는 `EN`을 선택하면 `TERMS`를 반환하며,
+약관 조회는 저장한 언어를 사용합니다. 필수 약관 동의 후 `ONBOARDING`으로 주소 설정을 진행합니다.
+기본 언어 `KO`도 명시적으로 선택해야 합니다. V61 migration은 기존 활성 `NEED_TERMS` 계정을
+언어 선택 단계로 보정하며 언어값, 약관 동의 이력, 온보딩 진행·완료 계정은 보존합니다.
+
 ## Local Development
 
 Java 21과 Docker가 필요합니다. 빠른 개발 피드백은 로컬 Docker MySQL과 로컬 Spring 서버를 기준으로 합니다.

@@ -82,7 +82,7 @@ class TermsControllerTest {
 	void acceptsAnEmptyAgreementArrayWhenNoTermsArePublished() throws Exception {
 		when(service.updateAgreements("usr_terms", List.of()))
 			.thenReturn(new AgreementResult(
-				List.of(), true, NextStep.LANGUAGE));
+				List.of(), true, NextStep.ONBOARDING));
 
 		mockMvc.perform(put("/api/v1/users/me/term-agreements")
 				.with(user("usr_terms").roles("USER"))
@@ -91,7 +91,7 @@ class TermsControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.code").value("TERM_AGREEMENTS_UPDATED"))
 			.andExpect(jsonPath("$.data.agreements").isEmpty())
-			.andExpect(jsonPath("$.data.nextStep").value("LANGUAGE"));
+			.andExpect(jsonPath("$.data.nextStep").value("ONBOARDING"));
 	}
 
 	@Test

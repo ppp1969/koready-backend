@@ -47,19 +47,19 @@ class UserLanguageServiceTest {
 	}
 
 	@Test
-	void advancesFromLanguageSelectionToOnboarding() {
+	void advancesFromLanguageSelectionToTermsEvenWhenSelectingDefaultKorean() {
 		UserLanguageState initial = state(PlaceLanguage.KO, SignupStatus.NEED_LANGUAGE, BEFORE);
 		UserLanguageState updated = state(
-			PlaceLanguage.KO, SignupStatus.NEED_ONBOARDING, NOW);
+			PlaceLanguage.KO, SignupStatus.NEED_TERMS, NOW);
 		when(repository.findByPublicIdForUpdate("usr_language"))
 			.thenReturn(Optional.of(initial));
-		when(repository.update(7L, PlaceLanguage.KO, SignupStatus.NEED_ONBOARDING, NOW))
+		when(repository.update(7L, PlaceLanguage.KO, SignupStatus.NEED_TERMS, NOW))
 			.thenReturn(updated);
 
 		UserLanguageService.LanguageResult result =
 			service.update("usr_language", PlaceLanguage.KO);
 
-		assertEquals(NextStep.ONBOARDING, result.nextStep());
+		assertEquals(NextStep.TERMS, result.nextStep());
 		assertEquals(NOW, result.updatedAt());
 	}
 

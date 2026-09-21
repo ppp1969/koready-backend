@@ -51,6 +51,7 @@ class JdbcAuthRepositoryIntegrationTest {
 			new GoogleIdentity("google-subject-1", "shared@example.com"),
 			"usr_google_1",
 			NOW);
+		assertEquals(koready_backend.user.domain.NextStep.LANGUAGE, first.signupStatus().nextStep());
 		var second = repository.createGoogleUser(
 			new GoogleIdentity("google-subject-2", "shared@example.com"),
 			"usr_google_2",

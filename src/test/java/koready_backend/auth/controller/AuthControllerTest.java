@@ -58,7 +58,7 @@ class AuthControllerTest {
 			.andExpect(jsonPath("$.data.refreshToken").value("refresh-token"))
 			.andExpect(jsonPath("$.data.user.userId").value(41))
 			.andExpect(jsonPath("$.data.user.publicId").value("usr_a1"))
-			.andExpect(jsonPath("$.data.nextStep").value("TERMS"));
+			.andExpect(jsonPath("$.data.nextStep").value("LANGUAGE"));
 	}
 
 	@Test
@@ -172,6 +172,6 @@ class AuthControllerTest {
 				"verified@example.com",
 				null,
 				PlaceLanguage.KO),
-			NextStep.TERMS);
+			NextStep.LANGUAGE);
 	}
 }

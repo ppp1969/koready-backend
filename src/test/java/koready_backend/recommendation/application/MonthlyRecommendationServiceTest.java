@@ -50,13 +50,60 @@ class MonthlyRecommendationServiceTest {
 		new MonthlyRecommendationService(repository, savedPlaceStatusPort, CLOCK);
 
 	@Test
+	void deadlineIncludesEvergreenAndContinuesAfterNullEndDate() {
+		MonthlyRecommendationRow evergreen = new MonthlyRecommendationRow(
+			-101L, 101L, 0, null, null, "Nature place",
+			ServiceRegionCode.SEOUL, "Seoul", "Seoul", null, "Always open",
+			TravelStyle.NATURE, "Overview", 3L, new BigDecimal("85"), 1, 100);
+		when(repository.findPage(any())).thenReturn(List.of(evergreen, evergreen), List.of());
+		var first = service.getMonthlyRecommendations(
+			2026, 7, null, DateFilterType.ALL, null, null, List.of(),
+			RecommendationSort.DEADLINE, null, 1, PlaceLanguage.KO);
+		service.getMonthlyRecommendations(
+			2026, 7, null, DateFilterType.ALL, null, null, List.of(),
+			RecommendationSort.DEADLINE, first.nextCursor(), 1, PlaceLanguage.KO);
+		var captor = ArgumentCaptor.forClass(MonthlyRecommendationPageQuery.class);
+		verify(repository, org.mockito.Mockito.times(2)).findPage(captor.capture());
+		assertTrue(captor.getAllValues().getFirst().filter().includeEvergreen());
+		assertNull(captor.getValue().cursor().endDate());
+		assertEquals(-101L, captor.getValue().cursor().occurrenceId());
+	}
+
+	@Test
+	void rejectsOldOrMalformedDeadlineCursorAndCursorFromPreviousDay() {
+		when(repository.findPage(any())).thenReturn(List.of(
+			row(51, TODAY.minusDays(3), TODAY.minusDays(2), 0, "90"),
+			row(52, TODAY, TODAY.plusDays(2), 0, "80")));
+		var first = service.getMonthlyRecommendations(
+			2026, 7, null, DateFilterType.ALL, null, null, List.of(),
+			RecommendationSort.DEADLINE, null, 1, PlaceLanguage.KO);
+		var nextDayService = new MonthlyRecommendationService(repository,
+			Clock.offset(CLOCK, java.time.Duration.ofDays(1)));
+		assertThrows(InvalidRecommendationCursorException.class, () -> nextDayService.getMonthlyRecommendations(
+			2026, 7, null, DateFilterType.ALL, null, null, List.of(),
+			RecommendationSort.DEADLINE, first.nextCursor(), 1, PlaceLanguage.KO));
+		String payload = new String(java.util.Base64.getUrlDecoder().decode(first.nextCursor()),
+			java.nio.charset.StandardCharsets.UTF_8);
+		for (String[] mutation : List.of(new String[]{"0", "2"}, new String[]{"6", ""},
+			new String[]{"8", "-1"}, new String[]{"8", "1001"}, new String[]{"3", "1"})) {
+			String[] parts = payload.split("\t", -1);
+			parts[Integer.parseInt(mutation[0])] = mutation[1];
+			String token = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+				String.join("\t", parts).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+			assertThrows(InvalidRecommendationCursorException.class, () -> service.getMonthlyRecommendations(
+				2026, 7, null, DateFilterType.ALL, null, null, List.of(),
+				RecommendationSort.DEADLINE, token, 1, PlaceLanguage.KO));
+		}
+	}
+
+	@Test
 	void returnsEvergreenCardWithoutFestivalOccurrence() {
 		MonthlyRecommendationRow evergreen = new MonthlyRecommendationRow(
 			-101L, 101L, 0, null, null, "Nature place",
 			ServiceRegionCode.SEOUL, "Seoul", "Jongno-gu, Seoul", null,
 			"Always open",
 			TravelStyle.NATURE, "Nature overview", 3L,
-			new BigDecimal("85.00"), 0);
+			new BigDecimal("85.00"), 1, 0);
 		when(repository.findPage(any())).thenReturn(List.of(evergreen));
 		when(repository.count(any())).thenReturn(1L);
 
@@ -184,6 +231,7 @@ class MonthlyRecommendationServiceTest {
 		MonthlyRecommendationPageQuery second = captor.getAllValues().get(1);
 		assertEquals(1, second.cursor().statusRank());
 		assertEquals(0L, second.cursor().heartCount());
+		assertEquals(100, second.cursor().curationPriority());
 		assertEquals(new BigDecimal("80"), second.cursor().qualityScore());
 		assertEquals(42L, second.cursor().occurrenceId());
 		assertEquals(List.of(TravelStyle.NATURE), second.filter().travelStyles());
@@ -218,6 +266,6 @@ class MonthlyRecommendationServiceTest {
 			"Festival overview",
 			0L,
 			new BigDecimal(score),
-			statusRank);
+			statusRank, 100);
 	}
 }

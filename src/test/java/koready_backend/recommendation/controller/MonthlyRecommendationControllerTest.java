@@ -74,7 +74,7 @@ class MonthlyRecommendationControllerTest {
 			"A local festival.",
 			0L,
 			new BigDecimal("90.00"),
-			1)));
+			0, 0)));
 	}
 
 	@Test

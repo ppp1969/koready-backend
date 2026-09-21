@@ -163,8 +163,8 @@ flowchart TD
     C -->|LANGUAGE| E[언어]
     C -->|ONBOARDING| F[온보딩 상태]
     C -->|COMPLETED| K[홈]
-    D --> E
-    E --> F
+    E --> D
+    D --> F
     F --> H[위치 검색 및 저장]
     H --> I[여행 스타일]
     I --> J[관리자 큐레이션 10개 중 1~3개 선택]
@@ -222,7 +222,7 @@ TMAP처럼 `PLANNED`인 API는 Swagger 예제로만 화면을 만들고 테스�
     "profileImageUrl": null,
     "preferredLanguage": "KO"
   },
-  "nextStep": "TERMS"
+  "nextStep": "LANGUAGE"
 }
 ```
 
@@ -262,7 +262,7 @@ PUT /users/me/term-agreements
 
 약관 저장 요청은 `agreements[{termVersionId, agreed}]`다. 화면에 보이는 약관 순번이 아니라 API가 준 `termVersionId`를 그대로 보낸다.
 조회 API가 빈 목록을 반환하는 것은 아직 게시된 약관이 없다는 정상 상태다. 프론트는
-임시 약관 문구를 자체 생성하지 않고 빈 배열을 저장한 뒤 응답의 `nextStep=LANGUAGE`로
+임시 약관 문구를 자체 생성하지 않고 빈 배열을 저장한 뒤 응답의 `nextStep=ONBOARDING`으로
 이동한다.
 
 ## 5. 언어·온보딩 흐름
@@ -274,14 +274,14 @@ PUT /users/me/term-agreements
 ```json
 {
   "language": "EN",
-  "nextStep": "ONBOARDING",
+  "nextStep": "TERMS",
   "updatedAt": "2026-07-19T12:00:00+09:00"
 }
 ```
 
 응답의 `nextStep`으로 이동한다. 서버는 `NEED_TERMS` 사용자가 이 API를 먼저 호출해도
 `TERMS`를 반환해 필수 약관을 건너뛰지 못하게 한다. `NEED_LANGUAGE`에서 성공하면
-`ONBOARDING`, 온보딩 중이면 계속 `ONBOARDING`, 가입 완료 사용자는 `COMPLETED`다.
+`TERMS`로 이동해 저장한 언어의 약관을 조회한다. 약관 동의 후 `ONBOARDING`이며, 온보딩 중이면 계속 `ONBOARDING`, 가입 완료 사용자는 `COMPLETED`다.
 프론트는 저장 전 화면이나 로컬 값으로 다음 단계를 다시 계산하지 않는다.
 
 이 API는 구현 완료이며 Google 로그인 또는 token 재발급으로 받은 access token을
@@ -720,7 +720,7 @@ snapshot 다운로드 흐름:
 
 ## 13. Figma 대조 체크리스트
 
-- 로그인 뒤 약관, 언어, 온보딩 이동 순서가 `nextStep`과 일치하는가?
+- 로그인 뒤 언어, 약관, 온보딩 이동 순서가 `nextStep`과 일치하는가?
 - 방문 목적 화면과 요청 필드가 삭제됐는가?
 - 온보딩 단계가 위치, 여행 스타일, 선호 여행지 순서인가?
 - 선호 여행지 화면은 정확히 10개를 보여주며 1~3개 선택인가?

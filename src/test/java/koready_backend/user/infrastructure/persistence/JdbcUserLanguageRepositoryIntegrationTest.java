@@ -53,13 +53,13 @@ class JdbcUserLanguageRepositoryIntegrationTest {
 		UserLanguageState after = repository.update(
 			userId,
 			PlaceLanguage.EN,
-			SignupStatus.NEED_ONBOARDING,
+			SignupStatus.NEED_TERMS,
 			UPDATED_AT);
 
 		assertEquals(PlaceLanguage.KO, before.language());
 		assertEquals(SignupStatus.NEED_LANGUAGE, before.signupStatus());
 		assertEquals(PlaceLanguage.EN, after.language());
-		assertEquals(SignupStatus.NEED_ONBOARDING, after.signupStatus());
+		assertEquals(SignupStatus.NEED_TERMS, after.signupStatus());
 		assertEquals(UPDATED_AT, after.updatedAt());
 		assertEquals(
 			PlaceLanguage.EN,

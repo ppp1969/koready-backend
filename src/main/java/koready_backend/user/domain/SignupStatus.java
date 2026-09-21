@@ -7,11 +7,11 @@ public enum SignupStatus {
 	COMPLETED;
 
 	public SignupStatus afterTermsAgreement() {
-		return this == NEED_TERMS ? NEED_LANGUAGE : this;
+		return this == NEED_TERMS ? NEED_ONBOARDING : this;
 	}
 
 	public SignupStatus afterLanguageSelection() {
-		return this == NEED_LANGUAGE ? NEED_ONBOARDING : this;
+		return this == NEED_LANGUAGE ? NEED_TERMS : this;
 	}
 
 	public NextStep nextStep() {

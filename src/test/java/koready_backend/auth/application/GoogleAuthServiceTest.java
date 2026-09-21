@@ -81,7 +81,7 @@ class GoogleAuthServiceTest {
 
 		assertEquals("access-1", result.accessToken());
 		assertEquals("refresh-1", result.refreshToken());
-		assertEquals(NextStep.TERMS, result.nextStep());
+		assertEquals(NextStep.LANGUAGE, result.nextStep());
 		assertEquals("usr_a1", result.user().publicId());
 		verify(repository).revokeActiveRefreshSessions(
 			41L, "device-hash-a", NOW);
@@ -215,7 +215,7 @@ class GoogleAuthServiceTest {
 			email,
 			role,
 			PlaceLanguage.KO,
-			SignupStatus.NEED_TERMS,
+			SignupStatus.NEED_LANGUAGE,
 			null);
 	}
 }

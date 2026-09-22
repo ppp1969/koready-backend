@@ -111,7 +111,6 @@ koready:
   kto:
     quota:
       default-limit: ${KTO_DAILY_REQUEST_LIMIT:1000}
-      limits: {}
     api:
       base-url: ${KTO_API_BASE_URL:https://apis.data.go.kr/B551011/KorService2}
       service-key: ${KTO_SERVICE_KEY:}

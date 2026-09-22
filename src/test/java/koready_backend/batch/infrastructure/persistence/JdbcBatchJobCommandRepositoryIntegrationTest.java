@@ -1,6 +1,7 @@
 package koready_backend.batch.infrastructure.persistence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.Instant;
@@ -117,6 +118,24 @@ class JdbcBatchJobCommandRepositoryIntegrationTest {
 		assertEquals(
 			"51:51830",
 			latest.parameters().get("startAfterRegionKey"));
+	}
+
+	@Test
+	void findsTheLastDailyContinuationWithoutResumingAnUnrelatedManualImport() {
+		Instant now = Instant.parse("2026-09-22T00:00:00Z");
+		long root = repository.enqueue(new EnqueueCommand(BatchJobType.KTO_EN_SYNC,
+			BatchTriggerSource.SCHEDULED, null, Map.of("startPage", 1, "maxPages", 20),
+			"KTO_DAILY_SOURCE:2026-09-22:KTO_EN_SYNC", now));
+		jdbcTemplate.update("UPDATE batch_jobs SET status='COMPLETED', active_execution_slot=NULL WHERE id=?", root);
+		long child = repository.enqueue(new EnqueueCommand(BatchJobType.KTO_EN_SYNC,
+			BatchTriggerSource.SCHEDULED, root, Map.of("startPage", 21, "maxPages", 20), now));
+		jdbcTemplate.update("UPDATE batch_jobs SET status='FAILED', active_execution_slot=NULL WHERE id=?", child);
+		repository.enqueue(command(BatchJobType.KTO_EN_SYNC));
+		var latest = repository.findLatestDailySyncSource(BatchJobType.KTO_EN_SYNC).orElseThrow();
+		assertEquals(child, latest.id());
+		assertEquals(21, ((Number) latest.parameters().get("startPage")).intValue());
+		assertEquals(BatchJobStatus.FAILED, latest.status());
+		assertTrue(repository.findLatestDailySyncSource(BatchJobType.KTO_PHOTO_GALLERY_SYNC).isEmpty());
 	}
 
 	private static EnqueueCommand command(BatchJobType type) {

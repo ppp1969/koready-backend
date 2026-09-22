@@ -20,6 +20,8 @@ public interface BatchJobCommandRepository {
 
 	MaintenanceStageState findMaintenanceStageState(String scheduleKey);
 
+	Optional<RetrySource> findLatestDailySyncSource(BatchJobType jobType);
+
 	enum MaintenanceStageState {
 		NOT_STARTED,
 		IN_PROGRESS,

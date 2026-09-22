@@ -147,6 +147,13 @@ public class KtoPageJdbcStore implements KtoPageStore {
 			.toList();
 		upsertPlaces(places);
 		Map<String, Long> placeIds = loadPlaceIds(places);
+		jdbcTemplate.batchUpdate("""
+			UPDATE kto_place_detail_sync_status
+			SET next_refresh_at = LEAST(next_refresh_at,
+			    GREATEST(CURRENT_TIMESTAMP(6), DATE_ADD(completed_at, INTERVAL 1 MICROSECOND)))
+			WHERE place_id = ?
+			""", changedPlaces, batchProperties.flushSize(),
+			(statement, place) -> statement.setLong(1, placeIds.get(place.contentId())));
 		upsertLocalizations(changedPlaces, placeIds);
 		insertSourceRecords(command, snapshotId, changedPlaces);
 		Map<String, Long> sourceRecordIds = loadSourceRecordIds(snapshotId);

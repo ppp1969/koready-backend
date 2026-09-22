@@ -73,6 +73,27 @@ class KtoPageJdbcStoreIntegrationTest {
 	}
 
 	@Test
+	void catalogChangesMakeOnlyChangedDetailsDueForRefresh() {
+		var stable = item("daily-stable", "Stable", "1", "1", "c", "126", "37");
+		var initial = pageStore.store(command(page(1, "a", stable,
+			item("daily-changed", "Before", "1", "1", "d", "126", "37")), "daily-first", "b"));
+		jdbcTemplate.update("""
+			INSERT INTO kto_place_detail_sync_status
+			(place_id, common_snapshot_id, intro_snapshot_id, info_snapshot_id, image_snapshot_id,
+			 image_count, completed_at, next_refresh_at)
+			SELECT id, ?, ?, ?, ?, 0, DATE_SUB(CURRENT_TIMESTAMP(6), INTERVAL 1 DAY),
+			 DATE_ADD(CURRENT_TIMESTAMP(6), INTERVAL 29 DAY) FROM places
+			""", initial.snapshotId(), initial.snapshotId(), initial.snapshotId(), initial.snapshotId());
+		pageStore.store(command(page(1, "f", stable,
+			item("daily-changed", "After", "1", "1", "e", "126", "37")), "daily-second", "9"));
+		assertEquals(List.of("daily-changed"), jdbcTemplate.queryForList("""
+			SELECT place.kto_content_id FROM places place
+			JOIN kto_place_detail_sync_status detail ON detail.place_id = place.id
+			WHERE detail.next_refresh_at <= CURRENT_TIMESTAMP(6)
+			""", String.class));
+	}
+
+	@Test
 	void storesCallSnapshotPlacesLineageAndCursorInOnePage() {
 		KtoSyncPage page = page(
 			3,

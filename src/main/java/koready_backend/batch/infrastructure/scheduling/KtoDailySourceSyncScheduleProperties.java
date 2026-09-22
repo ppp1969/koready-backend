@@ -5,14 +5,10 @@ import java.time.ZoneId;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "koready.kto.continuous-sync.schedule")
-public record KtoWeeklySyncScheduleProperties(
-	int requestBudget,
+public record KtoDailySourceSyncScheduleProperties(
 	String zone
 ) {
-	public KtoWeeklySyncScheduleProperties {
-		if (requestBudget < 1 || requestBudget > 100_000) {
-			throw new IllegalArgumentException("KTO weekly request budget must be between 1 and 100000");
-		}
+	public KtoDailySourceSyncScheduleProperties {
 		ZoneId.of(zone);
 	}
 

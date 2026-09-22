@@ -183,6 +183,57 @@ public class BatchJobCommandService {
 		return festival == null ? new DailyScheduleResult(false, null) : festival;
 	}
 
+	@Transactional
+	public DailyScheduleResult scheduleDailyKtoSync(LocalDate date) {
+		if (date == null) { throw new IllegalArgumentException("KTO synchronization date is required"); }
+		for (BatchJobType type : java.util.List.of(
+			BatchJobType.KTO_FULL_CATALOG_SYNC, BatchJobType.KTO_EN_SYNC,
+			BatchJobType.KTO_FESTIVAL_SYNC, BatchJobType.KTO_PHOTO_AWARD_SYNC,
+			BatchJobType.KTO_PHOTO_GALLERY_SYNC, BatchJobType.KTO_RELATED_TOUR_SYNC,
+			BatchJobType.KTO_DETAIL_ENRICHMENT)) {
+			String key = "KTO_DAILY_SOURCE:" + date + ":" + type;
+			MaintenanceStageState state = repository.findMaintenanceStageState(key);
+			if (state == MaintenanceStageState.IN_PROGRESS) { return new DailyScheduleResult(false, null); }
+			if (state == MaintenanceStageState.COMPLETED || state == MaintenanceStageState.FAILED) { continue; }
+			Map<String, Object> parameters = dailyParameters(type, date);
+			RetrySource previous = repository.findLatestDailySyncSource(type).orElse(null);
+			if (previous != null && type != BatchJobType.KTO_DETAIL_ENRICHMENT
+				&& (previous.status() == BatchJobStatus.FAILED || previous.status() == BatchJobStatus.PARTIAL_FAILED)) {
+				parameters = previous.parameters();
+			}
+			try {
+				Instant now = Instant.now(clock);
+				long id = repository.enqueue(new EnqueueCommand(type, BatchTriggerSource.SCHEDULED,
+					null, parameters, key, now));
+				repository.recordAudit(new BatchAuditRecord("SYSTEM:KTO_DAILY_SOURCE", "BATCH_JOB_SCHEDULED",
+					id, "Synchronize a daily source stage within per-operation request quotas.", parameters, now));
+				return new DailyScheduleResult(true, id);
+			} catch (DuplicateKeyException busy) { return new DailyScheduleResult(false, null); }
+		}
+		return new DailyScheduleResult(false, null);
+	}
+
+	private Map<String, Object> dailyParameters(BatchJobType type, LocalDate date) {
+		if (type == BatchJobType.KTO_DETAIL_ENRICHMENT) {
+			return Map.of("startAfterPlaceId", 0L, "maxPlaces", 50, "autoContinue", true);
+		}
+		if (type == BatchJobType.KTO_RELATED_TOUR_SYNC) {
+			return Map.of("baseYearMonth", YearMonth.from(date).minusMonths(1).format(YEAR_MONTH_FORMAT),
+				"startAfterRegionKey", "", "maxRegions", 2, "maxPagesPerRegion", 50, "autoContinue", true);
+		}
+		var values = new LinkedHashMap<String, Object>();
+		values.put("startPage", 1);
+		values.put("maxPages", MAX_PAGES);
+		if (type == BatchJobType.KTO_FULL_CATALOG_SYNC) {
+			values.put("catalogRunStartedAt", Instant.now(clock).toString());
+		}
+		if (type == BatchJobType.KTO_FESTIVAL_SYNC) {
+			values.put("eventStartDate", date.minusMonths(6).toString());
+			values.put("autoContinue", true);
+		}
+		return Map.copyOf(values);
+	}
+
 	private DailyScheduleResult scheduleMaintenanceStage(
 		BatchJobType jobType,
 		String scheduleKey,

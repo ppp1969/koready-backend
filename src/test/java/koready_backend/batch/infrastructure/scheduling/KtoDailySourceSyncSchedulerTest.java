@@ -18,10 +18,19 @@ import org.springframework.core.env.MapPropertySource;
 import koready_backend.batch.application.BatchJobCommandService;
 
 @ExtendWith(MockitoExtension.class)
-class KtoWeeklySyncSchedulerTest {
+class KtoDailySourceSyncSchedulerTest {
 
 	@Mock
 	BatchJobCommandService commandService;
+
+	@Test
+	void doesNotStartBeforeTheProviderDailyUpdateHasFinished() {
+		var scheduler = new KtoDailySourceSyncScheduler(
+			commandService, new KtoDailySourceSyncScheduleProperties("Asia/Seoul"),
+			Clock.fixed(Instant.parse("2026-09-21T22:59:00Z"), ZoneOffset.UTC));
+		org.junit.jupiter.api.Assertions.assertDoesNotThrow(scheduler::schedule);
+		org.mockito.Mockito.verifyNoInteractions(commandService);
+	}
 
 	@Test
 	void springSelectsTheRuntimeConstructorWhenTheSchedulerIsEnabled() {
@@ -31,28 +40,28 @@ class KtoWeeklySyncSchedulerTest {
 					"koready.kto.continuous-sync.schedule.enabled", "true")));
 			context.registerBean(BatchJobCommandService.class, () -> commandService);
 			context.registerBean(
-				KtoWeeklySyncScheduleProperties.class,
-				() -> new KtoWeeklySyncScheduleProperties(800, "Asia/Seoul"));
-			context.register(KtoWeeklySyncScheduler.class);
+				KtoDailySourceSyncScheduleProperties.class,
+				() -> new KtoDailySourceSyncScheduleProperties("Asia/Seoul"));
+			context.register(KtoDailySourceSyncScheduler.class);
 
 			context.refresh();
 
-			context.getBean(KtoWeeklySyncScheduler.class);
+			context.getBean(KtoDailySourceSyncScheduler.class);
 		}
 	}
 
 	@Test
-	void schedulesTheWeeklyPipelineWithTheConfiguredBudget() {
+	void schedulesTheDailyPipelineAfterEightKst() {
 		LocalDate date = LocalDate.parse("2026-09-13");
-		when(commandService.scheduleWeeklyKtoSync(date, 800))
+		when(commandService.scheduleDailyKtoSync(date))
 			.thenReturn(new BatchJobCommandService.DailyScheduleResult(true, 1L));
-		var scheduler = new KtoWeeklySyncScheduler(
+		var scheduler = new KtoDailySourceSyncScheduler(
 			commandService,
-			new KtoWeeklySyncScheduleProperties(800, "Asia/Seoul"),
-			Clock.fixed(Instant.parse("2026-09-12T18:05:00Z"), ZoneOffset.UTC));
+			new KtoDailySourceSyncScheduleProperties("Asia/Seoul"),
+			Clock.fixed(Instant.parse("2026-09-13T00:05:00Z"), ZoneOffset.UTC));
 
 		scheduler.schedule();
 
-		verify(commandService).scheduleWeeklyKtoSync(date, 800);
+		verify(commandService).scheduleDailyKtoSync(date);
 	}
 }

@@ -177,19 +177,15 @@ class KtoTourApiClientTest {
 	}
 
 	@Test
-	void retriesTheKtoRequestLimitCodeBeforeReturningThePage() throws IOException {
-		byte[] payload = fixture("/fixtures/kto/area-based-sync-page.json");
+	void stopsImmediatelyWhenTheProviderDailyQuotaIsExhausted() throws IOException {
 		RestClient.Builder builder = RestClient.builder();
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		KtoTourApiClient client = client(builder.build(), properties(TEST_KEY, 4 * 1024 * 1024));
 		server.expect(request -> { }).andRespond(withSuccess(
 			"{\"response\":{\"header\":{\"resultCode\":\"22\",\"resultMsg\":\"limited\"}}}",
 			MediaType.APPLICATION_JSON));
-		server.expect(request -> { }).andRespond(withSuccess(payload, MediaType.APPLICATION_JSON));
 
-		KtoSyncPage page = client.fetchPage(3);
-
-		assertEquals(3, page.pageNumber());
+		assertEquals("22", assertThrows(KtoProviderException.class, () -> client.fetchPage(3)).providerCode());
 		server.verify();
 	}
 

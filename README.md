@@ -14,6 +14,8 @@ KoReady는 2026 관광공모전 참가를 위해 개발하는 외국인 유학�
 
 ## Tech Stack
 
+KTO 일일 원본 동기화와 상세기능별 요청 예산은 [운영 안내](docs/KTO_DAILY_SYNC.md)를 따릅니다. 기본 한도는 상세기능별 일 1,000회이며 운영계 승인 한도는 공통 기본값과 JSON 예외 목록으로 설정합니다.
+
 - Java 21
 - Spring Boot 4.1, Spring Framework 7
 - Spring Web MVC, Validation, Security, Google ID Token 검증, KoReady JWT

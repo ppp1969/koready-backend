@@ -26,6 +26,9 @@ public class KtoDetailDailyScheduler {
 	private final KtoDetailDailyScheduleProperties properties;
 	private final Clock clock;
 
+	@org.springframework.beans.factory.annotation.Value("${koready.kto.continuous-sync.schedule.enabled:false}")
+	private boolean dailySourceSyncEnabled;
+
 	@Autowired
 	public KtoDetailDailyScheduler(
 		BatchJobCommandService commandService,
@@ -51,6 +54,7 @@ public class KtoDetailDailyScheduler {
 		cron = "${koready.kto.detail-enrichment.schedule.cron:0 */30 * * * *}",
 		zone = "${koready.kto.detail-enrichment.schedule.zone:Asia/Seoul}")
 	public void schedule() {
+		if (dailySourceSyncEnabled) { return; }
 		LocalDate scheduleDate = LocalDate.now(
 			clock.withZone(properties.zoneId()));
 		var result = commandService.scheduleDailyDetail(

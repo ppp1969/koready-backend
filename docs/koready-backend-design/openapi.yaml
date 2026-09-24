@@ -79,7 +79,9 @@ paths:
         Google Access Token, authorization code, Client Secret은 보내지 않습니다.
         서버는 Google 공개키 서명, issuer, Web Client ID audience, 만료, `sub`, `email_verified`를 검증합니다.
         계정은 이메일이 아니라 변경되지 않는 Google `sub`로 식별하므로 같은 이메일만으로 기존 계정을 연결하지 않습니다.
-        **성공 후:** KoReady access/refresh token을 OS 보안 저장소에 저장하고 `nextStep` 값으로 약관, 언어, 온보딩, 홈 중 다음 화면을 선택합니다.
+        **성공 후:** KoReady access/refresh token을 OS 보안 저장소에 저장하고 `nextStep` 값으로 언어, 약관, 온보딩, 홈 중 다음 화면을 선택합니다.
+        신규 계정은 `nextStep=LANGUAGE`입니다. KO/EN 언어 선택 후 TERMS, 필수 약관 동의 후 ONBOARDING으로 진행합니다.
+        기본 preferredLanguage=KO는 언어 선택 완료를 의미하지 않습니다.
         신규 가입 여부나 다음 화면을 프론트가 직접 계산하지 않습니다.
         access token은 보호 API의 `Authorization: Bearer {accessToken}`에 사용합니다.
       x-implementation-status: IMPLEMENTED
@@ -157,7 +159,7 @@ paths:
       operationId: getRequiredTerms
       summary: 현재 적용 약관 조회
       description: |
-        **호출 시점:** 로그인 응답의 `nextStep=TERMS`이거나 약관 화면에 다시 진입할 때 호출합니다.
+        **호출 시점:** 언어 저장 응답의 `nextStep=TERMS`이거나 약관 화면에 다시 진입할 때 호출합니다.
         응답의 termVersionId, required, agreed를 기준으로 체크박스를 구성합니다. 화면 순번을 ID로 사용하지 않습니다.
         현재 게시된 약관이 아직 없으면 `terms=[]`, `allRequiredAgreed=true`를 반환합니다.
         약관 종류별로 현재 시점에 게시·시행된 최신 버전만 반환하며, 새 버전 동의는 이전 버전 동의와 별도로 계산합니다.
@@ -176,7 +178,8 @@ paths:
         **호출 시점:** 약관 화면에서 다음 버튼을 누를 때 호출합니다.
         **성공 후:** 언어 선택 화면으로 이동합니다.
         필수 약관이 거부되면 422 `REQUIRED_TERMS_NOT_AGREED`를 반환하므로 해당 체크박스로 안내합니다.
-        현재 게시된 약관이 0개이면 `agreements=[]`로 제출하고 언어 선택 단계로 진행합니다.
+        언어 선택을 마친 사용자는 필수 약관 동의 후 `nextStep=ONBOARDING`으로 주소 설정을 진행합니다.
+        현재 게시된 약관이 0개이면 `agreements=[]`로 제출하고 온보딩 단계로 진행합니다.
         조회 API가 반환하지 않은 과거·미게시 버전 ID나 중복 ID는 400 `INVALID_TERM_AGREEMENT`입니다.
       x-implementation-status: IMPLEMENTED
       requestBody:
@@ -352,9 +355,10 @@ paths:
         성공 후 앱 i18n 상태와 이후 요청의 Accept-Language를 같은 언어로 갱신합니다.
         서버는 현재 가입 상태를 기준으로 다음 화면을 계산하며 프론트가 단계를 추측하지 않습니다.
         - `NEED_TERMS`: 언어는 저장하지만 약관을 건너뛰지 않고 `nextStep=TERMS`
-        - `NEED_LANGUAGE`: 최초 언어 선택을 마치고 `NEED_ONBOARDING`, `nextStep=ONBOARDING`
+        - `NEED_LANGUAGE`: 최초 KO/EN 언어 선택을 마치고 `NEED_TERMS`, `nextStep=TERMS`
         - `NEED_ONBOARDING`: 언어만 변경하고 `nextStep=ONBOARDING` 유지
         - `COMPLETED`: 언어만 변경하고 `nextStep=COMPLETED` 유지
+        약관 조회는 저장한 preferredLanguage를 사용합니다. 기본값과 같은 KO를 선택해도 최초 선택은 TERMS로 진행합니다.
         같은 언어와 같은 상태를 다시 보내면 기존 updatedAt을 유지합니다.
       x-implementation-status: IMPLEMENTED
       requestBody:
@@ -641,10 +645,15 @@ paths:
         customStartDate와 customEndDate가 모두 필요하고 시작일은 종료일보다 늦을 수 없습니다.
         모든 날짜 필터는 선택한 year/month와 교집합으로 적용하며 교집합이 없으면 200과 빈 items를 반환합니다.
 
-        **정렬과 다음 페이지:** RECOMMENDED는 ONGOING, UPCOMING, ENDED 순서를 품질 점수보다 먼저 적용하고,
-        DEADLINE은 행사 종료일이 빠른 순서입니다. totalCount는 현재 필터의 전체 회차 수입니다.
+        **정렬과 다음 페이지:** 두 정렬 모두 축제 다음에 비축제를 배치합니다.
+        RECOMMENDED는 각 그룹에서 관리자 노출 우선순위 내림차순, 하트 개수 내림차순이며,
+        동률이면 품질점수 내림차순, 내부 회차 ID 내림차순입니다.
+        DEADLINE은 과거·미래 구분 없이 서울 기준 오늘과 종료일의 절대 일수 차이가 작은 축제부터 배치하며,
+        동률은 내부 회차 ID 내림차순입니다. 종료일이 없는 비축제는 마지막에 장소 ID 오름차순으로 배치합니다.
+        ALL에서는 두 정렬 모두 비축제를 포함하고, 그 외 날짜 필터에서는 축제만 조회합니다.
+        totalCount는 현재 필터의 전체 항목 수입니다.
         필터가 바뀌면 기존 items와 cursor를 폐기하고 첫 페이지부터 다시 조회합니다.
-        cursor를 다른 필터, 언어, 정렬에 재사용하면 400 INVALID_CURSOR입니다.
+        cursor를 다른 필터, 언어, 정렬, 서울 기준 조회일에 재사용하거나 구버전 cursor를 사용하면 400 INVALID_CURSOR입니다.
       security: []
       x-implementation-status: IMPLEMENTED
       parameters:
@@ -3007,6 +3016,8 @@ paths:
         한국어 전용 후보 조회는 AI를 호출하지 않으며, 관리자가 큐 등록 API를 호출할 때만 비용이 발생합니다.
         기존 AI 가공 후 장소명·주소·설명·AI 입력 상세정보·여행 유형이 실질적으로 바뀐 장소만 `sourceChanged=true`입니다.
         KTO 수정 시각, 응답 메타데이터, HTML·공백 표현, 사진 변경과 PM 우선순위는 원문 변경으로 계산하지 않습니다.
+        `eventMonth`를 생략하면 날짜 필터를 적용하지 않습니다. 1~12를 보내면 유효한 행사 기간이 선택 월과
+        겹치는 후보만 반환하며, 날짜가 없는 장소는 제외됩니다. 여러 달에 걸친 행사는 각 해당 월에서 조회됩니다.
       x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN]
       parameters:
@@ -3053,6 +3064,13 @@ paths:
           description: 선택한 KoReady 여행 유형이 연결된 후보만 조회
           schema:
             $ref: '#/components/schemas/TravelStyle'
+        - name: eventMonth
+          in: query
+          description: 행사 개최 월. 생략하면 날짜 필터를 적용하지 않고, 선택 월과 행사 기간이 겹치는 후보만 조회
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
         - name: cursor
           in: query
           description: 이전 응답의 nextCursor. 첫 요청에서는 생략
@@ -3259,8 +3277,10 @@ paths:
         후속 정렬 규칙을 따릅니다. 값 사이에 새 장소를 끼워 넣을 수 있도록 보통 `100`, `200`, `300`처럼
         간격을 두고 입력하는 것을 권장합니다.
 
-        **적용 범위:** 관리자 선별 후보 목록, `GET /places?sort=RECOMMENDED`, 여행지 추천 덱 후보 선정에
-        적용됩니다. 이미 생성되어 저장된 추천 덱의 카드 순서를 소급해서 바꾸지는 않으며 새 덱부터 반영됩니다.
+        **적용 범위:** 관리자 선별 후보 목록, `GET /places?sort=RECOMMENDED`,
+        `GET /monthly-recommendations?sort=RECOMMENDED`와 홈 월별 추천 미리보기, 여행지 추천 덱 후보 선정에
+        적용됩니다. 월별 추천은 축제·비축제 각 그룹 내에서 우선순위를 적용합니다.
+        이미 생성되어 저장된 추천 덱의 카드 순서를 소급해서 바꾸지는 않으며 새 덱부터 반영됩니다.
       x-implementation-status: IMPLEMENTED
       x-required-roles: [ADMIN]
       parameters:

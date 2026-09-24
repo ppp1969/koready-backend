@@ -97,16 +97,17 @@ public class EditorialService {
 		Boolean sourceChanged,
 		EditorialCandidateSourceTrack sourceTrack,
 		EditorialCandidateTravelStyle travelStyle,
+		Integer eventMonth,
 		long startAfterPlaceId,
 		int size
 	) {
 		validatePage(startAfterPlaceId, size);
 		List<EditorialRepository.CandidateRecord> records = repository.findCandidates(
 			new CandidateQuery(
-				optional(query), status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack, travelStyle,
+				optional(query), status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack, travelStyle, eventMonth,
 				startAfterPlaceId, size + 1));
 		long totalCount = repository.countCandidates(new CandidateQuery(
-			optional(query), status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack, travelStyle, 0L, 1));
+			optional(query), status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack, travelStyle, eventMonth, 0L, 1));
 		boolean hasMore = records.size() > size;
 		List<CandidateView> items = records.subList(0, Math.min(size, records.size()))
 			.stream().map(CandidateView::from).toList();

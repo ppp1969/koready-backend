@@ -69,7 +69,7 @@ public class JdbcAuthRepository implements AuthRepository {
 				INSERT INTO users
 				    (public_id, preferred_language, signup_status,
 				     created_at, updated_at)
-				VALUES (?, 'KO', 'NEED_TERMS', ?, ?)
+				VALUES (?, 'KO', 'NEED_LANGUAGE', ?, ?)
 				""",
 				Statement.RETURN_GENERATED_KEYS);
 			statement.setString(1, userPublicId);

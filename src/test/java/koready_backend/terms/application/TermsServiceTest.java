@@ -69,9 +69,9 @@ class TermsServiceTest {
 
 		assertEquals(List.of(), result.agreements());
 		assertEquals(true, result.allRequiredAgreed());
-		assertEquals(NextStep.LANGUAGE, result.nextStep());
+		assertEquals(NextStep.ONBOARDING, result.nextStep());
 		verify(repository).updateSignupStatus(
-			7L, SignupStatus.NEED_LANGUAGE, NOW);
+			7L, SignupStatus.NEED_ONBOARDING, NOW);
 	}
 
 	@Test
@@ -113,7 +113,7 @@ class TermsServiceTest {
 	}
 
 	@Test
-	void persistsCurrentVersionsAndAdvancesToLanguageSelection() {
+	void persistsCurrentVersionsAndAdvancesToOnboarding() {
 		CurrentTerm required = term(10L, true, false, null);
 		CurrentTerm optional = new CurrentTerm(
 			2L,
@@ -150,8 +150,8 @@ class TermsServiceTest {
 				new AgreementChange(20L, false)),
 			NOW);
 		verify(repository).updateSignupStatus(
-			7L, SignupStatus.NEED_LANGUAGE, NOW);
-		assertEquals(NextStep.LANGUAGE, result.nextStep());
+			7L, SignupStatus.NEED_ONBOARDING, NOW);
+		assertEquals(NextStep.ONBOARDING, result.nextStep());
 		assertEquals(true, result.agreements().getFirst().agreed());
 		assertEquals(NOW, result.agreements().getFirst().agreedAt());
 	}

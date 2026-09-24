@@ -170,7 +170,7 @@ BuddyStyle =
     "profileImageUrl": null,
     "preferredLanguage": "KO"
   },
-  "nextStep": "TERMS"
+  "nextStep": "LANGUAGE"
 }
 ```
 
@@ -179,7 +179,7 @@ BuddyStyle =
 같다는 이유로 기존 사용자를 자동 연결하지 않는다.
 
 ```text
-nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
+nextStep = LANGUAGE | TERMS | ONBOARDING | COMPLETED
 ```
 
 ## 2.2 토큰
@@ -233,8 +233,8 @@ nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
 
 필수 약관 미동의 시 `422 REQUIRED_TERMS_NOT_AGREED`를 반환한다.
 현재 게시된 약관이 아직 없으면 조회 응답은 빈 배열이며, 저장 요청도
-`{"agreements":[]}`로 보낸다. 이 경우 필수 약관이 없는 것으로 판단해 신규 사용자는
-`NEED_LANGUAGE`로 진행한다.
+`{"agreements":[]}`로 보낸다. 이 경우 필수 약관이 없는 것으로 판단해
+언어 선택을 마친 사용자는 `NEED_ONBOARDING`으로 진행한다.
 
 서버는 현재 시점에 게시·시행된 약관 종류별 최신 버전만 허용한다. 조회 응답에 없는
 과거 버전, 미게시 버전 또는 중복 `termVersionId`를 제출하면
@@ -264,7 +264,7 @@ nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
 ```json
 {
   "language": "KO",
-  "nextStep": "ONBOARDING",
+  "nextStep": "TERMS",
   "updatedAt": "2026-07-19T12:00:00+09:00"
 }
 ```
@@ -272,12 +272,14 @@ nextStep = TERMS | LANGUAGE | ONBOARDING | COMPLETED
 | 현재 DB 상태 | 저장 뒤 DB 상태 | `nextStep` | 의미 |
 |---|---|---|---|
 | `NEED_TERMS` | `NEED_TERMS` | `TERMS` | 언어를 저장해도 필수 약관을 건너뛰지 않음 |
-| `NEED_LANGUAGE` | `NEED_ONBOARDING` | `ONBOARDING` | 최초 언어 선택 완료 |
+| `NEED_LANGUAGE` | `NEED_TERMS` | `TERMS` | 최초 언어 선택 완료, 선택한 언어로 약관 조회 |
 | `NEED_ONBOARDING` | `NEED_ONBOARDING` | `ONBOARDING` | 온보딩 중 언어만 변경 |
 | `COMPLETED` | `COMPLETED` | `COMPLETED` | 홈 설정에서 언어만 변경 |
 
 프론트는 현재 가입 상태를 직접 조합하지 않고 항상 응답의 `nextStep`을 사용한다. 같은 언어와
 같은 상태를 다시 보내면 성공하되 `updatedAt`은 바뀌지 않는다.
+
+신규 가입 순서는 `LANGUAGE → TERMS → ONBOARDING → COMPLETED`다. 지원 언어는 KO/EN이며 기본값 KO도 명시적으로 선택해야 한다. 약관 조회는 저장된 선호 언어를 사용한다. V61은 기존 활성 `NEED_TERMS` 계정을 `NEED_LANGUAGE`로 보정하고 언어값·동의 이력·온보딩 진행 및 완료 상태를 보존한다.
 
 ## 3.2 온보딩 상태
 
@@ -629,7 +631,7 @@ size=1..50
 
 `dateFilterType` 범위는 선택 연월과 교집합만 반환한다. 교집합이 없으면 오류가 아니라 `items=[]`, `totalCount=0`인 성공 응답이다. `CUSTOM`은 두 날짜가 모두 필요하고 시작일이 종료일보다 늦으면 `400 INVALID_DATE_RANGE`다. 다른 필터에서는 custom 날짜를 보내지 않는다.
 
-`sort=RECOMMENDED`는 `ONGOING`, `UPCOMING`, `ENDED` 순의 상태를 품질 점수보다 먼저 적용한다. `sort=DEADLINE`은 종료일 오름차순이다. `totalCount`는 페이지 크기와 cursor에 관계없는 전체 필터 결과 수다. cursor는 필터·언어·정렬을 묶은 값이므로 조건을 바꾼 뒤 재사용하면 `400 INVALID_CURSOR`다.
+두 정렬 모두 축제 다음에 비축제를 배치한다. `sort=RECOMMENDED`는 각 그룹에서 관리자 노출 우선순위 내림차순 → 하트 개수 내림차순 → 품질점수 내림차순 → 내부 회차 ID 내림차순이다. `sort=DEADLINE`은 과거·미래 구분 없이 서울 기준 오늘과 종료일의 절대 일수 차이 오름차순이며, 동률은 내부 회차 ID 내림차순이다. 종료일이 없는 비축제는 마지막에 장소 ID 오름차순으로 배치한다. 비축제는 두 정렬 모두 `dateFilterType=ALL`에서만 포함한다. `totalCount`는 페이지 크기와 cursor에 관계없는 전체 필터 결과 수다. cursor는 필터·언어·정렬·서울 기준 조회일을 묶은 값이므로 구버전 cursor 또는 조건을 바꾼 뒤 재사용하면 `400 INVALID_CURSOR`다.
 
 ---
 

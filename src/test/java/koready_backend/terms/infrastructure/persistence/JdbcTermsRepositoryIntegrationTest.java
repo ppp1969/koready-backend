@@ -44,6 +44,41 @@ class JdbcTermsRepositoryIntegrationTest {
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
+	@Autowired
+	private koready_backend.auth.application.port.AuthRepository authRepository;
+
+	@Autowired
+	private koready_backend.user.application.UserLanguageService languageService;
+
+	@Test
+	void newGoogleUsersSelectKoreanOrEnglishBeforeReadingAndAcceptingTerms() {
+		long termId = term("LANGUAGE_FLOW_TERMS", 1);
+		Instant now = Instant.now();
+		long versionId = version(termId, "1.0", true, now.minusSeconds(60), now.minusSeconds(60));
+		for (var language : koready_backend.place.domain.PlaceLanguage.values()) {
+			String content = language.name().equals("KO") ? "한국어 약관" : "English terms";
+			jdbcTemplate.update("""
+				INSERT INTO term_version_localizations
+				    (term_version_id, language, title, content_body, content_format, created_at, updated_at)
+				VALUES (?, ?, ?, ?, 'PLAIN_TEXT', NOW(6), NOW(6))
+				""", versionId, language.name(), content, content);
+			String publicId = "usr_language_flow_" + language;
+			var user = authRepository.createGoogleUser(
+				new koready_backend.auth.domain.GoogleIdentity("language-flow-" + language, "flow@example.com"),
+				publicId, now);
+			assertEquals("LANGUAGE", user.signupStatus().nextStep().name());
+			assertEquals("TERMS", languageService.update(publicId, language).nextStep().name());
+			assertEquals(content, service.getRequiredTerms(publicId).terms().getFirst().content());
+			assertThrows(RequiredTermsNotAgreedException.class,
+				() -> service.updateAgreements(publicId, List.of()));
+			assertEquals("NEED_TERMS", signupStatus(publicId));
+			assertEquals("ONBOARDING", service.updateAgreements(publicId,
+				List.of(new AgreementCommand(versionId, true))).nextStep().name());
+			assertEquals("ONBOARDING", authRepository.findByGoogleSubject("language-flow-" + language)
+				.orElseThrow().signupStatus().nextStep().name());
+		}
+	}
+
 	@Test
 	void advancesANewUserWhenNoTermsHaveBeenConfigured() {
 		user("usr_no_terms");
@@ -53,8 +88,8 @@ class JdbcTermsRepositoryIntegrationTest {
 
 		assertEquals(List.of(), required.terms());
 		assertEquals(true, required.allRequiredAgreed());
-		assertEquals("LANGUAGE", updated.nextStep().name());
-		assertEquals("NEED_LANGUAGE", signupStatus("usr_no_terms"));
+		assertEquals("ONBOARDING", updated.nextStep().name());
+		assertEquals("NEED_ONBOARDING", signupStatus("usr_no_terms"));
 	}
 
 	@Test
@@ -82,7 +117,7 @@ class JdbcTermsRepositoryIntegrationTest {
 			List.of(new AgreementCommand(currentVersionId, true)));
 
 		assertEquals(true, updated.allRequiredAgreed());
-		assertEquals("NEED_LANGUAGE", signupStatus("usr_current_terms"));
+		assertEquals("NEED_ONBOARDING", signupStatus("usr_current_terms"));
 		assertEquals(1, jdbcTemplate.queryForObject(
 			"""
 			SELECT COUNT(*)

@@ -89,9 +89,25 @@ public interface EditorialRepository {
 		Boolean sourceChanged,
 		EditorialCandidateSourceTrack sourceTrack,
 		EditorialCandidateTravelStyle travelStyle,
+		Integer eventMonth,
 		long startAfterPlaceId,
 		int limit
 	) {
+		public CandidateQuery(
+			String query,
+			EditorialCandidateStatusFilter status,
+			EditorialCandidateRegionFilter region,
+			Boolean hasKoreanOverview,
+			Boolean queueEligible,
+			Boolean sourceChanged,
+			EditorialCandidateSourceTrack sourceTrack,
+			EditorialCandidateTravelStyle travelStyle,
+			long startAfterPlaceId,
+			int limit
+		) {
+			this(query, status, region, hasKoreanOverview, queueEligible, sourceChanged,
+				sourceTrack, travelStyle, null, startAfterPlaceId, limit);
+		}
 	}
 
 	record CandidateRecord(

@@ -54,7 +54,7 @@ class UserLanguageControllerTest {
 	void updatesLanguageAndReturnsTheServerCalculatedNextStep() throws Exception {
 		when(service.update("usr_language", PlaceLanguage.EN))
 			.thenReturn(new UserLanguageService.LanguageResult(
-				PlaceLanguage.EN, NextStep.ONBOARDING, UPDATED_AT));
+				PlaceLanguage.EN, NextStep.TERMS, UPDATED_AT));
 
 		mockMvc.perform(patch("/api/v1/users/me/language")
 				.with(user("usr_language").roles("USER"))
@@ -65,7 +65,7 @@ class UserLanguageControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.code").value("USER_LANGUAGE_UPDATED"))
 			.andExpect(jsonPath("$.data.language").value("EN"))
-			.andExpect(jsonPath("$.data.nextStep").value("ONBOARDING"))
+			.andExpect(jsonPath("$.data.nextStep").value("TERMS"))
 			.andExpect(jsonPath("$.data.updatedAt").value("2026-07-19T03:00:00Z"));
 	}
 

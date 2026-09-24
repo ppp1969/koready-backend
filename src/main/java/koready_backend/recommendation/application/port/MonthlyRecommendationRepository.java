@@ -39,6 +39,7 @@ public interface MonthlyRecommendationRepository {
 
 	record MonthlyRecommendationCursor(
 		int statusRank,
+		int curationPriority,
 		long heartCount,
 		BigDecimal qualityScore,
 		LocalDate endDate,
@@ -62,7 +63,8 @@ public interface MonthlyRecommendationRepository {
 		String overview,
 		long heartCount,
 		BigDecimal qualityScore,
-		int statusRank
+		int statusRank,
+		int curationPriority
 	) {
 	}
 }

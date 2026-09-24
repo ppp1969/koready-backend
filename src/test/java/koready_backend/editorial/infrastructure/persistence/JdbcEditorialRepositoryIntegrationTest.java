@@ -190,6 +190,23 @@ class JdbcEditorialRepositoryIntegrationTest {
 	}
 
 	@Test
+	void filtersCandidatesByMonthAcrossEventDateRange() {
+		long spanningPlaceId = place("SEOUL", "두 달에 걸친 축제");
+		long novemberPlaceId = place("SEOUL", "11월 축제");
+		place("SEOUL", "날짜 없는 장소");
+		event(spanningPlaceId, "2026-09-29", "2026-10-02");
+		event(novemberPlaceId, "2026-11-10", "2026-11-12");
+
+		var october = new CandidateQuery(
+			null, null, null, null, null, null,
+			EditorialCandidateSourceTrack.KTO_BILINGUAL, null, 10, 0L, 20);
+
+		assertEquals(List.of(spanningPlaceId), repository.findCandidates(october).stream()
+			.map(EditorialRepository.CandidateRecord::placeId).toList());
+		assertEquals(1, repository.countCandidates(october));
+	}
+
+	@Test
 	void exposesChangedReadySourceAsQueueEligibleForAdminReprocessing() {
 		long placeId = place();
 		Instant now = Instant.parse("2026-08-13T00:00:00Z");
@@ -518,6 +535,16 @@ class JdbcEditorialRepositoryIntegrationTest {
 		return jdbcTemplate.queryForObject(
 			"SELECT id FROM open_api_raw_snapshots WHERE call_log_id = ?",
 			Long.class, callId);
+	}
+
+	private void event(long placeId, String startDate, String endDate) {
+		jdbcTemplate.update("""
+			INSERT INTO place_event_occurrences
+			    (place_id, event_year, occurrence_sequence, start_date, end_date,
+			     provider, source_content_id, source_operation, visible_from,
+			     date_validation_status)
+			VALUES (?, 2026, 1, ?, ?, 'KTO', ?, 'searchFestival2', ?, 'VALID')
+			""", placeId, startDate, endDate, "event-" + placeId, startDate);
 	}
 
 	private static CandidateQuery candidateQuery(EditorialCandidateSourceTrack sourceTrack) {

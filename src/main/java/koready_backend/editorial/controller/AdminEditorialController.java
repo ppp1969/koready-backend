@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Max;
@@ -44,7 +45,7 @@ public class AdminEditorialController {
 	@GetMapping("/candidates")
 	@Operation(
 		summary = "AI 장소 가공 후보 조회",
-		description = "공식 한영 KTO 후보와 한국어 원문 기반 AI 확장 후보를 출처 트랙별로 조회합니다. sourceChanged=true는 장소명·주소·설명·AI 입력 상세정보·여행 유형이 실질적으로 바뀐 후보만 반환하며 사진과 KTO 응답 메타데이터 변경은 제외합니다.")
+		description = "공식 한영 KTO 후보와 한국어 원문 기반 AI 확장 후보를 출처 트랙별로 조회합니다. sourceChanged=true는 장소명·주소·설명·AI 입력 상세정보·여행 유형이 실질적으로 바뀐 후보만 반환하며 사진과 KTO 응답 메타데이터 변경은 제외합니다. eventMonth를 생략하면 날짜와 관계없이 조회하고, 1~12를 보내면 유효한 행사 기간이 해당 월과 겹치는 후보만 반환합니다.")
 	public ApiEnvelope<EditorialDtos.CandidateListResponse> candidates(
 		@RequestParam(required = false) @Size(max = 100) String query,
 		@RequestParam(required = false) EditorialCandidateStatusFilter status,
@@ -54,6 +55,8 @@ public class AdminEditorialController {
 		@RequestParam(required = false) Boolean sourceChanged,
 		@RequestParam(defaultValue = "KTO_BILINGUAL") EditorialCandidateSourceTrack sourceTrack,
 		@RequestParam(required = false) EditorialCandidateTravelStyle travelStyle,
+		@Parameter(description = "행사 개최 월. 생략하면 날짜 필터를 적용하지 않으며, 선택 월과 행사 기간이 겹치는 후보만 조회합니다.")
+		@RequestParam(required = false) @Min(1) @Max(12) Integer eventMonth,
 		@RequestParam(required = false) @Size(max = 30) String cursor,
 		@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
 		HttpServletRequest request
@@ -61,7 +64,7 @@ public class AdminEditorialController {
 		return ApiEnvelope.success(
 			"EDITORIAL_CANDIDATE_LIST_OK",
 			EditorialDtos.from(service.candidates(
-				query, status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack, travelStyle,
+				query, status, region, hasKoreanOverview, queueEligible, sourceChanged, sourceTrack, travelStyle, eventMonth,
 				cursor(cursor), size)),
 			TraceIdFilter.current(request));
 	}

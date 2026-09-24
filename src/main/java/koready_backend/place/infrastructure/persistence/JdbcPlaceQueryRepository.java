@@ -454,13 +454,28 @@ public class JdbcPlaceQueryRepository implements PlaceQueryRepository {
 	public List<PlaceRow> search(PlaceSearchCriteria criteria) {
 		MapSqlParameterSource parameters = commonParameters(
 			criteria.language(), criteria.today(), criteria.limit());
-		parameters.addValue("query", "%" + escapeLike(criteria.query()) + "%");
+		String normalizedQuery = criteria.query().trim();
+		parameters.addValue("query", "%" + escapeLike(normalizedQuery) + "%");
+		try {
+			parameters.addValue("queryPlaceId", Long.parseLong(normalizedQuery));
+		} catch (NumberFormatException ignored) {
+			parameters.addValue("queryPlaceId", null);
+		}
 		String condition = """
 
 			  AND (
-			      COALESCE(requested.title, korean.title) LIKE :query ESCAPE '!'
-			      OR COALESCE(requested.address_text, korean.address_text, p.road_address, p.address, '')
-			          LIKE :query ESCAPE '!'
+			      p.id = :queryPlaceId
+			      OR EXISTS (
+			          SELECT 1
+			          FROM place_localizations searchable
+			          WHERE searchable.place_id = p.id
+			            AND (
+			                searchable.title LIKE :query ESCAPE '!'
+			                OR COALESCE(searchable.address_text, '') LIKE :query ESCAPE '!'
+			            )
+			      )
+			      OR COALESCE(p.road_address, '') LIKE :query ESCAPE '!'
+			      OR COALESCE(p.address, '') LIKE :query ESCAPE '!'
 			  )
 			""";
 

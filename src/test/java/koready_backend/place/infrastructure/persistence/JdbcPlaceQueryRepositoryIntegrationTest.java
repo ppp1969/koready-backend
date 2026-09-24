@@ -210,6 +210,18 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 		jdbcTemplate.update("UPDATE places SET show_flag = FALSE WHERE id = ?", place);
 		assertTrue(repository.search(new PlaceSearchCriteria(
 			"송악산", null, 10, PlaceLanguage.EN, TODAY)).isEmpty());
+
+		long aiPlace = insertPlace("ai-search", "SEOUL", true, true, "80.00");
+		insertLocalization(aiPlace, "KO", "인공지능 번역 장소", "서울 종로구", "한국어 원문");
+		insertLocalizationWithSource(
+			aiPlace, "EN", "AI Curated Place", "Jongno-gu, Seoul", "Generated overview", "AI_TRANSLATED");
+		insertStyle(aiPlace, "CULTURE_EXPERIENCE", "1.0000");
+		insertReadyEditorial(aiPlace);
+
+		assertEquals(List.of(aiPlace), repository.search(new PlaceSearchCriteria(
+			"AI Curated", null, 10, PlaceLanguage.KO, TODAY)).stream().map(PlaceRow::placeId).toList());
+		assertEquals(List.of(aiPlace), repository.search(new PlaceSearchCriteria(
+			Long.toString(aiPlace), null, 10, PlaceLanguage.EN, TODAY)).stream().map(PlaceRow::placeId).toList());
 	}
 
 	@Test

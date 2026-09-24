@@ -192,6 +192,39 @@ class JdbcPlaceQueryRepositoryIntegrationTest {
 	}
 
 	@Test
+	void searchesBothLanguagesWhileKeepingTheRequestedResponseLanguage() {
+		long place = insertPlace("cross-language", "JEJU", true, true, "90.00");
+		insertLocalization(place, "KO", "송악산", "서귀포시 대정읍", "화산 지형");
+		insertLocalization(place, "EN", "Songaksan Mountain", "Daejeong-eup, Seogwipo", "Volcanic landscape");
+		insertStyle(place, "NATURE", "1.0000");
+		for (String query : List.of("송악산", "대정읍", "Songaksan", "Seogwipo")) {
+			for (PlaceLanguage language : PlaceLanguage.values()) {
+				List<PlaceRow> rows = repository.search(new PlaceSearchCriteria(
+					query, null, 10, language, TODAY));
+				assertEquals(List.of(place), rows.stream().map(PlaceRow::placeId).toList(),
+					query + " / " + language);
+				assertEquals(language == PlaceLanguage.KO ? "송악산" : "Songaksan Mountain",
+					rows.getFirst().title());
+			}
+		}
+		jdbcTemplate.update("UPDATE places SET show_flag = FALSE WHERE id = ?", place);
+		assertTrue(repository.search(new PlaceSearchCriteria(
+			"송악산", null, 10, PlaceLanguage.EN, TODAY)).isEmpty());
+
+		long aiPlace = insertPlace("ai-search", "SEOUL", true, true, "80.00");
+		insertLocalization(aiPlace, "KO", "인공지능 번역 장소", "서울 종로구", "한국어 원문");
+		insertLocalizationWithSource(
+			aiPlace, "EN", "AI Curated Place", "Jongno-gu, Seoul", "Generated overview", "AI_TRANSLATED");
+		insertStyle(aiPlace, "CULTURE_EXPERIENCE", "1.0000");
+		insertReadyEditorial(aiPlace);
+
+		assertEquals(List.of(aiPlace), repository.search(new PlaceSearchCriteria(
+			"AI Curated", null, 10, PlaceLanguage.KO, TODAY)).stream().map(PlaceRow::placeId).toList());
+		assertEquals(List.of(aiPlace), repository.search(new PlaceSearchCriteria(
+			Long.toString(aiPlace), null, 10, PlaceLanguage.EN, TODAY)).stream().map(PlaceRow::placeId).toList());
+	}
+
+	@Test
 	void escapesSqlWildcardsInSearch() {
 		long literal = placeWithKorean("literal-percent", "70.00", "100% 로컬시장");
 		placeWithKorean("ordinary", "99.00", "평범한 장소");

@@ -180,8 +180,7 @@ public final class KtoRelatedTourApiClient
 		}
 		if (exception instanceof KtoProviderException providerException) {
 			String code = providerException.providerCode();
-			return "22".equals(code)
-				|| "HTTP_429".equals(code)
+			return "HTTP_429".equals(code)
 				|| code.matches("HTTP_5\\d\\d");
 		}
 		return false;

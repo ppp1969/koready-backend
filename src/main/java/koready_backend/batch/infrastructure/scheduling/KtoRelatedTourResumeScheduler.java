@@ -27,6 +27,9 @@ public class KtoRelatedTourResumeScheduler {
 	private final KtoRelatedTourResumeScheduleProperties properties;
 	private final Clock clock;
 
+	@org.springframework.beans.factory.annotation.Value("${koready.kto.continuous-sync.schedule.enabled:false}")
+	private boolean dailySourceSyncEnabled;
+
 	@Autowired
 	public KtoRelatedTourResumeScheduler(
 		BatchJobCommandService commandService,
@@ -52,6 +55,7 @@ public class KtoRelatedTourResumeScheduler {
 		cron = "${koready.kto.related-tour-resume.schedule.cron:0 15 0 * * *}",
 		zone = "${koready.kto.related-tour-resume.schedule.zone:Asia/Seoul}")
 	public void schedule() {
+		if (dailySourceSyncEnabled) { return; }
 		LocalDate scheduleDate = LocalDate.now(
 			clock.withZone(properties.zoneId()));
 		var result =

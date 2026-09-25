@@ -109,6 +109,8 @@ koready:
     worker:
       poll-delay: ${EVIDENCE_BUNDLE_WORKER_POLL_DELAY:30s}
   kto:
+    quota:
+      default-limit: ${KTO_DAILY_REQUEST_LIMIT:1000}
     api:
       base-url: ${KTO_API_BASE_URL:https://apis.data.go.kr/B551011/KorService2}
       service-key: ${KTO_SERVICE_KEY:}
@@ -167,9 +169,8 @@ koready:
     continuous-sync:
       schedule:
         enabled: ${KTO_CONTINUOUS_SYNC_SCHEDULE_ENABLED:false}
-        cron: ${KTO_CONTINUOUS_SYNC_SCHEDULE_CRON:0 */10 3-23 * * SUN}
+        cron: ${KTO_CONTINUOUS_SYNC_SCHEDULE_CRON:0 */10 8-23 * * *}
         zone: ${KTO_CONTINUOUS_SYNC_SCHEDULE_ZONE:Asia/Seoul}
-        request-budget: ${KTO_CONTINUOUS_SYNC_REQUEST_BUDGET:800}
     related-tour-resume:
       schedule:
         enabled: ${KTO_RELATED_TOUR_RESUME_SCHEDULE_ENABLED:false}

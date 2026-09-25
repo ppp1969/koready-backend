@@ -17,25 +17,25 @@ import koready_backend.batch.application.BatchJobCommandService;
 	prefix = "koready.kto.continuous-sync.schedule",
 	name = "enabled",
 	havingValue = "true")
-public class KtoWeeklySyncScheduler {
+public class KtoDailySourceSyncScheduler {
 
-	private static final Logger log = LoggerFactory.getLogger(KtoWeeklySyncScheduler.class);
+	private static final Logger log = LoggerFactory.getLogger(KtoDailySourceSyncScheduler.class);
 
 	private final BatchJobCommandService commandService;
-	private final KtoWeeklySyncScheduleProperties properties;
+	private final KtoDailySourceSyncScheduleProperties properties;
 	private final Clock clock;
 
 	@Autowired
-	public KtoWeeklySyncScheduler(
+	public KtoDailySourceSyncScheduler(
 		BatchJobCommandService commandService,
-		KtoWeeklySyncScheduleProperties properties
+		KtoDailySourceSyncScheduleProperties properties
 	) {
 		this(commandService, properties, Clock.system(properties.zoneId()));
 	}
 
-	KtoWeeklySyncScheduler(
+	KtoDailySourceSyncScheduler(
 		BatchJobCommandService commandService,
-		KtoWeeklySyncScheduleProperties properties,
+		KtoDailySourceSyncScheduleProperties properties,
 		Clock clock
 	) {
 		this.commandService = commandService;
@@ -44,14 +44,14 @@ public class KtoWeeklySyncScheduler {
 	}
 
 	@Scheduled(
-		cron = "${koready.kto.continuous-sync.schedule.cron:0 */10 3-23 * * SUN}",
+		cron = "${koready.kto.continuous-sync.schedule.cron:0 */10 8-23 * * *}",
 		zone = "${koready.kto.continuous-sync.schedule.zone:Asia/Seoul}")
 	public void schedule() {
+		if (java.time.LocalTime.now(clock.withZone(properties.zoneId())).getHour() < 8) { return; }
 		LocalDate date = LocalDate.now(clock.withZone(properties.zoneId()));
-		var result = commandService.scheduleWeeklyKtoSync(date, properties.requestBudget());
+		var result = commandService.scheduleDailyKtoSync(date);
 		if (result.scheduled()) {
-			log.info("Scheduled weekly KTO synchronization stage. jobId={}, date={}, requestBudget={}",
-				result.jobId(), date, properties.requestBudget());
+			log.info("Scheduled daily KTO synchronization stage. jobId={}, date={}", result.jobId(), date);
 		}
 	}
 }

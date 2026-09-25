@@ -60,16 +60,17 @@ class KtoEnglishTourApiClientTest {
 	}
 
 	@Test
-	void retriesTheEnglishProviderLimitCode() {
+	void stopsImmediatelyWhenTheEnglishQuotaIsExhausted() {
 		RestClient.Builder builder = RestClient.builder().baseUrl(properties().baseUrl());
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		KtoEnglishTourApiClient client = client(builder.build());
 		server.expect(request -> { }).andRespond(withSuccess(
 			"{\"response\":{\"header\":{\"resultCode\":\"22\",\"resultMsg\":\"limited\"}}}",
 			MediaType.APPLICATION_JSON));
-		server.expect(request -> { }).andRespond(withSuccess(successPage(1, 200), MediaType.APPLICATION_JSON));
 
-		assertEquals(1, client.fetchFetchedPage(1).page().pageNumber());
+		assertEquals("22", org.junit.jupiter.api.Assertions.assertThrows(
+			koready_backend.kto.application.exception.KtoProviderException.class,
+			() -> client.fetchFetchedPage(1)).providerCode());
 		server.verify();
 	}
 

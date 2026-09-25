@@ -145,7 +145,7 @@ public final class KtoTourApiClient implements KtoSyncPageClient, KtoDailySyncPa
 		}
 		if (exception instanceof KtoProviderException providerException) {
 			String code = providerException.providerCode();
-			return "22".equals(code) || "HTTP_429".equals(code) || code.matches("HTTP_5\\d\\d");
+			return "HTTP_429".equals(code) || code.matches("HTTP_5\\d\\d");
 		}
 		return false;
 	}

@@ -173,6 +173,24 @@ public class JdbcBatchJobCommandRepository implements BatchJobCommandRepository 
 		}, scheduleKey);
 	}
 
+	@Override
+	public java.util.Optional<RetrySource> findLatestDailySyncSource(BatchJobType jobType) {
+		return jdbcTemplate.query("""
+			WITH RECURSIVE latest_cycle AS (
+			    SELECT id FROM batch_jobs
+			    WHERE job_type = ? AND schedule_key LIKE 'KTO_DAILY_SOURCE:%'
+			    ORDER BY id DESC LIMIT 1
+			), chain AS (
+			    SELECT id FROM latest_cycle
+			    UNION ALL
+			    SELECT child.id FROM batch_jobs child JOIN chain parent ON child.parent_job_id = parent.id
+			)
+			SELECT job.id, job.job_type, job.status, job.parameters_json
+			FROM batch_jobs job JOIN chain ON chain.id = job.id
+			ORDER BY job.id DESC LIMIT 1
+			""", this::mapRetrySource, jobType.name()).stream().findFirst();
+	}
+
 	private RetrySource mapRetrySource(ResultSet resultSet, int rowNumber) throws SQLException {
 		return new RetrySource(
 			resultSet.getLong("id"),

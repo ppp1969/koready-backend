@@ -1,345 +1,108 @@
 # KoReady Backend
 
-KoReady는 2026 관광공모전 참가를 위해 개발하는 외국인 유학생·교환학생·장기체류 외국인 중심의 한국 로컬 여행 준비 및 추천 서비스입니다. 한국관광공사 데이터를 기반으로 체류 위치와 여행 취향에 맞는 장소를 추천하고, 대중교통 이동과 여행 메이트 연결까지 지원합니다. 단기 여행자는 핵심 타깃 검증 이후 확장할 사용자군입니다.
+> 외국인 유학생과 장기 체류자가 한국의 로컬 여행지를 발견하고, 실제로 갈 수 있는지 판단하도록 돕는 여행 서비스의 백엔드입니다.
 
-## Product Scope
+[서비스 바로가기](https://koready.site/) · [API 계약](docs/koready-backend-design/openapi.yaml) · [개발·운영 가이드](docs/DEVELOPMENT_AND_OPERATIONS.md)
 
-- 온보딩: 체류 위치, 여행 스타일, 선호 장소 수집
-- K-Local Pick: 사용자 취향과 지역을 반영한 개인화 추천
-- 월별 추천: 축제 기간과 계절성을 반영한 여행 후보
-- 장소 탐색: 7개 서비스 권역 기반 검색과 상세 조회
-- Buddy Route: TMAP 기반 참고용 대중교통 경로와 운영진 큐레이션 Hori Tip 조합. 출발 시각 생략 시 당일 한국 시간 오전 10시 기준이며, 운행 불가 구간은 상태와 경고를 함께 제공
-- Buddy Connect: 여행지 기반 공개 프로필, 메이트 탐색, 쪽지
-- Admin Evidence: 외부 API 호출 증빙과 마스킹된 운영 자료 관리
+KoReady는 한국관광공사 데이터를 사용자 관점의 장소 정보로 정리하고, 체류 위치와 여행 취향을 반영한 추천, 이동 경로, 여행 메이트 연결을 제공합니다. 백엔드는 외부 데이터 수집부터 검수·공개, 인증과 권한, 추천 상태, 운영 증빙까지 담당합니다.
 
-## Tech Stack
+## 담당 범위
 
-- Java 21
-- Spring Boot 4.1, Spring Framework 7
-- Spring Web MVC, Validation, Security, Google ID Token 검증, KoReady JWT
-- Spring JDBC, Flyway
-- MySQL 8.x, H2 test runtime, Testcontainers
-- Gradle Wrapper
-- Docker, AWS Elastic Beanstalk shared staging, Aiven for MySQL
+- Java/Spring 기반 API와 도메인 구조 설계
+- 한국관광공사·Kakao·Google·TMAP 등 외부 API 연계와 데이터 정규화
+- AI 편집 작업의 큐, 검증, 재시도, 원문 변경 추적 설계
+- OAuth 로그인, JWT 회전, 사용자·관리자 역할별 접근 제어
+- Testcontainers·ArchUnit·JaCoCo를 포함한 품질 게이트와 AWS 배포 자동화
 
-## Profiles
+관리자 콘솔도 별도로 개발했지만 운영 도구이므로 URL은 공개하지 않습니다. 로그인과 서버 측 역할 검증을 통과한 계정만 접근할 수 있습니다.
 
-| Profile | Purpose | Database |
-|---|---|---|
-| `test` | Gradle 자동 테스트 | H2 또는 Testcontainers MySQL |
-| `local` | 로컬 개발 | Docker MySQL |
-| `staging` | AWS Elastic Beanstalk 통합 테스트 환경 | Aiven for MySQL |
-| `prod` | 향후 실제 사용자 운영 환경 | 인프라·배포 방식 별도 확정 |
+## 서비스 흐름
 
-`staging`은 `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`가 없으면 시작하지 않습니다. Aiven 연결에는 기본적으로 `sslmode=require`를 적용합니다.
-
-## 통합 버디 프로필
-
-사용자 프로필은 별도 일반 프로필 없이 Buddy 프로필 하나로 관리합니다.
-
-- `GET /api/v1/profile-options`: 국적, 사용 언어, 한국어 수준, 7가지 여행 스타일, SNS 플랫폼 선택지 조회
-- `GET /api/v1/users/me/buddy-profile`: 본인의 전체 프로필 설정 조회
-- `PUT /api/v1/users/me/buddy-profile`: 닉네임, ISO 국가 코드, 복수 사용 언어, 한국어 수준, 한 줄 소개, 여행 스타일, SNS 최대 2개, 공개 설정 저장
-- `POST /api/v1/users/me/profile-image/upload-url`: JPEG, PNG, WebP 형식의 5 MiB 이하 사진 업로드 주소 발급
-- `POST /api/v1/users/me/profile-image/complete`: 업로드된 사진의 실제 형식과 크기 검증 및 사용 가능 상태 확정
-- `GET /api/v1/profile-images/{imageId}`: 공개 프로필 사진 또는 로그인한 본인의 사진을 짧은 유효기간의 S3 주소로 연결
-
-프로필 이미지 버킷은 KTO 원본 스냅샷 버킷과 분리하며 외부 공개를 차단합니다. 브라우저는 백엔드에서 발급한 제한 시간 PUT 주소로 S3에 직접 업로드하므로 애플리케이션 서버 메모리에 이미지 전체를 적재하지 않습니다.
-
-## 가입 순서
-
-신규 `POST /api/v1/auth/google` 응답은 `nextStep=LANGUAGE`입니다.
-`PATCH /api/v1/users/me/language`로 `KO` 또는 `EN`을 선택하면 `TERMS`를 반환하며,
-약관 조회는 저장한 언어를 사용합니다. 필수 약관 동의 후 `ONBOARDING`으로 주소 설정을 진행합니다.
-기본 언어 `KO`도 명시적으로 선택해야 합니다. V61 migration은 기존 활성 `NEED_TERMS` 계정을
-언어 선택 단계로 보정하며 언어값, 약관 동의 이력, 온보딩 진행·완료 계정은 보존합니다.
-
-## Local Development
-
-Java 21과 Docker가 필요합니다. 빠른 개발 피드백은 로컬 Docker MySQL과 로컬 Spring 서버를 기준으로 합니다.
-아래 명령은 `.env.local`을 읽지 않으므로 Aiven 연결정보와 로컬 DB가 섞이지 않습니다.
-
-```powershell
-docker compose -p koready-local up -d mysql
-
-$env:SPRING_PROFILES_ACTIVE='local'
-$env:DB_URL='jdbc:mysql://localhost:3306/koready?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul'
-$env:DB_USERNAME='koready'
-$env:DB_PASSWORD='koready-local'
-./gradlew.bat bootRun
+```mermaid
+flowchart LR
+    User[사용자 앱] --> API[Spring Boot API]
+    Admin[관리자 콘솔] --> API
+    API --> Domain[Application / Domain]
+    Domain --> DB[(MySQL)]
+    Domain --> Queue[AI 편집 작업 큐]
+    Queue --> Gemini[Gemini]
+    API --> External[관광공사 · Kakao · Google · TMAP]
+    API --> S3[(Private S3)]
 ```
 
-서버가 `http://localhost:8080/actuator/health/readiness`에서 `200`을 반환하면 두 번째
-PowerShell에서 아래 seed를 실행합니다. 새 DB에서는 서버 시작 시 Flyway가 스키마를 먼저
-생성해야 하므로 seed를 서버보다 먼저 실행하지 않습니다.
+외부 원본을 바로 사용자에게 노출하지 않습니다. 수집 결과를 저장하고, 정규화와 자동 검증을 거친 뒤 운영 승인 상태에 따라 공개 API가 읽도록 분리했습니다. 사용자 앱과 관리자 콘솔은 같은 백엔드를 사용하되 인증 주체와 권한 경계를 서버에서 다시 확인합니다.
 
-```powershell
-./scripts/seed-local-places.ps1
-./scripts/seed-local-user.ps1
-./scripts/seed-local-buddy.ps1
-```
+## 핵심 문제 해결
 
-로컬 시드는 화면 연동 확인용 장소 13개, 상태·정렬 확인용 축제 회차 4개와
-`local-user` 개발 사용자, 공개 프로필 `local-buddy-demo`를 Docker Compose의 `mysql`
-서비스에만 넣습니다. 개발 사용자는 서울 기본 위치와 `LOCAL_FOOD`, `NATURE` 관광 유형을
-가지며 실제 개인정보는 포함하지 않습니다. Buddy seed는 실행 결과에 `profileId`를 출력하므로
-`GET /api/v1/buddy-profiles/{profileId}`와 차단·해제 API를 Swagger에서 바로 시험할 수 있습니다.
-또한 첫 번째 표출 장소를 demo Buddy가 저장하므로 해당 `placeId`의 `/places/{placeId}/mates`에서
-공개 메이트 목록과 쪽지 가능 상태를 확인할 수 있습니다.
-세 스크립트 모두 반복 실행해도 같은 행을 중복 생성하지 않으며 Aiven과 Render에는 적용되지 않습니다.
+### 1. AI 결과를 검증 가능한 데이터 처리 과정으로 만들기
 
-### KTO 축제 수동 수집
+장소 설명을 생성하는 AI 호출은 지연되거나 실패할 수 있고, 같은 요청이 다시 들어오거나 처리 중 원문이 바뀔 수 있습니다. 단순 비동기 호출 대신 MySQL 작업 큐와 명시적인 상태 전이를 사용했습니다.
 
-KTO `searchFestival2` 축제는 Render에서 자동 실행하지 않고 개발자 PC에서 작은
-페이지 단위로 수집합니다. `.env.local`의 `KTO_SERVICE_KEY`만 읽으며 키와 원본
-응답은 콘솔이나 Git에 남기지 않습니다.
+- `request key`를 유일하게 저장해 동일 작업의 중복 등록 방지
+- `FOR UPDATE SKIP LOCKED`로 여러 worker가 같은 작업을 동시에 가져가지 않도록 제어
+- lease 만료, 제한된 재시도, stale 상태를 기록해 중단된 작업을 다시 판단 가능하게 구성
+- 구조화된 AI 응답을 서버 규칙으로 검증한 뒤에만 발행 후보로 저장
+- 원문 fingerprint가 바뀌면 새 결과가 준비될 때까지 기존 `READY` 콘텐츠 유지
 
-```powershell
-# 2026-07-01 이후 축제의 첫 1페이지(최대 200건)
-./scripts/import-kto-festivals.ps1 `
-  -EventStartDate 20260701 `
-  -StartPage 1 `
-  -MaxPages 1 `
-  -Profile local
+이 구조로 AI 응답 자체를 신뢰하는 대신, 백엔드가 결과의 유효성과 공개 시점을 결정하도록 만들었습니다.
 
-# 다음 페이지부터 이어서 실행
-./scripts/import-kto-festivals.ps1 `
-  -EventStartDate 20260701 `
-  -StartPage 2 `
-  -MaxPages 1 `
-  -Profile local
-```
+### 2. 외부 관광 데이터를 수집부터 공개까지 추적하기
 
-스크립트는 KoReady Docker MySQL의 공개 포트를 자동으로 찾고 Java 21을 사용합니다.
-JVM은 시작 힙 128MB, 최대 힙 256MB, Metaspace 128MB로 제한되며 페이지는 직렬로
-처리합니다. 원본 gzip은 기본적으로 저장소 밖의
-`$HOME/.koready/kto-snapshots`에 저장됩니다. 같은 원본을 다시 실행하면 기존
-snapshot과 DB 결과를 재사용합니다.
+한국관광공사 데이터는 API 종류마다 식별자와 갱신 방식이 다르고, 사진이나 영문 정보는 자동 연결만으로 공개하기 어렵습니다. 그래서 호출, 원본 snapshot, batch item, 동기화 cursor, 관리자 판단을 각각 기록합니다.
 
-수집된 축제는 `show_flag=true`, `active=false`로 저장되어 자동 공개되지 않습니다.
-운영진 검토 또는 별도 공개 작업 전까지 장소·월별 추천 API에는 노출되지 않습니다.
-Aiven 소량 반영은 같은 명령에 `-Profile staging`을 명시한 경우에만 실행되며,
-Render에는 scheduler를 두지 않습니다.
+- 외부 호출의 성공·실패와 마스킹된 요청 정보를 저장해 장애 원인 추적
+- 원본 snapshot을 변경하지 않고 보관하고, 공개 가능 여부와 보존 기간을 별도 관리
+- 배치 작업을 항목 단위로 기록해 부분 실패와 재시도 범위를 구분
+- 영문 장소와 이미지 연결은 후보 근거를 보여주고 관리자 승인 이력을 보존
+- 수집 완료와 사용자 공개를 분리해 검수 전 데이터의 노출 방지
 
-### 온보딩 대표 관광지 10곳 초기 등록
+### 3. 개발 규칙을 자동 품질 게이트로 연결하기
 
-위치 입력 다음 단계에서 보여줄 대표 관광지는 운영 승인된 아래 10곳으로 고정합니다.
+Issue 명세에서 시작해 `RED → GREEN → REFACTOR → clean check → CI → 배포 확인`으로 이어지는 개발 흐름을 저장소 규칙으로 만들었습니다.
 
-1. 경복궁
-2. 광장시장
-3. 국립중앙박물관
-4. 한국민속촌
-5. 경포해수욕장
-6. 공주 공산성
-7. 보령머드축제
-8. 전북 전주 한옥마을
-9. 부산 감천문화마을
-10. 성산일출봉
+- 단위·웹 슬라이스·아키텍처 테스트와 Testcontainers MySQL 통합 테스트 분리
+- ArchUnit으로 domain/application/controller/infrastructure 의존 방향 검증
+- JaCoCo 라인 커버리지 80% 미만이면 빌드 실패
+- Docker 이미지를 512 MiB 제한으로 부팅해 실제 컨테이너 시작 여부 확인
+- GitHub Actions OIDC로 AWS 장기 키 없이 Elastic Beanstalk 배포
+- Gitleaks로 커밋에 포함된 secret 검사
 
-초기 등록 명령은 이 목록 외의 검색 결과를 저장하지 않습니다. 각 장소의 KTO
-`contentId`, 공식 국문명, 관광 타입을 다시 확인한 뒤 주소·좌표와 서로 다른 이미지
-4장이 모두 있는 경우에만 공개 가능한 장소로 저장합니다. 상세 이미지는 운영자가
-승인한 KTO 사진공모전 수상작, 기존 KTO 대표사진, `detailImage2` 순으로 조합하며 같은
-URL은 한 번만 사용합니다. 10곳이 전부 준비된 후에만
-`onb-kto-curated-v1` 후보 세트를 현재 버전으로 발행합니다.
+## 검증 근거
 
-```powershell
-# 로컬 Docker MySQL에 등록
-./scripts/bootstrap-curated-onboarding.ps1 -Profile local
+`main`의 [`38c7bf0`](https://github.com/ppp1969/koready-backend/commit/38c7bf0598cb83352026648ff7bda2cb59b08b6d) 기준 결과입니다.
 
-# Aiven staging에 등록하는 명시적 일회성 작업
-./scripts/bootstrap-curated-onboarding.ps1 -Profile staging
-```
+| 검증 | 결과 | 근거 |
+| --- | --- | --- |
+| 일반 테스트 | 699개 통과 | [Gradle Test 실행](https://github.com/ppp1969/koready-backend/actions/runs/36005463523) |
+| MySQL 통합 테스트 | 171개 통과 | [Gradle Test 실행](https://github.com/ppp1969/koready-backend/actions/runs/36005463523) |
+| 라인 커버리지 | 84.49% | JaCoCo 품질 게이트 통과 |
+| 컨테이너 | Docker build 및 512 MiB 부팅 smoke 통과 | [Docker Build 실행](https://github.com/ppp1969/koready-backend/actions/runs/36005463523) |
+| 배포 | Elastic Beanstalk 배포 및 readiness 확인 | [배포 실행](https://github.com/ppp1969/koready-backend/actions/runs/36005463523) |
+| 보안 | Gitleaks 검사 통과 | [Secret Scan 실행](https://github.com/ppp1969/koready-backend/actions/runs/36005463568) |
 
-### KTO 사진공모전 수상작 수집과 승인 연결
+테스트 수와 커버리지는 위 커밋의 CI 산출물 기준이며 이후 변경에 따라 달라질 수 있습니다.
 
-사진공모전 후보는 관리자 배치 `KTO_PHOTO_AWARD_SYNC`로
-`phokoAwrdSyncList` 전체 96건을 수집합니다. 이 API의 `contentId`는 장소 API의
-`contentid`와 직접 연결되지 않으므로 제목이나 촬영지 문자열만으로 자동 매칭하지
-않습니다.
+## 기술 스택
 
-1. `POST /api/v1/admin/batch-jobs`에 `KTO_PHOTO_AWARD_SYNC`를 접수합니다.
-2. `GET /api/v1/admin/kto/photo-awards`에서 한·영 제목, 촬영 장소, 원본 이미지를 확인합니다.
-3. 운영자가 장소를 확인한 항목만 `PUT /api/v1/admin/kto/photo-awards/{contentId}/mapping`으로 승인합니다.
-4. 잘못 연결한 항목은 같은 경로의 `DELETE` 요청으로 이미지와 연결을 함께 해제합니다.
+| 영역 | 기술 |
+| --- | --- |
+| Backend | Java 21, Spring Boot 4.1, Spring Security, Spring JDBC |
+| Data | MySQL 8, Flyway, Private S3 |
+| AI / External API | Spring AI, Gemini, 한국관광공사 OpenAPI, Kakao, Google, TMAP |
+| Test | JUnit 5, MockMvc, Testcontainers, ArchUnit, JaCoCo |
+| Infra | Docker, AWS Elastic Beanstalk, CloudFront, Route 53, Aiven |
+| Delivery | GitHub Actions, AWS OIDC, Gitleaks |
 
-수상작 원본 응답은 다른 KTO 원본과 같이 저장소 밖의 private snapshot 저장소에
-보관하고, API 키와 원본 본문은 로그나 Git에 남기지 않습니다. 수집은 후보 저장까지만
-수행하며 운영자 승인 전에는 어떤 장소 상세에도 수상작 이미지가 노출되지 않습니다.
+## 주요 기능
 
-### KTO 관광사진 수집과 검수 연결
+- 취향·위치 기반 K-Local Pick 추천과 월별 축제 탐색
+- 장소 저장, 공개 Buddy 프로필, 차단·신고, 1:1 쪽지
+- 한국어·영어 위치 검색과 위변조 방지 token 기반 위치 저장
+- 관광 데이터 수집, 번역·이미지 연결 검수, 데이터 품질 집계
+- Hori Tip, 약관, 온보딩 후보, AI 편집 작업을 관리하는 운영 API
+- 외부 API 호출과 배치 실행의 감사·공모전 증빙 생성
 
-일반 관광사진은 관리자 배치 `KTO_PHOTO_GALLERY_SYNC`로
-`PhotoGalleryService1/galleryList1`을 페이지 단위로 수집합니다. 관광사진의
-`galContentId`는 장소 API의 `contentid`가 아니고 공개 이미지 URL도 자유 이용
-허가를 의미하지 않으므로 자동으로 장소에 연결하지 않습니다.
-
-1. `POST /api/v1/admin/batch-jobs`에 `KTO_PHOTO_GALLERY_SYNC`를 접수합니다.
-2. `GET /api/v1/admin/kto/photo-gallery`에서 제목, 촬영지, 사진가, 이미지와 연결 상태를 확인합니다.
-3. 장소와 이용 근거를 확인한 항목만 `PUT /api/v1/admin/kto/photo-gallery/{contentId}/mapping`으로 승인합니다.
-4. 잘못 승인한 항목은 같은 경로의 `DELETE` 요청으로 공개 이미지 연결만 해제합니다.
-
-승인된 관광사진은 우선순위 250으로 장소 상세에 반영됩니다. 사진공모전 수상작
-300보다 낮고 KTO 기본 대표 이미지 200과 `detailImage2` 100보다 높습니다. 원본
-snapshot은 `PROVIDER_RESTRICTED`로 보존하며 운영자 승인 전에는 사용자 API에
-노출하지 않습니다.
-
-### KTO 연관 관광지 수집과 장소 연결
-
-KTO 연관 관광지 API는 관리자 배치 `KTO_RELATED_TOUR_SYNC`로 수집합니다.
-이 API의 관광지 코드는 일반 TourAPI `contentid`가 아니므로 코드만으로 기존 장소와
-연결하지 않습니다. 수집 기준월과 행정구역별 원본을 보존하고, 한국어 이름과
-행정구역이 각각 하나의 장소와 정확히 일치할 때만 자동 확정합니다.
-
-1. `POST /api/v1/admin/batch-jobs`에 기준월과 제한 범위를 지정해 작업을 접수합니다.
-2. `GET /api/v1/admin/kto/related-tours`에서 원본·연관 관광지 이름, KTO 순위와 연결 상태를 확인합니다.
-3. 동명 장소처럼 자동 확정할 수 없는 항목은 `PUT /api/v1/admin/kto/related-tours/{recordId}/mapping`으로 확정합니다.
-4. 잘못 확정한 항목은 같은 경로의 `DELETE` 요청으로 연결만 해제합니다.
-
-확정된 관계만 장소 상세의 `relatedPlaces`에 KTO 추천 순서대로 최대 3개 노출됩니다.
-한 작업은 기본 2개 행정구역만 순차 처리하고, `autoContinue=true`일 때 마지막 완료
-지역 다음부터 별도 작업으로 이어집니다. 한 번에 KTO 한 페이지만 메모리에 유지합니다.
-
-`staging` 실행은 `KTO_SNAPSHOT_STORAGE=s3`, `KTO_SNAPSHOT_S3_BUCKET`, AWS 인증을 갖춘
-수집 환경에서만 허용된다. 이 설정이 없으면 외부 KTO 호출 전에 중단한다. Aiven에 저장된
-원문 증빙이 개인 PC 경로를 가리키지 않도록 하기 위한 안전장치이며, S3 설정 전에는
-`local` 프로필에서만 초기 등록을 검증한다.
-
-같은 명령을 다시 실행하면 KTO `contentId`와 고정 후보 세트 ID를 기준으로 기존
-데이터를 갱신하며 장소나 후보 세트를 중복 생성하지 않습니다. 이미 발행된 후보
-세트의 카드 순서나 문구가 승인 목록과 다르면 자동으로 덮어쓰지 않고 실패합니다.
-KTO 영문 API는 국문 `contentId`를 그대로 조회할 수 없으므로 영문 표시는 이 승인
-목록에서 관리하는 이름을 `MANUAL_EDITED` 출처로 저장합니다.
-
-이 작업도 Render 시작 시 자동 실행되지 않습니다. JVM은 heap 128~256MB,
-Metaspace 128MB로 제한하고 검색 1회와 상세 1회를 장소별로 순차 호출합니다.
-
-PC의 기존 MySQL이 3306을 사용 중이면 다음처럼 KoReady MySQL만 3307로 띄웁니다.
-
-```powershell
-$env:DB_PORT='3307'
-docker compose -p koready-local up -d mysql
-$env:DB_URL='jdbc:mysql://localhost:3307/koready?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul'
-```
-
-애플리케이션까지 컨테이너로 실행하려면:
-
-```powershell
-docker compose -p koready-local --profile full up --build
-```
-
-Render와 같은 메모리 경계에서 이미지 부팅, Flyway, readiness를 한 번에 확인하려면
-Git Bash 또는 WSL에서 다음 스모크를 실행합니다. 테스트는 격리된 Compose project와
-로컬 전용 DB 값만 사용하고 종료 시 컨테이너와 volume을 제거합니다.
-
-```bash
-docker build --tag koready-backend:local .
-./scripts/smoke-docker.sh koready-backend:local
-```
-
-기본 포트는 `8080`, 상태 확인 경로는 `/actuator/health`와 `/actuator/health/readiness`입니다.
-Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다.
-
-### 로컬 Swagger 인증
-
-실제 Google 로그인과 JWT를 사용하지 않는 로컬 화면 개발을 위해 `local` 프로필에서는 Swagger 상단의
-**Authorize**에 아래 공개 개발값 중 하나를 입력해 보호 API를 호출할 수 있습니다. Swagger가
-`Bearer` 접두사를 붙이므로 값만 입력합니다.
-
-| 입력값 | principal | role | 용도 |
-|---|---|---|---|
-| `local-user` | `local-user` | `USER` | 사용자·온보딩·추천 API |
-| `local-operator` | `local-operator` | `OPERATOR` | 관리자 조회와 운영 편집 |
-| `local-auditor` | `local-auditor` | `AUDITOR` | 관리자 읽기 전용 검토 |
-| `local-admin` | `local-admin` | `ADMIN` | 관리자 전체 권한 검증 |
-
-이 값은 secret이나 실제 access token이 아니다. filter는 `local` 프로필만 활성화되고
-`staging`, `prod` 프로필이 함께 활성화되지 않았으며
-`LOCAL_DEV_AUTH_ENABLED=true`가 동시에 적용될 때만 생성된다. `staging`, `prod`, 일반 `test`
-프로필에서는 같은 값을 보내도 401이며, 임의 사용자명이나 role을 조립할 수 없다. 로컬에서도
-실제 인증 흐름을 확인할 때는 `LOCAL_DEV_AUTH_ENABLED=false`로 끈다.
-
-### 프론트 개발 CORS
-
-프론트 배포 도메인이 확정되기 전에는 `CORS_ALLOWED_ORIGINS=*`로 모든 개발 origin의
-브라우저 호출과 preflight를 허용한다. 쿠키 credential은 허용하지 않으며 사용자·관리자
-API의 인증과 권한 검사는 그대로 적용된다. 운영 전에는 쉼표로 구분한 실제 프론트 HTTPS
-origin 목록으로 이 값을 축소한다.
-
-현재 로그인 없이 사용할 수 있는 구현 API는 다음과 같습니다.
-
-- `GET /api/v1/monthly-recommendations`: 연월·날짜·권역·관광유형별 축제 추천
-- `GET /api/v1/places`: 서비스 권역·관광유형별 장소 목록
-- `GET /api/v1/places/search`: KoReady 장소 검색
-- `GET /api/v1/places/{placeId}`: 장소 상세
-
-월별 추천은 두 정렬 모두 축제 뒤에 비축제를 배치합니다. `RECOMMENDED`는 각 그룹에서
-관리자 노출 우선순위와 하트 개수 내림차순이며, 동률이면 품질점수와 내부 회차 ID 내림차순입니다.
-`DEADLINE`은 과거·미래 구분 없이 서울 기준 오늘과 종료일의 절대 일수 차이가 작은 축제 순이며,
-동률은 내부 회차 ID 내림차순입니다. 비축제는 마지막에 장소 ID 오름차순으로 배치합니다.
-비축제는 `dateFilterType=ALL`일 때 포함됩니다. 정렬 변경 전 커서 또는 서울 기준 날짜가 바뀐
-커서는 재사용할 수 없으므로 `INVALID_CURSOR` 응답 시 첫 페이지부터 다시 조회합니다.
-같은 서비스를 사용하는 홈 미리보기에도 추천순이 적용됩니다.
-
-인증·역할 검증까지 구현된 API는 다음과 같습니다.
-
-- `PATCH /api/v1/users/me/language`: KO/EN 기본 언어와 가입 다음 단계 갱신
-- `GET /api/v1/users/me/buddy-profile`: 내 Buddy 프로필 편집값 또는 `exists=false` 조회
-- `PUT /api/v1/users/me/buddy-profile`: 언어·한국어 수준·Buddy 스타일·SNS 설정 전체 저장
-- `GET /api/v1/places/{placeId}/mates`: 장소를 저장한 공개 Buddy 프로필의 최근순 cursor 목록
-- `GET /api/v1/buddy-profiles/{profileId}`: 공개·SNS·차단 정책을 적용한 Buddy 프로필 상세
-- `PUT /api/v1/users/me/blocked-profiles/{profileId}`: Buddy 프로필 멱등 차단과 최초 차단 시각 반환
-- `DELETE /api/v1/users/me/blocked-profiles/{profileId}`: Buddy 프로필 멱등 차단 해제
-- `GET /api/v1/message-threads`: 최신순 쪽지함, 미읽음 수, 차단·답장 가능 상태 조회
-- `POST /api/v1/message-threads`: 장소별 첫 쪽지와 1:1 스레드의 멱등 생성
-- `GET /api/v1/message-threads/{threadId}`: 과거 방향 cursor와 화면 표시 순서로 스레드 조회
-- `POST /api/v1/message-threads/{threadId}/messages`: 참여자 답장 전송과 멱등 재시도
-- `PUT /api/v1/message-threads/{threadId}/read`: 수신 메시지의 명시적·멱등 읽음 처리
-- `POST /api/v1/reports`: 프로필·수신 메시지의 멱등 신고 접수와 운영 증빙 보존
-- `GET /api/v1/users/me/onboarding`: 저장된 온보딩 진행 단계와 선택값 복구
-- `PUT /api/v1/users/me/onboarding`: 위치 소유권·후보 버전·선택값 검증 후 멱등 완료
-- `GET /api/v1/locations/search`: `language=KO`는 Kakao 한글 검색, `language=EN`은 Google Places 공식 영문 검색 결과와 10분 유효 서명 token 발급
-- `GET /api/v1/users/me/locations`: 기본 위치 우선으로 저장 위치 목록 조회
-- `POST /api/v1/users/me/locations`: 서명된 검색 결과를 주소·좌표 위변조 없이 저장
-- `PUT /api/v1/users/me/locations/{locationId}/default`: 내 활성 위치를 기본 위치로 변경
-- `DELETE /api/v1/users/me/locations/{locationId}`: 위치 soft delete와 대체 기본 위치 자동 지정
-- `GET /api/v1/home`: 기본 위치·선호 언어·현재 월 축제 추천 미리보기
-- `POST /api/v1/recommendation-decks`: 위치·여행 스타일 기반 K-Local Pick 덱 생성
-- `GET /api/v1/recommendation-decks/{deckId}`: 고정된 추천 덱 페이지 조회
-- `POST /api/v1/recommendation-decks/{deckId}/events`: 노출된 추천 카드의 탐색 행동 기록
-- `GET /api/v1/users/me/saved-places`: 저장한 장소 최신순 cursor 목록
-- `PUT /api/v1/users/me/saved-places/{placeId}`: 화면 출처를 포함한 멱등 장소 저장
-- `DELETE /api/v1/users/me/saved-places/{placeId}`: 멱등 장소 저장 취소
-- `GET /api/v1/onboarding/place-candidate-sets/current`: 현재 발행된 온보딩 관광지 후보 10개
-- `/api/v1/admin/onboarding/place-candidate-sets/**`: 관리자 후보 세트 초안·조회·수정·발행·보관
-- `/api/v1/admin/hori-tips/**`: 운영진 Hori Tip 초안·조회·수정·활성·비활성·보관과 변경 이력 기록
-- `GET /api/v1/admin/open-api/summary`: 외부 API 기간별 성공·실패·snapshot 현황
-- `GET /api/v1/admin/open-api/calls/**`: 마스킹된 호출 로그 목록과 상세
-- `GET /api/v1/admin/open-api/snapshots/**`: 원천 본문을 제외한 immutable snapshot 메타데이터
-- `POST /api/v1/admin/open-api/snapshots/{snapshotId}/download-url`: 감사 기록이 남는 5분 private S3 GET URL
-- `GET /api/v1/admin/open-api/sync-cursors`: 외부 API operation별 동기화 위치와 성공·실패 현황
-- `PUT /api/v1/admin/open-api/sync-cursors/{cursorId}/enabled`: ADMIN 전용 자동 동기화 활성·비활성 변경
-- `POST /api/v1/admin/open-api/sync-cursors/{cursorId}/reset`: ADMIN 전용 지정 cursor 위치 초기화와 감사 기록
-- `GET /api/v1/admin/batch-jobs/**`: 배치 작업·item의 안전한 실행 이력 조회
-- `POST /api/v1/admin/batch-jobs`: KTO 전체 장소 목록 초기 수집·일일 동기화·축제 수집 수동 접수
-- `POST /api/v1/admin/batch-jobs/{jobId}/retry`: 실패·부분 실패 작업의 새 재시도 작업 접수
-- `GET /api/v1/admin/kto/english-match-reviews`: KTO 영문 매칭 검토·미연결 목록 조회
-- `GET /api/v1/admin/kto/english-match-reviews/{sourceRecordId}`: 영문 원본·국문 후보 근거·감사 이력 조회
-- `PUT /api/v1/admin/kto/english-match-reviews/{sourceRecordId}/decision`: 후보 기반 수동 확정 또는 거절
-- `GET /api/v1/admin/data-quality/summary`: 관광지 준비도·누락 항목·번역 출처의 읽기 전용 집계
-
-Google 로그인은 `POST /api/v1/auth/google`에서 Google ID Token을 검증하고 KoReady Access/Refresh Token을 발급합니다. 계정 연결에는 이메일이 아니라 Google `sub`를 사용하며 Refresh Token은 해시만 저장하고 사용할 때마다 회전합니다. `prod`에서 보호 API를 익명 또는 로컬 개발값으로 호출하면 `401`이며, 로컬에서만 개발 인증 하네스를 사용할 수 있습니다. `staging`에서는 제한된 운영 작업을 위해 `KOREADY_STAGING_OPERATOR_ENABLED=true`와 충분히 긴 `KOREADY_STAGING_OPERATOR_TOKEN`을 secret 환경변수로 함께 설정할 수 있습니다. 이 토큰은 `X-Koready-Operator-Token` 헤더가 있는 `/api/v1/admin/**` 요청에만 `OPERATOR` 권한을 부여하며, 값은 로그·문서·클라이언트 코드에 기록하지 않습니다. 위치 검색도 로컬에서는 비식별 fixture를 사용하며 실제 Kakao 호출은 `LOCATION_SEARCH_PROVIDER=kakao`, `KAKAO_REST_API_KEY`, 32바이트 이상의 `LOCATION_SEARCH_TOKEN_SECRET`을 secret 환경변수로 설정한 환경에서만 활성화합니다. private S3 snapshot은 `POST /api/v1/admin/open-api/snapshots/{snapshotId}/download-url`로 기본 5분짜리 GET URL을 발급합니다. `KTO_SNAPSHOT_STORAGE=s3`일 때 보관 정책과 만료 시각이 허용되는 KTO snapshot만 `downloadable=true`이며 URL과 AWS 자격증명은 감사 로그에 저장하지 않습니다. KTO 영문 수동 확정은 matcher가 제시한 국문 장소 후보만 허용하고, 기존 `MANUAL_EDITED` 영문을 보호하며, 인증 작업자·사유·버전·전후 상태를 감사 이력에 남깁니다. KTO 수동 배치는 일일 동기화와 축제 수집만 접수하며, `PENDING` 또는 `RUNNING` 작업이 있으면 새 작업을 `409`로 막습니다. 접수 응답 `202`는 완료가 아니라 대기열 등록이므로 `jobId`로 상태를 조회합니다. 일일 동기화는 `startPage`·`maxPages`, 축제 수집은 여기에 `eventStartDate`를 추가로 받으며 실패 또는 부분 실패 작업만 새 retry job으로 재시도할 수 있습니다. 공모전 증빙 ZIP은 `POST /api/v1/admin/evidence-bundles`로 접수하며 서버가 한 번에 하나씩 생성합니다. ZIP에는 마스킹된 호출·배치·cursor·품질 집계와 허용된 KTO 원본 표본만 들어가고, TMAP 원본·사용자 정보·토큰은 제외합니다. local 저장소에서는 생성·상태 조회까지 가능하며, `KTO_SNAPSHOT_STORAGE=s3` 환경에서만 완성 번들의 5분 signed URL을 발급합니다. sync cursor 변경 API는 외부 호출이나 배치를 시작하지 않고 관리 상태만 변경하며 실행자·사유·전후 값을 감사 로그에 남깁니다. 데이터 품질 요약은 외부 API를 새로 호출하지 않고 저장된 DB의 집계값만 반환합니다. 추천 덱은 테스트 principal과 MySQL fixture로 사용자별 고정 순서, 30일 재노출 제한, 소유권을 검증합니다. 온보딩 완료도 테스트 principal과 MySQL fixture로 검증하며, 태그 점수 정책 승인 전에는 `preferenceTags=[]`를 반환합니다. Buddy 프로필 PUT은 현재 form 전체를 교체합니다. 공개 상세와 장소별 메이트 목록은 프로필·SNS 공개 설정과 양방향 차단을 서버에서 적용하고 메시지 가능 여부를 계산합니다. 메이트 후보는 해당 장소의 활성 저장 기록만 사용하며 온보딩 취향 선택은 공개하지 않습니다. 차단 관계는 방향성 있게 저장하고 반복 PUT에서도 최초 차단 시각을 유지하며, 반복 DELETE는 기록 유무와 관계없이 204를 반환합니다. 첫 쪽지와 답장은 발신자별 `Idempotency-Key`를 DB에서 유일하게 보장하고 공개·수신 허용·양방향 차단을 전송 시점에 다시 검증합니다. TMAP Route와 관리자 제재 처리는 후속 범위입니다. 프론트는 Swagger 계약으로 먼저 연동하고, 백엔드는 MockMvc에서 사용자·관리자 역할별 계약을 검증합니다.
-
-운영 Google 계정의 단일 역할은 Aiven `users.role`에서 `USER`, `ADMIN`, `OPERATOR`,
-`AUDITOR` 중 하나로 관리한다. 로그인과 refresh는 최신 DB 역할을 JWT `roles` 배열에
-반영한다. DB 직접 변경과 기존 token 처리 절차는
-[운영 관리자 계정 역할 설정](docs/ADMIN_ACCOUNT_ROLE.md)을 따른다.
-
-`local`과 `staging` 프로필에서는 `/swagger-ui.html`에서 프론트 연동용 Swagger UI를 제공합니다. UI는 `docs/koready-backend-design/openapi.yaml`을 빌드 시 포함한 단일 계약 파일을 표시합니다.
-
-PM·디자인·프론트 회의에서는 [2026-07-19 개발 현황 및 협의 보고서](docs/MEETING_PROGRESS_REPORT_2026-07-19.md)에서 구현 범위, 신뢰도, 전체 API 입력·출력, 다음 결정 항목을 함께 확인합니다.
-
-## Verification
+## 실행과 문서
 
 ```powershell
 # 빠른 단위·슬라이스·아키텍처 테스트
@@ -348,52 +111,16 @@ PM·디자인·프론트 회의에서는 [2026-07-19 개발 현황 및 협의 �
 # Docker 기반 MySQL 통합 테스트
 ./gradlew integrationTest
 
-# PR 전 필수 품질 게이트와 80% 커버리지 검증
+# PR 전 전체 품질 게이트
 ./gradlew clean check
-
-docker build --tag koready-backend:local .
 ```
 
-`test`는 빠른 피드백을 위해 `integration` 태그를 제외합니다. `check`는 일반 테스트, Testcontainers MySQL 통합 테스트, ArchUnit 의존성 규칙과 JaCoCo 라인 커버리지 80% 기준을 모두 실행합니다. Docker가 없는 환경에서는 Testcontainers 테스트만 건너뜁니다.
+- [로컬 실행, 프로필, 배포, API 규칙](docs/DEVELOPMENT_AND_OPERATIONS.md)
+- [AI 개발 품질 게이트](docs/AI_DEVELOPMENT_HARNESS.md)
+- [공개 가능한 데이터 기준](docs/PUBLIC_DATA_POLICY.md)
+- [관리자 계정 역할 설정](docs/ADMIN_ACCOUNT_ROLE.md)
+- [기여 절차](CONTRIBUTING.md)
 
-## Deployment
+## 프로젝트 상태
 
-- 기능 개발과 API 스모크 테스트는 로컬에서 먼저 완료합니다.
-- AWS Elastic Beanstalk의 `staging` 환경은 프론트·PM이 통합된 Swagger와 API를 확인하는 공유 환경이며 일상 개발 서버로 사용하지 않습니다.
-- EB는 Dockerfile을 빌드해 서울 리전의 single instance에서 실행하고, Aiven MySQL에 연결합니다. 실제 사용자 운영 전에는 다중 인스턴스·로드 밸런서·롤백 정책을 별도 확정합니다.
-- EB 환경 변수와 instance profile 연결 절차는 `docs/AWS_EB_INTEGRATION_ENVIRONMENT.md`에서 관리합니다. secret 값은 저장소에 기록하지 않습니다.
-- `api.koready.cloud`의 ACM, CloudFront, Route 53 HTTPS 연결과 검증 절차는
-  `docs/AWS_API_EDGE_HTTPS.md`에서 관리합니다. API 응답 캐시는 비활성화합니다.
-- Render 설정 `render.yaml`은 EB 검증이 끝날 때까지 롤백 기준으로만 유지하며, 새 기능의 공유 배포 기준은 EB입니다.
-- Aiven 연결 및 IP 허용목록 절차는 `docs/AIVEN_STAGING.md`에서 관리합니다.
-- KTO 페이지·동시성·JVM 메모리 기준은 `docs/KTO_BATCH_OPERATIONS.md`에서 관리합니다.
-- KTO 영문 매칭의 상태, 운영 호출 흐름과 안전 규칙은
-  `docs/KTO_ENGLISH_MATCH_REVIEW.md`에서 관리합니다.
-- KTO 원본 snapshot용 서울 리전 private S3와 IAM 기준은
-  `docs/AWS_S3_SNAPSHOT_STORAGE.md`에서 관리합니다. local 저장이 기본이며 S3는
-  명시적으로 선택한 수집 프로세스에서만 사용합니다. EB에는 장기 AWS key 대신 instance profile을 연결합니다.
-- EB 스테이징 환경은 프론트·PM 공유와 통제된 KTO 수집에 사용합니다. 장기 운영 환경의
-  규모·고가용성 구성은 실제 사용량을 확인한 뒤 별도로 결정합니다.
-- GitHub Actions OIDC 기반 EB 자동 배포의 AWS 준비, 저장소 변수, 실패 확인과 복구 절차는
-  `docs/AWS_EB_GITHUB_ACTIONS_DEPLOYMENT.md`에서 관리합니다. AWS 장기 액세스 키는 사용하지 않습니다.
-
-## API Conventions
-
-- Base URL: `/api/v1`
-- Auth: 기본은 `Authorization: Bearer <accessToken>`, 문서에서 `security: []`인 읽기 API는 익명 호출 가능
-- Language: `Accept-Language: ko-KR` 또는 `en-US`
-- Timezone: `Asia/Seoul`
-- JSON field naming: `camelCase`
-- List response: `data.items`, `data.nextCursor`, `data.hasMore`
-
-## Secret Handling
-
-- `.env`, `.env.local`, `.env.*.local`은 Git에서 제외합니다.
-- `.env.example`에는 placeholder만 둡니다.
-- Aiven 연결정보가 든 `.env.local`을 `docker compose --env-file`로 전달하지 않습니다.
-- API 키, OAuth/JWT 토큰, Authorization 헤더, 개인 위치정보를 로그·문서·fixture에 기록하지 않습니다.
-- 원본 외부 API 응답은 공개 안전성 검토와 마스킹을 통과한 경우에만 저장합니다.
-- KTO 수집 원본 gzip은 Git 저장소 밖의 로컬 snapshot 디렉터리에 저장하거나,
-  명시적으로 선택한 수집 프로세스에서 서울 리전 private S3에 저장합니다.
-
-기여 절차는 `CONTRIBUTING.md`, AI 개발 규칙은 `AGENTS.md`, 자동 품질 게이트는 `docs/AI_DEVELOPMENT_HARNESS.md`, 공개 가능한 데이터 기준은 `docs/PUBLIC_DATA_POLICY.md`를 참고합니다.
+2026 관광데이터 활용 공모전을 목표로 개발 중입니다. 공개 서비스는 기능 검증 단계이며, `staging`은 프론트 연동과 통제된 데이터 수집을 위한 공유 환경으로 사용합니다.

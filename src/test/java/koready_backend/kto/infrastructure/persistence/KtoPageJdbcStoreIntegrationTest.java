@@ -108,7 +108,7 @@ class KtoPageJdbcStoreIntegrationTest {
 		assertEquals(Boolean.TRUE, booleanValue("active", "100001"));
 		assertEquals(Boolean.FALSE, booleanValue("show_flag", "100001"));
 		assertEquals("서울특별시 테스트구 테스트로 1", value("address", "100001"));
-		assertNull(value("service_region_code", "100002"));
+		assertEquals("SEOUL", value("service_region_code", "100002"));
 		assertEquals("99", value("area_code", "100002"));
 		assertEquals(Boolean.FALSE, booleanValue("show_flag", "100002"));
 		assertNull(value("latitude", "100002"));

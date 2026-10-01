@@ -31,6 +31,7 @@ import koready_backend.kto.domain.KtoPlaceClassificationInput;
 import koready_backend.kto.domain.KtoPlaceItem;
 import koready_backend.kto.domain.KtoPlaceStyleRuleV1;
 import koready_backend.kto.infrastructure.config.KtoBatchProperties;
+import koready_backend.place.domain.ServiceRegionAddressMapper;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -55,7 +56,7 @@ public class KtoPageJdbcStore implements KtoPageStore {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			kto_content_type_id = VALUES(kto_content_type_id),
-			service_region_code = VALUES(service_region_code),
+			service_region_code = COALESCE(VALUES(service_region_code), service_region_code),
 			area_code = VALUES(area_code),
 			sigungu_code = VALUES(sigungu_code),
 			ldong_regn_cd = VALUES(ldong_regn_cd),
@@ -390,10 +391,17 @@ public class KtoPageJdbcStore implements KtoPageStore {
 		Instant observedAt
 	) {
 		String title = item.title();
+		String address = joinAddress(item.address1(), item.address2());
+		String resolvedServiceRegionCode = serviceRegionCode;
+		if (resolvedServiceRegionCode == null) {
+			resolvedServiceRegionCode = ServiceRegionAddressMapper.fromAddress(address)
+				.map(Enum::name)
+				.orElse(null);
+		}
 		return new PlaceRow(
 			item.contentId(),
 			item.contentTypeId(),
-			serviceRegionCode,
+			resolvedServiceRegionCode,
 			item.areaCode(),
 			item.districtCode(),
 			item.legalDongRegionCode(),
@@ -401,7 +409,7 @@ public class KtoPageJdbcStore implements KtoPageStore {
 			item.classificationCode1(),
 			item.classificationCode2(),
 			item.classificationCode3(),
-			joinAddress(item.address1(), item.address2()),
+			address,
 			coordinate(item.latitude(), -90, 90),
 			coordinate(item.longitude(), -180, 180),
 			item.phoneNumber(),

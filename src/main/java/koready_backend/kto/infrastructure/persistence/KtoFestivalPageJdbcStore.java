@@ -28,6 +28,7 @@ import koready_backend.kto.application.port.KtoFestivalPageStore;
 import koready_backend.kto.domain.KtoFestivalItem;
 import koready_backend.kto.domain.KtoPlaceItem;
 import koready_backend.kto.infrastructure.config.KtoBatchProperties;
+import koready_backend.place.domain.ServiceRegionAddressMapper;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -338,6 +339,7 @@ public class KtoFestivalPageJdbcStore implements KtoFestivalPageStore {
 
 	private FestivalRow toFestivalRow(KtoFestivalItem festival, RegionMappings mappings) {
 		KtoPlaceItem item = festival.place();
+		String address = joinAddress(item.address1(), item.address2());
 		String serviceRegion = item.areaCode() == null
 			? null
 			: mappings.areaCodes().get(item.areaCode());
@@ -345,6 +347,11 @@ public class KtoFestivalPageJdbcStore implements KtoFestivalPageStore {
 			serviceRegion = legalServiceRegion(
 				mappings.legalCodes(),
 				item.legalDongRegionCode());
+		}
+		if (serviceRegion == null) {
+			serviceRegion = ServiceRegionAddressMapper.fromAddress(address)
+				.map(Enum::name)
+				.orElse(null);
 		}
 		return new FestivalRow(
 			item.contentId(),
@@ -357,7 +364,7 @@ public class KtoFestivalPageJdbcStore implements KtoFestivalPageStore {
 			item.classificationCode1(),
 			item.classificationCode2(),
 			item.classificationCode3(),
-			joinAddress(item.address1(), item.address2()),
+			address,
 			coordinate(item.latitude(), -90, 90),
 			coordinate(item.longitude(), -180, 180),
 			item.phoneNumber(),

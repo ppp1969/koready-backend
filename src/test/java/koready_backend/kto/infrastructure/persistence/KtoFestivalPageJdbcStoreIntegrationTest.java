@@ -247,6 +247,30 @@ class KtoFestivalPageJdbcStoreIntegrationTest {
 			String.class));
 	}
 
+	@Test
+	void fallsBackToTheFestivalAddressWhenKtoRegionCodesAreMissing() {
+		KtoFestivalItem source = item(
+			"700008", "주소 기반 축제", null,
+			LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 2), "f");
+		KtoPlaceItem place = source.place();
+		KtoFestivalItem addressOnly = new KtoFestivalItem(
+			new KtoPlaceItem(
+				place.contentId(), place.contentTypeId(), place.title(),
+				"인천광역시 부평구 부평대로 1", null, null, null,
+				place.categoryCode1(), place.categoryCode2(), place.categoryCode3(),
+				place.copyrightType(), place.createdTime(), place.primaryImageUrl(),
+				place.thumbnailImageUrl(), place.longitude(), place.latitude(),
+				place.mapLevel(), place.modifiedTime(), place.phoneNumber(),
+				place.postalCode(), place.showFlag(), null, null,
+				place.classificationCode1(), place.classificationCode2(),
+				place.classificationCode3(), place.sourceHash()),
+			source.startDate(), source.endDate(), source.progressType(), source.festivalType());
+
+		pageStore.store(command(page(1, "a", addressOnly), "address-region", "b"));
+
+		assertEquals("GYEONGGI", value("service_region_code", "places"));
+	}
+
 	private KtoStoreFestivalPageCommand command(
 		KtoFestivalPage page,
 		String storageSuffix,

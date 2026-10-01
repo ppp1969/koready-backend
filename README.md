@@ -2,6 +2,13 @@
 
 KoReady는 한국에 머무는 외국인 유학생과 장기 체류자가 유명 관광지 밖의 새로운 장소를 찾고, 자신의 취향과 현재 위치에 맞는 여행을 계획하도록 돕는 서비스입니다.
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/bd9406bf-4842-4bdb-80fe-d774ff1acecb" alt="KoReady 홈 화면" width="24%" />
+  <img src="https://github.com/user-attachments/assets/20e1617f-c4bf-41cf-a0e2-88ee12072ec0" alt="KoReady 전국 지도 화면" width="24%" />
+  <img src="https://github.com/user-attachments/assets/ab95a5a7-715f-4cc1-b9f4-f7f1dceb1488" alt="KoReady 서울 여행지 목록" width="24%" />
+  <img src="https://github.com/user-attachments/assets/0ff05a5c-dbc4-45ea-9ecf-e51f410c8c32" alt="KoReady 장소 상세 화면" width="24%" />
+</p>
+
 [서비스 바로가기](https://koready.site/) · [API 계약](docs/koready-backend-design/openapi.yaml) · [개발·운영 가이드](docs/DEVELOPMENT_AND_OPERATIONS.md)
 
 한국관광공사에서 받은 원본 정보를 그대로 나열하기보다, 여행자가 실제로 궁금해할 설명과 이미지, 위치 정보로 다듬어 제공합니다. 백엔드에서는 관광 데이터 수집과 AI 가공, 장소 추천, 이동 경로, Buddy 기능, 사용자·관리자 인증과 운영 기록을 담당합니다.
